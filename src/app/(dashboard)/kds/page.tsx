@@ -24,10 +24,10 @@ interface KDSDetail {
 
 type OrderStatus = 'PENDING' | 'COOKING' | 'READY';
 
-const columns: { key: OrderStatus; label: string; color: string; bgColor: string }[] = [
-  { key: 'PENDING', label: 'Chờ xử lý', color: 'text-yellow-400', bgColor: 'bg-yellow-900/30 border-yellow-700' },
-  { key: 'COOKING', label: 'Đang nấu', color: 'text-orange-400', bgColor: 'bg-orange-900/30 border-orange-700' },
-  { key: 'READY', label: 'Sẵn sàng', color: 'text-green-400', bgColor: 'bg-green-900/30 border-green-700' },
+const columns: { key: OrderStatus; label: string; color: string; bgColor: string; borderColor: string }[] = [
+  { key: 'PENDING', label: 'Chờ xử lý', color: 'text-amber-600', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
+  { key: 'COOKING', label: 'Đang nấu', color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
+  { key: 'READY', label: 'Sẵn sàng', color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
 ];
 
 function timeElapsed(createdAt: string): string {
@@ -124,25 +124,28 @@ export default function KDSPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-950">
-        <div className="text-gray-400 text-lg">Đang tải...</div>
+      <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+          <div className="text-slate-500 text-sm">Đang tải...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] bg-gray-950 text-white overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-64px)] bg-[#f8f9fc] overflow-hidden -m-4 lg:-m-6">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900">
-        <h1 className="text-lg font-bold">🍳 Kitchen Display System</h1>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-white">
+        <h1 className="text-lg font-bold text-slate-800">🍳 Kitchen Display System</h1>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${wsRef.current?.readyState === WebSocket.OPEN ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xs text-gray-500">
+            <span className={`w-2 h-2 rounded-full ${wsRef.current?.readyState === WebSocket.OPEN ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-slate-400">
               {wsRef.current?.readyState === WebSocket.OPEN ? 'Đã kết nối' : 'Mất kết nối'}
             </span>
           </div>
-          <button onClick={loadOrders} className="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 rounded-lg">
+          <button onClick={loadOrders} className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors">
             🔄 Làm mới
           </button>
         </div>
@@ -156,26 +159,26 @@ export default function KDSPage() {
             <div key={col.key} className="flex-1 min-w-[300px] flex flex-col">
               <div className="flex items-center gap-2 mb-3 px-1">
                 <h2 className={`text-sm font-semibold ${col.color}`}>{col.label}</h2>
-                <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
                   {colOrders.length}
                 </span>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                 {colOrders.length === 0 && (
-                  <div className="text-gray-700 text-sm text-center py-8">Trống</div>
+                  <div className="text-slate-300 text-sm text-center py-8">Trống</div>
                 )}
                 {colOrders.map(order => (
                   <div
                     key={order.id}
-                    className={`rounded-lg border p-3 ${col.bgColor} transition-all`}
+                    className={`rounded-xl border ${col.borderColor} ${col.bgColor} p-3 transition-all shadow-sm`}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">{order.tableName || `#${order.id}`}</span>
-                        <span className="text-[10px] text-gray-500">#{order.id}</span>
+                        <span className="text-sm font-bold text-slate-800">{order.tableName || `#${order.id}`}</span>
+                        <span className="text-[10px] text-slate-400">#{order.id}</span>
                       </div>
-                      <span className="text-[11px] text-gray-400">
+                      <span className="text-[11px] text-slate-400">
                         ⏱ {timeElapsed(order.createdAt)}
                       </span>
                     </div>
@@ -184,14 +187,14 @@ export default function KDSPage() {
                       {order.items.map(item => (
                         <div key={item.id} className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-1 min-w-0">
-                            <span className="font-medium text-gray-200">{item.quantity}×</span>
-                            <span className="text-gray-300 truncate">{item.productName}</span>
+                            <span className="font-medium text-slate-700">{item.quantity}×</span>
+                            <span className="text-slate-600 truncate">{item.productName}</span>
                             {item.variantName !== item.productName && (
-                              <span className="text-gray-500 truncate">({item.variantName})</span>
+                              <span className="text-slate-400 truncate">({item.variantName})</span>
                             )}
                           </div>
-                          {item.status === 'COOKING' && <span className="text-orange-400">🔥</span>}
-                          {item.status === 'READY' && <span className="text-green-400">✓</span>}
+                          {item.status === 'COOKING' && <span className="text-orange-500">🔥</span>}
+                          {item.status === 'READY' && <span className="text-emerald-500">✓</span>}
                         </div>
                       ))}
                     </div>
@@ -200,7 +203,7 @@ export default function KDSPage() {
                       {col.key === 'PENDING' && (
                         <button
                           onClick={() => updateStatus(order.id, 'COOKING')}
-                          className="flex-1 py-1.5 bg-orange-600 hover:bg-orange-500 rounded text-xs font-medium transition-colors"
+                          className="flex-1 py-1.5 bg-orange-500 hover:bg-orange-400 rounded-lg text-xs font-medium text-white transition-colors"
                         >
                           🔥 Bắt đầu nấu
                         </button>
@@ -208,13 +211,13 @@ export default function KDSPage() {
                       {col.key === 'COOKING' && (
                         <button
                           onClick={() => updateStatus(order.id, 'READY')}
-                          className="flex-1 py-1.5 bg-green-600 hover:bg-green-500 rounded text-xs font-medium transition-colors"
+                          className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-medium text-white transition-colors"
                         >
                           ✅ Đánh dấu sẵn sàng
                         </button>
                       )}
                       {col.key === 'READY' && (
-                        <span className="flex-1 py-1.5 bg-gray-800 rounded text-xs font-medium text-center text-gray-500">
+                        <span className="flex-1 py-1.5 bg-slate-100 rounded-lg text-xs font-medium text-center text-slate-400">
                           Đã hoàn thành
                         </span>
                       )}

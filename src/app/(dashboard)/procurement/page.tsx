@@ -1,17 +1,17 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { useAuth } from '@/contexts/AuthContext';
 
-const inputCls = 'w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm';
-const btnPrimary = 'px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition';
-const btnDanger = 'px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm transition';
-const btnSecondary = 'px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition';
-const btnSuccess = 'px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-sm transition';
+const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b] text-sm';
+const btnPrimary = 'px-4 py-2 rounded-lg bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition';
+const btnDanger = 'px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm transition';
+const btnSecondary = 'px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition';
+const btnSuccess = 'px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm transition';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// --- Types ---
 interface PurchaseOrder {
   id: number;
   supplier: { id: number; name: string };
@@ -41,7 +41,7 @@ interface RawMaterial {
   unit: string;
 }
 
-// ─── Modal ───────────────────────────────────────────────────────────────────
+// --- Modal ---
 function Modal({
   open,
   onClose,
@@ -58,10 +58,10 @@ function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className={`bg-gray-900 border border-gray-700 rounded-xl w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto shadow-2xl`}>
-        <div className="flex items-center justify-between p-5 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
+      <div className={`bg-white border border-slate-200 rounded-xl w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto shadow-lg`}>
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-800 text-xl">x</button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -69,9 +69,7 @@ function Modal({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
-// ═══════════════════════════════════════════════════════════════════════════════
 export default function ProcurementPage() {
   const { activeBranchId } = useAuth();
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
@@ -120,18 +118,17 @@ export default function ProcurementPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Procurement Management</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Procurement Management</h1>
         <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Purchase Order</button>
       </div>
 
-      {/* PO List */}
       {loading ? (
-        <div className="text-gray-400 py-8 text-center">Loading purchase orders...</div>
+        <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading purchase orders...</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-400 border-b border-gray-700">
+              <tr className="text-left text-slate-500 border-b border-slate-200">
                 <th className="py-3 px-4">PO #</th>
                 <th className="py-3 px-4">Supplier</th>
                 <th className="py-3 px-4">Date</th>
@@ -142,55 +139,53 @@ export default function ProcurementPage() {
             </thead>
             <tbody>
               {orders.map((po) => (
-                <tr key={po.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                  <td className="py-3 px-4 text-white font-medium">#{po.id}</td>
-                  <td className="py-3 px-4 text-gray-300">{po.supplier?.name}</td>
-                  <td className="py-3 px-4 text-gray-300">{new Date(po.orderDate).toLocaleDateString()}</td>
-                  <td className="py-3 px-4 text-gray-300">${po.totalAmount?.toFixed(2)}</td>
+                <tr key={po.id} className="border-b border-slate-100 hover:bg-slate-50">
+                  <td className="py-3 px-4 text-slate-800 font-medium">#{po.id}</td>
+                  <td className="py-3 px-4 text-slate-600">{po.supplier?.name}</td>
+                  <td className="py-3 px-4 text-slate-600">{new Date(po.orderDate).toLocaleDateString()}</td>
+                  <td className="py-3 px-4 text-slate-600">${po.totalAmount?.toFixed(2)}</td>
                   <td className="py-3 px-4">
                     <StatusBadge status={po.status} />
                   </td>
                   <td className="py-3 px-4 text-right space-x-2">
-                    <button onClick={() => viewDetails(po)} className="text-blue-400 hover:text-blue-300 text-sm">View</button>
+                    <button onClick={() => viewDetails(po)} className="text-[#25439b] hover:text-[#1c3580] text-sm">View</button>
                     {po.status === 'PENDING' && (
-                      <button onClick={() => approvePO(po.id)} className="text-green-400 hover:text-green-300 text-sm">Approve</button>
+                      <button onClick={() => approvePO(po.id)} className="text-emerald-600 hover:text-emerald-700 text-sm">Approve</button>
                     )}
                     {po.status === 'APPROVED' && (
                       <>
-                        <button onClick={() => { setShowGRN(true); setViewingPO(po); }} className="text-yellow-400 hover:text-yellow-300 text-sm">GRN</button>
-                        <button onClick={() => { setShowMatch(true); setViewingPO(po); }} className="text-purple-400 hover:text-purple-300 text-sm">Match</button>
+                        <button onClick={() => { setShowGRN(true); setViewingPO(po); }} className="text-amber-600 hover:text-amber-700 text-sm">GRN</button>
+                        <button onClick={() => { setShowMatch(true); setViewingPO(po); }} className="text-purple-600 hover:text-purple-700 text-sm">Match</button>
                       </>
                     )}
                   </td>
                 </tr>
               ))}
               {orders.length === 0 && (
-                <tr><td colSpan={6} className="py-8 text-center text-gray-500">No purchase orders found</td></tr>
+                <tr><td colSpan={6} className="py-8 text-center text-slate-400">No purchase orders found</td></tr>
               )}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Create PO Modal */}
       <CreatePOModal open={showCreate} onClose={() => { setShowCreate(false); loadOrders(); }} branchId={activeBranchId} />
 
-      {/* PO Details Modal */}
       <Modal open={!!viewingPO && !showGRN && !showMatch} onClose={() => setViewingPO(null)} title={`Purchase Order #${viewingPO?.id}`} wide>
         {viewingPO && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div><span className="text-gray-400 block text-xs">Supplier</span><span className="text-white">{viewingPO.supplier?.name}</span></div>
-              <div><span className="text-gray-400 block text-xs">Date</span><span className="text-white">{new Date(viewingPO.orderDate).toLocaleDateString()}</span></div>
-              <div><span className="text-gray-400 block text-xs">Total</span><span className="text-white">${viewingPO.totalAmount?.toFixed(2)}</span></div>
-              <div><span className="text-gray-400 block text-xs">Status</span><StatusBadge status={viewingPO.status} /></div>
+              <div><span className="text-slate-500 block text-xs">Supplier</span><span className="text-slate-800">{viewingPO.supplier?.name}</span></div>
+              <div><span className="text-slate-500 block text-xs">Date</span><span className="text-slate-800">{new Date(viewingPO.orderDate).toLocaleDateString()}</span></div>
+              <div><span className="text-slate-500 block text-xs">Total</span><span className="text-slate-800">${viewingPO.totalAmount?.toFixed(2)}</span></div>
+              <div><span className="text-slate-500 block text-xs">Status</span><StatusBadge status={viewingPO.status} /></div>
             </div>
             {viewingPO.items && viewingPO.items.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-gray-300 mb-2">Items</h3>
+                <h3 className="text-sm font-medium text-slate-600 mb-2">Items</h3>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-500 border-b border-gray-700">
+                    <tr className="text-left text-slate-400 border-b border-slate-200">
                       <th className="py-2 px-3">Material</th>
                       <th className="py-2 px-3">Qty</th>
                       <th className="py-2 px-3">Unit Price</th>
@@ -199,11 +194,11 @@ export default function ProcurementPage() {
                   </thead>
                   <tbody>
                     {viewingPO.items.map((item, idx) => (
-                      <tr key={idx} className="border-b border-gray-800">
-                        <td className="py-2 px-3 text-white">{item.rawMaterialName}</td>
-                        <td className="py-2 px-3 text-gray-300">{item.quantity}</td>
-                        <td className="py-2 px-3 text-gray-300">${item.unitPrice?.toFixed(2)}</td>
-                        <td className="py-2 px-3 text-gray-300">{item.unit}</td>
+                      <tr key={idx} className="border-b border-slate-100">
+                        <td className="py-2 px-3 text-slate-800">{item.rawMaterialName}</td>
+                        <td className="py-2 px-3 text-slate-600">{item.quantity}</td>
+                        <td className="py-2 px-3 text-slate-600">${item.unitPrice?.toFixed(2)}</td>
+                        <td className="py-2 px-3 text-slate-600">{item.unit}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -214,34 +209,30 @@ export default function ProcurementPage() {
         )}
       </Modal>
 
-      {/* GRN Modal */}
       <GRNModal open={showGRN} onClose={() => { setShowGRN(false); setViewingPO(null); loadOrders(); }} po={viewingPO} />
 
-      {/* Invoice Match Modal */}
       <MatchModal open={showMatch} onClose={() => { setShowMatch(false); setViewingPO(null); loadOrders(); }} po={viewingPO} />
     </div>
   );
 }
 
-// ─── Status Badge ────────────────────────────────────────────────────────────
+// --- Status Badge ---
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    PENDING: 'bg-yellow-600/20 text-yellow-400',
-    APPROVED: 'bg-green-600/20 text-green-400',
-    RECEIVED: 'bg-blue-600/20 text-blue-400',
-    MATCHED: 'bg-purple-600/20 text-purple-400',
-    CANCELLED: 'bg-red-600/20 text-red-400',
+    PENDING: 'bg-amber-50 text-amber-600',
+    APPROVED: 'bg-emerald-50 text-emerald-600',
+    RECEIVED: 'bg-[#25439b]/10 text-[#25439b]',
+    MATCHED: 'bg-purple-50 text-purple-600',
+    CANCELLED: 'bg-red-50 text-red-600',
   };
   return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-600/20 text-gray-400'}`}>
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || 'bg-slate-100 text-slate-500'}`}>
       {status}
     </span>
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // CREATE PO MODAL
-// ═══════════════════════════════════════════════════════════════════════════════
 function CreatePOModal({
   open,
   onClose,
@@ -316,7 +307,7 @@ function CreatePOModal({
     <Modal open={open} onClose={onClose} title="New Purchase Order" wide>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm text-gray-300 mb-1">Supplier</label>
+          <label className="block text-sm text-slate-600 mb-1">Supplier</label>
           <select className={inputCls} value={supplierId} onChange={e => setSupplierId(e.target.value)} required>
             <option value="">Select supplier...</option>
             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -325,8 +316,8 @@ function CreatePOModal({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-300 font-medium">Items</label>
-            <button type="button" onClick={addItem} className="text-sm text-blue-400 hover:text-blue-300">+ Add Item</button>
+            <label className="text-sm text-slate-600 font-medium">Items</label>
+            <button type="button" onClick={addItem} className="text-sm text-[#25439b] hover:text-[#1c3580]">+ Add Item</button>
           </div>
           {items.map((item, idx) => (
             <div key={idx} className="flex gap-2 items-end">
@@ -345,18 +336,18 @@ function CreatePOModal({
               <div className="w-16">
                 <input className={inputCls} value={item.unit} readOnly />
               </div>
-              <button type="button" onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-300 pb-2 text-lg">✕</button>
+              <button type="button" onClick={() => removeItem(idx)} className="text-red-500 hover:text-red-600 pb-2 text-lg">x</button>
             </div>
           ))}
         </div>
 
         {items.length > 0 && (
-          <div className="text-right text-sm text-gray-300">
-            Total: <span className="text-white font-semibold">${totalAmount.toFixed(2)}</span>
+          <div className="text-right text-sm text-slate-600">
+            Total: <span className="text-slate-800 font-semibold">${totalAmount.toFixed(2)}</span>
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-2 border-t border-gray-700">
+        <div className="flex justify-end gap-3 pt-2 border-t border-slate-200">
           <button type="button" onClick={onClose} className={btnSecondary}>Cancel</button>
           <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Creating...' : 'Create PO'}</button>
         </div>
@@ -365,9 +356,7 @@ function CreatePOModal({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // GRN MODAL
-// ═══════════════════════════════════════════════════════════════════════════════
 function GRNModal({
   open,
   onClose,
@@ -423,24 +412,24 @@ function GRNModal({
   return (
     <Modal open={open} onClose={onClose} title={`Create GRN for PO #${po?.id}`} wide>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-gray-400">Record received quantities for each item in this purchase order.</p>
+        <p className="text-sm text-slate-500">Record received quantities for each item in this purchase order.</p>
         {items.map((item, idx) => (
           <div key={idx} className="flex gap-3 items-end">
             <div className="flex-1">
-              <label className="block text-xs text-gray-500 mb-1">Material</label>
+              <label className="block text-xs text-slate-400 mb-1">Material</label>
               <input className={inputCls} value={item.rawMaterialName} readOnly />
             </div>
             <div className="w-32">
-              <label className="block text-xs text-gray-500 mb-1">Received Qty</label>
+              <label className="block text-xs text-slate-400 mb-1">Received Qty</label>
               <input type="number" step="0.01" className={inputCls} value={item.receivedQuantity} onChange={e => updateItem(idx, 'receivedQuantity', e.target.value)} />
             </div>
             <div className="w-20">
-              <label className="block text-xs text-gray-500 mb-1">Unit</label>
+              <label className="block text-xs text-slate-400 mb-1">Unit</label>
               <input className={inputCls} value={item.unit} readOnly />
             </div>
           </div>
         ))}
-        <div className="flex justify-end gap-3 pt-2 border-t border-gray-700">
+        <div className="flex justify-end gap-3 pt-2 border-t border-slate-200">
           <button type="button" onClick={onClose} className={btnSecondary}>Cancel</button>
           <button type="submit" disabled={submitting} className={btnSuccess}>{submitting ? 'Submitting...' : 'Submit GRN'}</button>
         </div>
@@ -449,9 +438,7 @@ function GRNModal({
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
 // INVOICE MATCH MODAL
-// ═══════════════════════════════════════════════════════════════════════════════
 function MatchModal({
   open,
   onClose,
@@ -496,32 +483,32 @@ function MatchModal({
   return (
     <Modal open={open} onClose={onClose} title={`Match Invoice for PO #${po?.id}`}>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="bg-gray-800 rounded-lg p-3 text-sm">
-          <div className="flex justify-between text-gray-400">
+        <div className="bg-slate-50 rounded-lg p-3 text-sm">
+          <div className="flex justify-between text-slate-500">
             <span>PO Amount:</span>
-            <span className="text-white font-medium">${po?.totalAmount?.toFixed(2)}</span>
+            <span className="text-slate-800 font-medium">${po?.totalAmount?.toFixed(2)}</span>
           </div>
         </div>
         <div>
-          <label className="block text-sm text-gray-300 mb-1">Invoice Number</label>
+          <label className="block text-sm text-slate-600 mb-1">Invoice Number</label>
           <input className={inputCls} value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="INV-001" required />
         </div>
         <div>
-          <label className="block text-sm text-gray-300 mb-1">Invoice Amount</label>
+          <label className="block text-sm text-slate-600 mb-1">Invoice Amount</label>
           <input type="number" step="0.01" className={inputCls} value={invoiceAmount} onChange={e => setInvoiceAmount(e.target.value)} required />
         </div>
         {invoiceAmount && po?.totalAmount && (
           <div className="text-sm">
             {parseFloat(invoiceAmount) === po.totalAmount ? (
-              <span className="text-green-400">Amounts match</span>
+              <span className="text-emerald-600">Amounts match</span>
             ) : (
-              <span className="text-yellow-400">
+              <span className="text-amber-600">
                 Difference: ${(parseFloat(invoiceAmount) - po.totalAmount).toFixed(2)}
               </span>
             )}
           </div>
         )}
-        <div className="flex justify-end gap-3 pt-2 border-t border-gray-700">
+        <div className="flex justify-end gap-3 pt-2 border-t border-slate-200">
           <button type="button" onClick={onClose} className={btnSecondary}>Cancel</button>
           <button type="submit" disabled={submitting} className={btnSuccess}>{submitting ? 'Matching...' : 'Match Invoice'}</button>
         </div>

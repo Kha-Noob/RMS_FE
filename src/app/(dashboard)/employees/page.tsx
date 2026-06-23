@@ -172,49 +172,49 @@ export default function EmployeesPage() {
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      PENDING: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30',
-      APPROVED: 'bg-green-600/20 text-green-400 border-green-600/30',
-      REJECTED: 'bg-red-600/20 text-red-400 border-red-600/30',
+      PENDING: 'bg-amber-50 text-amber-600 border-amber-200',
+      APPROVED: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+      REJECTED: 'bg-red-50 text-red-600 border-red-200',
     };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs border ${styles[status] || 'bg-gray-600/20 text-gray-400 border-gray-600/30'}`}>
+      <span className={`px-2 py-1 rounded-full text-xs border ${styles[status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
         {status}
       </span>
     );
   };
 
-  const inputClass = 'w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400';
-  const selectClass = 'w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const labelClass = 'block text-sm font-medium text-gray-300 mb-1';
-  const btnPrimary = 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-  const btnDanger = 'bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-  const tableTh = 'px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider';
-  const tableTd = 'px-4 py-3 text-sm text-gray-300';
+  const inputClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent placeholder-slate-400';
+  const selectClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent';
+  const labelClass = 'block text-sm font-medium text-slate-600 mb-1';
+  const btnPrimary = 'bg-[#25439b] hover:bg-[#1c3580] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const btnDanger = 'bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const tableTh = 'px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider';
+  const tableTd = 'px-4 py-3 text-sm text-slate-600';
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold text-white">Employee Portal</h1>
+      <h1 className="text-2xl font-bold text-slate-800">Employee Portal</h1>
 
       {/* Attendance Section */}
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Attendance</h2>
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Attendance</h2>
         {loadingAttendance ? (
-          <div className="flex items-center gap-2 text-gray-400">
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center gap-2 text-slate-500">
+            <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
             Loading...
           </div>
         ) : attendance ? (
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <div className="bg-gray-700/50 rounded-lg p-4 flex-1">
-              <p className="text-sm text-gray-400">Status</p>
-              <p className={`text-lg font-bold ${attendance.isClockedIn ? 'text-green-400' : 'text-gray-400'}`}>
+            <div className="bg-slate-50 rounded-lg p-4 flex-1">
+              <p className="text-sm text-slate-500">Status</p>
+              <p className={`text-lg font-bold ${attendance.isClockedIn ? 'text-emerald-600' : 'text-slate-400'}`}>
                 {attendance.isClockedIn ? 'Clocked In' : 'Not Clocked In'}
               </p>
               {attendance.clockInTime && (
-                <p className="text-xs text-gray-400 mt-1">In: {new Date(attendance.clockInTime).toLocaleTimeString()}</p>
+                <p className="text-xs text-slate-400 mt-1">In: {new Date(attendance.clockInTime).toLocaleTimeString()}</p>
               )}
               {attendance.clockOutTime && (
-                <p className="text-xs text-gray-400 mt-1">Out: {new Date(attendance.clockOutTime).toLocaleTimeString()}</p>
+                <p className="text-xs text-slate-400 mt-1">Out: {new Date(attendance.clockOutTime).toLocaleTimeString()}</p>
               )}
             </div>
             <div className="flex gap-3">
@@ -238,8 +238,8 @@ export default function EmployeesPage() {
       </div>
 
       {/* Leave Request Section */}
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Leave Request</h2>
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Leave Request</h2>
         <form onSubmit={handleLeaveSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <div>
             <label className={labelClass}>Start Date *</label>
@@ -296,16 +296,16 @@ export default function EmployeesPage() {
 
         <div className="overflow-x-auto">
           {leaveLoading ? (
-            <div className="flex items-center gap-2 text-gray-400 py-4">
-              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center gap-2 text-slate-500 py-4">
+              <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
               Loading...
             </div>
           ) : leaveRequests.length === 0 ? (
-            <p className="text-gray-500 py-4 text-sm">No leave requests found.</p>
+            <p className="text-slate-400 py-4 text-sm">No leave requests found.</p>
           ) : (
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-700">
+                <tr className="border-b border-slate-200">
                   <th className={tableTh}>Type</th>
                   <th className={tableTh}>Start</th>
                   <th className={tableTh}>End</th>
@@ -315,7 +315,7 @@ export default function EmployeesPage() {
               </thead>
               <tbody>
                 {leaveRequests.map(lr => (
-                  <tr key={lr.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <tr key={lr.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className={tableTd}>{lr.leaveType}</td>
                     <td className={tableTd}>{new Date(lr.startDate).toLocaleDateString()}</td>
                     <td className={tableTd}>{new Date(lr.endDate).toLocaleDateString()}</td>
@@ -330,8 +330,8 @@ export default function EmployeesPage() {
       </div>
 
       {/* Forgot Clock Request Section */}
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">Forgot Clock Request</h2>
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Forgot Clock Request</h2>
         <form onSubmit={handleForgotSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <div>
             <label className={labelClass}>Date *</label>
@@ -384,16 +384,16 @@ export default function EmployeesPage() {
 
         <div className="overflow-x-auto">
           {forgotLoading ? (
-            <div className="flex items-center gap-2 text-gray-400 py-4">
-              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center gap-2 text-slate-500 py-4">
+              <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
               Loading...
             </div>
           ) : forgotRequests.length === 0 ? (
-            <p className="text-gray-500 py-4 text-sm">No forgot clock requests found.</p>
+            <p className="text-slate-400 py-4 text-sm">No forgot clock requests found.</p>
           ) : (
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-700">
+                <tr className="border-b border-slate-200">
                   <th className={tableTh}>Date</th>
                   <th className={tableTh}>Type</th>
                   <th className={tableTh}>Time Proposed</th>
@@ -403,7 +403,7 @@ export default function EmployeesPage() {
               </thead>
               <tbody>
                 {forgotRequests.map(fr => (
-                  <tr key={fr.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <tr key={fr.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className={tableTd}>{new Date(fr.date).toLocaleDateString()}</td>
                     <td className={tableTd}>{fr.clockType}</td>
                     <td className={tableTd}>{fr.timeProposed}</td>
@@ -418,32 +418,32 @@ export default function EmployeesPage() {
       </div>
 
       {/* Personal Schedule Section */}
-      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white">My Schedule</h2>
+          <h2 className="text-lg font-semibold text-slate-800">My Schedule</h2>
           <div className="flex items-center gap-3">
-            <button onClick={() => navigateMonth(-1)} className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
+            <button onClick={() => navigateMonth(-1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors">
               ← Prev
             </button>
-            <span className="text-sm text-gray-300 font-medium">{formatMonthLabel(scheduleMonth)}</span>
-            <button onClick={() => navigateMonth(1)} className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
+            <span className="text-sm text-slate-600 font-medium">{formatMonthLabel(scheduleMonth)}</span>
+            <button onClick={() => navigateMonth(1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors">
               Next →
             </button>
           </div>
         </div>
 
         {scheduleLoading ? (
-          <div className="flex items-center gap-2 text-gray-400 py-4">
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center gap-2 text-slate-500 py-4">
+            <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
             Loading schedule...
           </div>
         ) : schedule.length === 0 ? (
-          <p className="text-gray-500 py-4 text-sm">No shifts scheduled for this month.</p>
+          <p className="text-slate-400 py-4 text-sm">No shifts scheduled for this month.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-700">
+                <tr className="border-b border-slate-200">
                   <th className={tableTh}>Date</th>
                   <th className={tableTh}>Shift</th>
                   <th className={tableTh}>Time</th>
@@ -451,7 +451,7 @@ export default function EmployeesPage() {
               </thead>
               <tbody>
                 {schedule.map(s => (
-                  <tr key={s.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className={tableTd}>{new Date(s.date).toLocaleDateString()}</td>
                     <td className={tableTd}>{s.shiftTemplateName}</td>
                     <td className={tableTd}>{s.startTime} - {s.endTime}</td>
