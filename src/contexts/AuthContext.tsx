@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { api, storeCredentials, clearCredentials } from '@/lib/api';
 import type { User, Branch } from '@/types';
 
 interface AuthContextType {
@@ -33,9 +33,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await api.get<User>('/api/auth/me');
       setUser(me);
 
-      const isAdmin = me.roles.includes('ADMIN');
-      const isSuperAdmin = isAdmin && !me.branchId;
-      const canSwitch = isSuperAdmin;
+      const userIsAdmin = me.roles.includes('ADMIN');
+      const userIsSuperAdmin = userIsAdmin && !me.branchId;
+      const canSwitch = userIsSuperAdmin;
 
       if (me.branchId) {
         setActiveBranchId(me.branchId);
@@ -45,10 +45,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const branchList = await api.get<Branch[]>('/api/branch/all');
           setBranches(branchList);
-          if (!activeBranchId && branchList.length > 0) {
-            setActiveBranchId(branchList[0].branchId);
-            setActiveBranchName(branchList[0].name);
-          }
+          setActiveBranchId(prev => {
+            if (prev) return prev;
+            if (branchList.length > 0) {
+              setActiveBranchName(branchList[0].name);
+              return branchList[0].branchId;
+            }
+            return null;
+          });
         } catch {
           setBranches([]);
         }
@@ -56,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setUser(null);
     }
-  }, [activeBranchId]);
+  }, []);
 
   useEffect(() => {
     refreshUser().finally(() => setLoading(false));
@@ -70,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [activeBranchId, branches]);
 
   const login = async (email: string, password: string) => {
+    storeCredentials(email, password);
     await api.post('/api/auth/login', { email, password });
     await refreshUser();
   };
@@ -81,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: 'include',
       });
     } catch { /* ignore */ }
+    clearCredentials();
     setUser(null);
     window.location.href = '/login';
   };

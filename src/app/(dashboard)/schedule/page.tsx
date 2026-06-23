@@ -153,28 +153,28 @@ export default function SchedulePage() {
     }
   };
 
-  const inputClass = 'w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const selectClass = 'w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-  const btnPrimary = 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const inputClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent';
+  const selectClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent';
+  const btnPrimary = 'bg-[#25439b] hover:bg-[#1c3580] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
 
   return (
     <div className="p-6 max-w-full mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Schedule Management</h1>
+        <h1 className="text-2xl font-bold text-slate-800">Schedule Management</h1>
         <div className="flex items-center gap-3">
           <button
             onClick={() => { setBulkMode(!bulkMode); setBulkDates([]); }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${bulkMode ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${bulkMode ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
           >
             {bulkMode ? 'Exit Bulk Mode' : 'Bulk Assign'}
           </button>
-          <button onClick={() => navigateWeek(-1)} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+          <button onClick={() => navigateWeek(-1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm transition-colors">
             ← Previous
           </button>
-          <span className="text-sm text-gray-300 font-medium">
+          <span className="text-sm text-slate-600 font-medium">
             {weekDays[0]?.label} - {weekDays[6]?.label}
           </span>
-          <button onClick={() => navigateWeek(1)} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+          <button onClick={() => navigateWeek(1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm transition-colors">
             Next →
           </button>
         </div>
@@ -184,17 +184,17 @@ export default function SchedulePage() {
         {/* Main calendar grid */}
         <div className="flex-1 overflow-x-auto">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 text-gray-400 py-20">
-              <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center justify-center gap-2 text-slate-500 py-20">
+              <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
               Loading schedule...
             </div>
           ) : (
             <div className="grid grid-cols-7 gap-1 min-w-[900px]">
               {/* Day headers */}
               {weekDays.map(day => (
-                <div key={day.date} className="bg-gray-700/50 rounded-lg p-3 text-center">
-                  <p className="text-xs text-gray-400 uppercase">{day.dayName}</p>
-                  <p className="text-sm font-medium text-white">{day.label}</p>
+                <div key={day.date} className="bg-slate-50 rounded-lg p-3 text-center">
+                  <p className="text-xs text-slate-500 uppercase">{day.dayName}</p>
+                  <p className="text-sm font-medium text-slate-800">{day.label}</p>
                 </div>
               ))}
 
@@ -207,15 +207,15 @@ export default function SchedulePage() {
                 return (
                   <div
                     key={day.date}
-                    className={`bg-gray-800 border rounded-lg p-2 min-h-[200px] transition-colors ${
-                      isToday ? 'border-blue-500/50' : 'border-gray-700/50'
-                    } ${isBulkSelected ? 'ring-2 ring-green-500 bg-green-900/20' : 'hover:bg-gray-750'}`}
+                    className={`bg-white border rounded-lg p-2 min-h-[200px] transition-colors ${
+                      isToday ? 'border-[#25439b]/50' : 'border-slate-200'
+                    } ${isBulkSelected ? 'ring-2 ring-emerald-500 bg-emerald-50' : 'hover:bg-slate-50'}`}
                   >
                     {bulkMode ? (
                       <button
                         onClick={() => toggleBulkDate(day.date)}
                         className={`w-full h-full min-h-[180px] rounded text-sm transition-colors ${
-                          isBulkSelected ? 'bg-green-600/20 text-green-400' : 'text-gray-500 hover:bg-gray-700'
+                          isBulkSelected ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:bg-slate-50'
                         }`}
                       >
                         {isBulkSelected ? '✓ Selected' : 'Click to select'}
@@ -224,21 +224,21 @@ export default function SchedulePage() {
                       <>
                         <button
                           onClick={() => openAssignModal(day.date)}
-                          className="w-full text-left mb-2 text-xs text-gray-500 hover:text-blue-400 transition-colors"
+                          className="w-full text-left mb-2 text-xs text-slate-400 hover:text-[#25439b] transition-colors"
                         >
                           + Add shift
                         </button>
                         {dayAssignments.length === 0 ? (
-                          <p className="text-xs text-gray-600 mt-4 text-center">No shifts</p>
+                          <p className="text-xs text-slate-400 mt-4 text-center">No shifts</p>
                         ) : (
                           <div className="space-y-1">
                             {dayAssignments.map(a => (
                               <div
                                 key={a.id}
-                                className="bg-blue-600/20 border border-blue-600/30 rounded px-2 py-1.5 text-xs"
+                                className="bg-[#25439b]/10 border border-[#25439b]/20 rounded px-2 py-1.5 text-xs"
                               >
-                                <p className="text-blue-400 font-medium truncate">{a.employeeName}</p>
-                                <p className="text-gray-400">{a.startTime}-{a.endTime}</p>
+                                <p className="text-[#25439b] font-medium truncate">{a.employeeName}</p>
+                                <p className="text-slate-500">{a.startTime}-{a.endTime}</p>
                               </div>
                             ))}
                           </div>
@@ -253,15 +253,15 @@ export default function SchedulePage() {
         </div>
 
         {/* Employee sidebar */}
-        <div className="w-64 shrink-0 bg-gray-800 border border-gray-700 rounded-xl p-4 hidden lg:block">
-          <h3 className="text-sm font-semibold text-white mb-3">Employees</h3>
+        <div className="w-64 shrink-0 bg-white border border-slate-200 rounded-xl p-4 hidden lg:block shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-800 mb-3">Employees</h3>
           <div className="space-y-1 max-h-[600px] overflow-y-auto">
             {employees.length === 0 ? (
-              <p className="text-xs text-gray-500">No employees found.</p>
+              <p className="text-xs text-slate-400">No employees found.</p>
             ) : (
               employees.map(emp => (
-                <div key={emp.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-700 text-sm text-gray-300">
-                  <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <div key={emp.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 text-sm text-slate-600">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                   <span className="truncate">{emp.user?.name || `Employee #${emp.id}`}</span>
                 </div>
               ))
@@ -272,8 +272,8 @@ export default function SchedulePage() {
 
       {/* Bulk assign bar */}
       {bulkMode && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <span className="text-sm text-gray-400">
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
+          <span className="text-sm text-slate-500">
             {bulkDates.length} day(s) selected
           </span>
           <select value={bulkEmployee} onChange={e => setBulkEmployee(e.target.value)} className={selectClass + ' w-48'}>
@@ -297,16 +297,16 @@ export default function SchedulePage() {
       {/* Assign modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-md shadow-lg">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Assign Shift</h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-white text-xl">&times;</button>
+              <h2 className="text-lg font-semibold text-slate-800">Assign Shift</h2>
+              <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-800 text-xl">&times;</button>
             </div>
-            <p className="text-sm text-gray-400 mb-4">Date: {new Date(modalDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p className="text-sm text-slate-500 mb-4">Date: {new Date(modalDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Employee</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Employee</label>
                 <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)} className={selectClass}>
                   <option value="">Select employee</option>
                   {employees.map(e => (
@@ -315,7 +315,7 @@ export default function SchedulePage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Shift Template</label>
+                <label className="block text-sm font-medium text-slate-600 mb-1">Shift Template</label>
                 <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} className={selectClass}>
                   <option value="">Select shift</option>
                   {shiftTemplates.map(s => (
@@ -326,7 +326,7 @@ export default function SchedulePage() {
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setModalOpen(false)} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+              <button onClick={() => setModalOpen(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm transition-colors">
                 Cancel
               </button>
               <button onClick={handleAssign} disabled={assigning} className={btnPrimary}>

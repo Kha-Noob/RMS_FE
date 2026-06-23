@@ -96,10 +96,10 @@ function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-white">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-lg">
+        <div className="flex items-center justify-between p-5 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-800 text-xl">✕</button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -108,10 +108,10 @@ function Modal({
 }
 
 // ─── Reusable Styles ────────────────────────────────────────────────────────
-const inputCls = 'w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm';
-const btnPrimary = 'px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition';
-const btnDanger = 'px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm transition';
-const btnSecondary = 'px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition';
+const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b] text-sm';
+const btnPrimary = 'px-4 py-2 rounded-lg bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition';
+const btnDanger = 'px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm transition';
+const btnSecondary = 'px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
@@ -122,18 +122,18 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Inventory Management</h1>
+      <h1 className="text-2xl font-bold text-slate-800">Inventory Management</h1>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 border-b border-gray-700 overflow-x-auto">
+      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
               activeTab === tab.key
-                ? 'border-blue-500 text-blue-400'
-                : 'border-transparent text-gray-400 hover:text-white hover:border-gray-500'
+                ? 'border-[#25439b] text-[#25439b]'
+                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
             }`}
           >
             {tab.label}
@@ -173,13 +173,13 @@ function StockTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <div className="text-gray-400 py-8 text-center">Loading stock...</div>;
+  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading stock...</div>;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-gray-400 border-b border-gray-700">
+          <tr className="text-left text-slate-500 border-b border-slate-200">
             <th className="py-3 px-4">Name</th>
             <th className="py-3 px-4">Unit</th>
             <th className="py-3 px-4">Current Stock</th>
@@ -190,23 +190,23 @@ function StockTab() {
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-              <td className="py-3 px-4 text-white">{item.name}</td>
-              <td className="py-3 px-4 text-gray-300">{item.unit}</td>
-              <td className="py-3 px-4 text-gray-300">{item.currentStock}</td>
-              <td className="py-3 px-4 text-gray-300">{item.minimumStock}</td>
-              <td className="py-3 px-4 text-gray-300">{item.branchName}</td>
+            <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+              <td className="py-3 px-4 text-slate-800">{item.name}</td>
+              <td className="py-3 px-4 text-slate-600">{item.unit}</td>
+              <td className="py-3 px-4 text-slate-600">{item.currentStock}</td>
+              <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
+              <td className="py-3 px-4 text-slate-600">{item.branchName}</td>
               <td className="py-3 px-4">
                 {item.currentStock <= item.minimumStock ? (
-                  <span className="px-2 py-1 rounded-full bg-red-600/20 text-red-400 text-xs font-medium">Low Stock</span>
+                  <span className="px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-medium">Low Stock</span>
                 ) : (
-                  <span className="px-2 py-1 rounded-full bg-green-600/20 text-green-400 text-xs font-medium">OK</span>
+                  <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">OK</span>
                 )}
               </td>
             </tr>
           ))}
           {items.length === 0 && (
-            <tr><td colSpan={6} className="py-8 text-center text-gray-500">No stock items found</td></tr>
+            <tr><td colSpan={6} className="py-8 text-center text-slate-400">No stock items found</td></tr>
           )}
         </tbody>
       </table>
@@ -300,7 +300,7 @@ function RecipesTab() {
     }
   };
 
-  if (loading) return <div className="text-gray-400 py-8 text-center">Loading recipes...</div>;
+  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading recipes...</div>;
 
   return (
     <div className="space-y-4">
@@ -311,7 +311,7 @@ function RecipesTab() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-400 border-b border-gray-700">
+            <tr className="text-left text-slate-500 border-b border-slate-200">
               <th className="py-3 px-4">Name</th>
               <th className="py-3 px-4">Description</th>
               <th className="py-3 px-4">Ingredients</th>
@@ -320,10 +320,10 @@ function RecipesTab() {
           </thead>
           <tbody>
             {recipes.map((r) => (
-              <tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="py-3 px-4 text-white">{r.name}</td>
-                <td className="py-3 px-4 text-gray-300">{r.description}</td>
-                <td className="py-3 px-4 text-gray-300">
+              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4 text-slate-800">{r.name}</td>
+                <td className="py-3 px-4 text-slate-600">{r.description}</td>
+                <td className="py-3 px-4 text-slate-600">
                   {r.ingredients?.length ?? 0} items
                 </td>
                 <td className="py-3 px-4 text-right">
@@ -332,7 +332,7 @@ function RecipesTab() {
               </tr>
             ))}
             {recipes.length === 0 && (
-              <tr><td colSpan={4} className="py-8 text-center text-gray-500">No recipes found</td></tr>
+              <tr><td colSpan={4} className="py-8 text-center text-slate-400">No recipes found</td></tr>
             )}
           </tbody>
         </table>
@@ -342,23 +342,23 @@ function RecipesTab() {
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Recipe">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Name</label>
+            <label className="block text-sm text-slate-600 mb-1">Name</label>
             <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Description</label>
+            <label className="block text-sm text-slate-600 mb-1">Description</label>
             <input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
           </div>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-sm text-gray-300 font-medium">Ingredients</label>
-              <button type="button" onClick={addIngredient} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
+              <label className="text-sm text-slate-600 font-medium">Ingredients</label>
+              <button type="button" onClick={addIngredient} className="text-sm text-[#25439b] hover:text-[#1c3580]">+ Add</button>
             </div>
             {ingredients.map((ing, idx) => (
               <div key={idx} className="flex gap-2 items-end">
                 <div className="flex-1">
-                  {idx === 0 && <label className="block text-xs text-gray-500 mb-1">Material</label>}
+                  {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Material</label>}
                   <select
                     className={inputCls}
                     value={ing.rawMaterialId}
@@ -371,7 +371,7 @@ function RecipesTab() {
                   </select>
                 </div>
                 <div className="w-24">
-                  {idx === 0 && <label className="block text-xs text-gray-500 mb-1">Qty</label>}
+                  {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Qty</label>}
                   <input
                     type="number"
                     className={inputCls}
@@ -382,10 +382,10 @@ function RecipesTab() {
                   />
                 </div>
                 <div className="w-20">
-                  {idx === 0 && <label className="block text-xs text-gray-500 mb-1">Unit</label>}
+                  {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Unit</label>}
                   <input className={inputCls} value={ing.unit} readOnly />
                 </div>
-                <button type="button" onClick={() => removeIngredient(idx)} className="text-red-400 hover:text-red-300 pb-2 text-lg">✕</button>
+                <button type="button" onClick={() => removeIngredient(idx)} className="text-red-500 hover:text-red-600 pb-2 text-lg">✕</button>
               </div>
             ))}
           </div>
@@ -497,7 +497,7 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
     }
   };
 
-  if (loading) return <div className="text-gray-400 py-8 text-center">Loading menu...</div>;
+  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading menu...</div>;
 
   return (
     <div className="space-y-4">
@@ -508,7 +508,7 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-400 border-b border-gray-700">
+            <tr className="text-left text-slate-500 border-b border-slate-200">
               <th className="py-3 px-4">Name</th>
               <th className="py-3 px-4">Category</th>
               <th className="py-3 px-4">Price</th>
@@ -519,26 +519,26 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="py-3 px-4 text-white">{item.name}</td>
-                <td className="py-3 px-4 text-gray-300">{item.category?.name ?? '—'}</td>
-                <td className="py-3 px-4 text-gray-300">${item.price?.toFixed(2)}</td>
-                <td className="py-3 px-4 text-gray-300">{item.variants?.length ?? 0}</td>
+              <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4 text-slate-800">{item.name}</td>
+                <td className="py-3 px-4 text-slate-600">{item.category?.name ?? '—'}</td>
+                <td className="py-3 px-4 text-slate-600">${item.price?.toFixed(2)}</td>
+                <td className="py-3 px-4 text-slate-600">{item.variants?.length ?? 0}</td>
                 <td className="py-3 px-4">
                   {item.isActive ? (
-                    <span className="px-2 py-1 rounded-full bg-green-600/20 text-green-400 text-xs">Active</span>
+                    <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs">Active</span>
                   ) : (
-                    <span className="px-2 py-1 rounded-full bg-gray-600/20 text-gray-400 text-xs">Inactive</span>
+                    <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">Inactive</span>
                   )}
                 </td>
                 <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openEdit(item)} className="text-blue-400 hover:text-blue-300 text-sm">Edit</button>
-                  <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-300 text-sm">Delete</button>
+                  <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Edit</button>
+                  <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm">Delete</button>
                 </td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-500">No menu items found</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-slate-400">No menu items found</td></tr>
             )}
           </tbody>
         </table>
@@ -548,31 +548,31 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Edit Menu Item' : 'New Menu Item'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Name</label>
+            <label className="block text-sm text-slate-600 mb-1">Name</label>
             <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Description</label>
+            <label className="block text-sm text-slate-600 mb-1">Description</label>
             <input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-300 mb-1">Category</label>
+              <label className="block text-sm text-slate-600 mb-1">Category</label>
               <select className={inputCls} value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}>
                 <option value="">Select...</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-300 mb-1">Base Price</label>
+              <label className="block text-sm text-slate-600 mb-1">Base Price</label>
               <input type="number" step="0.01" className={inputCls} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
             </div>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm text-gray-300 font-medium">Variants</label>
-              <button type="button" onClick={addVariant} className="text-sm text-blue-400 hover:text-blue-300">+ Add</button>
+              <label className="text-sm text-slate-600 font-medium">Variants</label>
+              <button type="button" onClick={addVariant} className="text-sm text-[#25439b] hover:text-[#1c3580]">+ Add</button>
             </div>
             {variants.map((v, idx) => (
               <div key={idx} className="flex gap-2 items-end">
@@ -582,7 +582,7 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
                 <div className="w-32">
                   <input type="number" step="0.01" className={inputCls} placeholder="Price" value={v.price} onChange={e => updateVariant(idx, 'price', e.target.value)} />
                 </div>
-                <button type="button" onClick={() => removeVariant(idx)} className="text-red-400 hover:text-red-300 pb-2 text-lg">✕</button>
+                <button type="button" onClick={() => removeVariant(idx)} className="text-red-500 hover:text-red-600 pb-2 text-lg">✕</button>
               </div>
             ))}
           </div>
@@ -668,7 +668,7 @@ function RawMaterialsTab() {
     }
   };
 
-  if (loading) return <div className="text-gray-400 py-8 text-center">Loading raw materials...</div>;
+  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading raw materials...</div>;
 
   return (
     <div className="space-y-4">
@@ -679,7 +679,7 @@ function RawMaterialsTab() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-400 border-b border-gray-700">
+            <tr className="text-left text-slate-500 border-b border-slate-200">
               <th className="py-3 px-4">Name</th>
               <th className="py-3 px-4">Unit</th>
               <th className="py-3 px-4">Minimum Stock</th>
@@ -688,18 +688,18 @@ function RawMaterialsTab() {
           </thead>
           <tbody>
             {items.map((item) => (
-              <tr key={item.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="py-3 px-4 text-white">{item.name}</td>
-                <td className="py-3 px-4 text-gray-300">{item.unit}</td>
-                <td className="py-3 px-4 text-gray-300">{item.minimumStock}</td>
+              <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4 text-slate-800">{item.name}</td>
+                <td className="py-3 px-4 text-slate-600">{item.unit}</td>
+                <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
                 <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openEdit(item)} className="text-blue-400 hover:text-blue-300 text-sm">Edit</button>
-                  <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-300 text-sm">Delete</button>
+                  <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Edit</button>
+                  <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm">Delete</button>
                 </td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={4} className="py-8 text-center text-gray-500">No raw materials found</td></tr>
+              <tr><td colSpan={4} className="py-8 text-center text-slate-400">No raw materials found</td></tr>
             )}
           </tbody>
         </table>
@@ -708,15 +708,15 @@ function RawMaterialsTab() {
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Edit Raw Material' : 'New Raw Material'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Name</label>
+            <label className="block text-sm text-slate-600 mb-1">Name</label>
             <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
           </div>
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Unit</label>
+            <label className="block text-sm text-slate-600 mb-1">Unit</label>
             <input className={inputCls} value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} placeholder="e.g. kg, liter, pcs" required />
           </div>
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Minimum Stock</label>
+            <label className="block text-sm text-slate-600 mb-1">Minimum Stock</label>
             <input type="number" step="0.01" className={inputCls} value={form.minimumStock} onChange={e => setForm({ ...form, minimumStock: e.target.value })} />
           </div>
           <div className="flex justify-end gap-3 pt-2">
@@ -781,7 +781,7 @@ function CategoriesTab() {
     }
   };
 
-  if (loading) return <div className="text-gray-400 py-8 text-center">Loading categories...</div>;
+  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading categories...</div>;
 
   return (
     <div className="space-y-4">
@@ -792,22 +792,22 @@ function CategoriesTab() {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-400 border-b border-gray-700">
+            <tr className="text-left text-slate-500 border-b border-slate-200">
               <th className="py-3 px-4">Name</th>
               <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {categories.map((cat) => (
-              <tr key={cat.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="py-3 px-4 text-white">{cat.name}</td>
+              <tr key={cat.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4 text-slate-800">{cat.name}</td>
                 <td className="py-3 px-4 text-right">
                   <button onClick={() => handleDelete(cat.id)} className={btnDanger}>Delete</button>
                 </td>
               </tr>
             ))}
             {categories.length === 0 && (
-              <tr><td colSpan={2} className="py-8 text-center text-gray-500">No categories found</td></tr>
+              <tr><td colSpan={2} className="py-8 text-center text-slate-400">No categories found</td></tr>
             )}
           </tbody>
         </table>
@@ -816,7 +816,7 @@ function CategoriesTab() {
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Category">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Category Name</label>
+            <label className="block text-sm text-slate-600 mb-1">Category Name</label>
             <input className={inputCls} value={name} onChange={e => setName(e.target.value)} required autoFocus />
           </div>
           <div className="flex justify-end gap-3 pt-2">
@@ -905,7 +905,7 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
     }
   };
 
-  if (loading) return <div className="text-gray-400 py-8 text-center">Loading transfers...</div>;
+  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading transfers...</div>;
 
   return (
     <div className="space-y-4">
@@ -916,7 +916,7 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-left text-gray-400 border-b border-gray-700">
+            <tr className="text-left text-slate-500 border-b border-slate-200">
               <th className="py-3 px-4">ID</th>
               <th className="py-3 px-4">From</th>
               <th className="py-3 px-4">To</th>
@@ -927,28 +927,28 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
           </thead>
           <tbody>
             {transfers.map((t) => (
-              <tr key={t.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                <td className="py-3 px-4 text-gray-300">#{t.id}</td>
-                <td className="py-3 px-4 text-white">{t.fromBranch}</td>
-                <td className="py-3 px-4 text-white">{t.toBranch}</td>
+              <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4 text-slate-600">#{t.id}</td>
+                <td className="py-3 px-4 text-slate-800">{t.fromBranch}</td>
+                <td className="py-3 px-4 text-slate-800">{t.toBranch}</td>
                 <td className="py-3 px-4">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    t.status === 'APPROVED' ? 'bg-green-600/20 text-green-400' :
-                    t.status === 'PENDING' ? 'bg-yellow-600/20 text-yellow-400' :
-                    'bg-gray-600/20 text-gray-400'
+                    t.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' :
+                    t.status === 'PENDING' ? 'bg-amber-50 text-amber-600' :
+                    'bg-slate-100 text-slate-500'
                   }`}>{t.status}</span>
                 </td>
-                <td className="py-3 px-4 text-gray-300">{new Date(t.createdAt).toLocaleDateString()}</td>
+                <td className="py-3 px-4 text-slate-600">{new Date(t.createdAt).toLocaleDateString()}</td>
                 <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => handleViewDetails(t)} className="text-blue-400 hover:text-blue-300 text-sm">Details</button>
+                  <button onClick={() => handleViewDetails(t)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Details</button>
                   {t.status === 'PENDING' && (
-                    <button onClick={() => handleApprove(t.id)} className="text-green-400 hover:text-green-300 text-sm">Approve</button>
+                    <button onClick={() => handleApprove(t.id)} className="text-emerald-600 hover:text-emerald-700 text-sm">Approve</button>
                   )}
                 </td>
               </tr>
             ))}
             {transfers.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-500">No transfers found</td></tr>
+              <tr><td colSpan={6} className="py-8 text-center text-slate-400">No transfers found</td></tr>
             )}
           </tbody>
         </table>
@@ -959,12 +959,12 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
         <form onSubmit={handleCreate} className="space-y-4">
           {activeBranchId && (
             <div>
-              <label className="block text-sm text-gray-300 mb-1">From Branch (Current)</label>
+              <label className="block text-sm text-slate-600 mb-1">From Branch (Current)</label>
               <input className={inputCls} value={branches.find(b => b.branchId === activeBranchId)?.name || activeBranchId} readOnly />
             </div>
           )}
           <div>
-            <label className="block text-sm text-gray-300 mb-1">To Branch</label>
+            <label className="block text-sm text-slate-600 mb-1">To Branch</label>
             <select className={inputCls} value={form.toBranchId} onChange={e => setForm({ ...form, toBranchId: e.target.value })} required>
               <option value="">Select branch...</option>
               {branches.filter(b => b.branchId !== activeBranchId).map(b => (
@@ -973,7 +973,7 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Item</label>
+            <label className="block text-sm text-slate-600 mb-1">Item</label>
             <select className={inputCls} value={form.rawMaterialId} onChange={e => setForm({ ...form, rawMaterialId: e.target.value })} required>
               <option value="">Select item...</option>
               {items.map(i => (
@@ -982,7 +982,7 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-gray-300 mb-1">Quantity</label>
+            <label className="block text-sm text-slate-600 mb-1">Quantity</label>
             <input type="number" step="0.01" min="0" className={inputCls} value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
           </div>
           <div className="flex justify-end gap-3 pt-2">
@@ -997,12 +997,12 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
         {selectedTransfer && (
           <div className="space-y-3 text-sm">
             <div className="grid grid-cols-2 gap-4">
-              <div><span className="text-gray-400">From:</span> <span className="text-white ml-2">{selectedTransfer.fromBranch}</span></div>
-              <div><span className="text-gray-400">To:</span> <span className="text-white ml-2">{selectedTransfer.toBranch}</span></div>
-              <div><span className="text-gray-400">Status:</span> <span className="text-white ml-2">{selectedTransfer.status}</span></div>
-              <div><span className="text-gray-400">Date:</span> <span className="text-white ml-2">{new Date(selectedTransfer.createdAt).toLocaleString()}</span></div>
+              <div><span className="text-slate-500">From:</span> <span className="text-slate-800 ml-2">{selectedTransfer.fromBranch}</span></div>
+              <div><span className="text-slate-500">To:</span> <span className="text-slate-800 ml-2">{selectedTransfer.toBranch}</span></div>
+              <div><span className="text-slate-500">Status:</span> <span className="text-slate-800 ml-2">{selectedTransfer.status}</span></div>
+              <div><span className="text-slate-500">Date:</span> <span className="text-slate-800 ml-2">{new Date(selectedTransfer.createdAt).toLocaleString()}</span></div>
             </div>
-            <div className="border-t border-gray-700 pt-3">
+            <div className="border-t border-slate-200 pt-3">
               <button onClick={() => setSelectedTransfer(null)} className={btnSecondary}>Close</button>
             </div>
           </div>

@@ -29,37 +29,37 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full max-w-md p-8 rounded-2xl bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 shadow-2xl">
-      <h1 className="text-3xl font-bold text-white text-center mb-2">RMS</h1>
-      <p className="text-gray-400 text-center mb-8">Sign in to your account</p>
+    <div className="w-full max-w-md p-8 rounded-2xl bg-white border border-slate-200 shadow-lg">
+      <h1 className="text-3xl font-bold text-slate-800 text-center mb-2">RMS</h1>
+      <p className="text-slate-500 text-center mb-8">Sign in to your account</p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]/20 focus:border-[#25439b] transition"
             placeholder="you@example.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1.5">Password</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]/20 focus:border-[#25439b] transition"
             placeholder="••••••••"
           />
         </div>
 
         <div className="flex justify-end">
-          <Link href="/forgot-password" className="text-sm text-blue-400 hover:text-blue-300 transition">
+          <Link href="/forgot-password" className="text-sm text-[#25439b] hover:text-[#1c3580] transition">
             Forgot password?
           </Link>
         </div>
@@ -67,7 +67,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
+          className="w-full py-3 rounded-lg bg-[#25439b] hover:bg-[#1c3580] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
         >
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
@@ -76,16 +76,16 @@ export default function LoginPage() {
       <div className="mt-6">
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-700" />
+            <div className="w-full border-t border-slate-200" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="bg-gray-900 px-3 text-gray-500">or</span>
+            <span className="bg-white px-3 text-slate-400">or</span>
           </div>
         </div>
 
         <a
           href={`${API_BASE}/oauth2/authorization/google`}
-          className="mt-4 w-full flex items-center justify-center gap-3 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white font-medium hover:bg-gray-700 transition"
+          className="mt-4 w-full flex items-center justify-center gap-3 py-3 rounded-lg bg-white border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>

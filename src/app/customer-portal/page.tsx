@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { toast } from '@/components/Toast';
 
-const inputCls = 'w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm';
-const btnPrimary = 'px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition';
-const btnSecondary = 'px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white text-sm font-medium transition';
+const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b] text-sm';
+const btnPrimary = 'px-4 py-2 rounded-lg bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition';
+const btnSecondary = 'px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition';
 
 interface LoyaltyCustomer {
   id: number;
@@ -27,10 +27,10 @@ interface Transaction {
 }
 
 const TIER_COLORS: Record<string, string> = {
-  BRONZE: 'text-orange-400 bg-orange-400/10 border-orange-400/30',
-  SILVER: 'text-gray-300 bg-gray-300/10 border-gray-300/30',
-  GOLD: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30',
-  PLATINUM: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
+  BRONZE: 'text-orange-600 bg-orange-50 border-orange-200',
+  SILVER: 'text-slate-600 bg-slate-50 border-slate-200',
+  GOLD: 'text-amber-600 bg-amber-50 border-amber-200',
+  PLATINUM: 'text-purple-600 bg-purple-50 border-purple-200',
 };
 
 export default function CustomerPortalPage() {
@@ -40,7 +40,7 @@ export default function CustomerPortalPage() {
   const [lookupPhone, setLookupPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // ─── Registration ────────────────────────────────────────────────────────
+  // --- Registration ---
   const [regForm, setRegForm] = useState({ name: '', phone: '', email: '' });
   const [regSubmitting, setRegSubmitting] = useState(false);
 
@@ -62,7 +62,7 @@ export default function CustomerPortalPage() {
     }
   };
 
-  // ─── Lookup ──────────────────────────────────────────────────────────────
+  // --- Lookup ---
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lookupPhone.trim()) { toast.error('Enter your phone number'); return; }
@@ -81,7 +81,7 @@ export default function CustomerPortalPage() {
     }
   };
 
-  // ─── Transactions ────────────────────────────────────────────────────────
+  // --- Transactions ---
   const loadTransactions = useCallback(async (customerId: number) => {
     try {
       const data = await api.get<Transaction[]>(`/api/pos/customer/${customerId}/transactions`);
@@ -92,17 +92,17 @@ export default function CustomerPortalPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-[#f8f9fc] text-slate-800">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-10 shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">Loyalty Program</h1>
+          <h1 className="text-xl font-bold text-slate-800">Loyalty Program</h1>
           {customer && (
             <div className="flex gap-3">
-              <button onClick={() => setView('dashboard')} className={`text-sm px-3 py-1.5 rounded-lg transition ${view === 'dashboard' ? 'bg-blue-600' : 'text-gray-400 hover:text-white'}`}>
+              <button onClick={() => setView('dashboard')} className={`text-sm px-3 py-1.5 rounded-lg transition ${view === 'dashboard' ? 'bg-[#25439b] text-white' : 'text-slate-500 hover:text-slate-800'}`}>
                 Dashboard
               </button>
-              <button onClick={() => { setCustomer(null); setTransactions([]); setView('lookup'); }} className="text-sm text-gray-400 hover:text-white px-3 py-1.5 rounded-lg transition">
+              <button onClick={() => { setCustomer(null); setTransactions([]); setView('lookup'); }} className="text-sm text-slate-500 hover:text-slate-800 px-3 py-1.5 rounded-lg transition">
                 Sign Out
               </button>
             </div>
@@ -111,24 +111,24 @@ export default function CustomerPortalPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* ─── Register / Lookup View ─────────────────────────────────────── */}
+        {/* --- Register / Lookup View --- */}
         {!customer && (
           <div className="space-y-8">
             {/* Hero */}
             <div className="text-center space-y-3 mb-8">
-              <h2 className="text-3xl font-bold">Earn Rewards with Every Visit</h2>
-              <p className="text-gray-400 max-w-md mx-auto">
+              <h2 className="text-3xl font-bold text-slate-800">Earn Rewards with Every Visit</h2>
+              <p className="text-slate-500 max-w-md mx-auto">
                 Join our loyalty program to earn points, unlock exclusive tiers, and enjoy special perks.
               </p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
               {/* Register Card */}
-              <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">New Member? Register</h3>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold mb-4 text-slate-800">New Member? Register</h3>
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div>
-                    <label className="block text-sm text-gray-300 mb-1">Full Name</label>
+                    <label className="block text-sm text-slate-600 mb-1">Full Name</label>
                     <input
                       className={inputCls}
                       value={regForm.name}
@@ -138,7 +138,7 @@ export default function CustomerPortalPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-300 mb-1">Phone Number</label>
+                    <label className="block text-sm text-slate-600 mb-1">Phone Number</label>
                     <input
                       className={inputCls}
                       value={regForm.phone}
@@ -148,7 +148,7 @@ export default function CustomerPortalPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-300 mb-1">Email (optional)</label>
+                    <label className="block text-sm text-slate-600 mb-1">Email (optional)</label>
                     <input
                       type="email"
                       className={inputCls}
@@ -164,11 +164,11 @@ export default function CustomerPortalPage() {
               </div>
 
               {/* Lookup Card */}
-              <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">Already a Member? Sign In</h3>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                <h3 className="text-lg font-semibold mb-4 text-slate-800">Already a Member? Sign In</h3>
                 <form onSubmit={handleLookup} className="space-y-4">
                   <div>
-                    <label className="block text-sm text-gray-300 mb-1">Phone Number</label>
+                    <label className="block text-sm text-slate-600 mb-1">Phone Number</label>
                     <input
                       className={inputCls}
                       value={lookupPhone}
@@ -186,32 +186,32 @@ export default function CustomerPortalPage() {
           </div>
         )}
 
-        {/* ─── Dashboard View ──────────────────────────────────────────────── */}
+        {/* --- Dashboard View --- */}
         {customer && (
           <div className="space-y-6">
             {/* Points & Tier */}
             <div className="grid md:grid-cols-3 gap-4">
-              <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 text-center">
-                <p className="text-gray-400 text-sm mb-1">Welcome Back</p>
-                <p className="text-xl font-bold">{customer.name}</p>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center shadow-sm">
+                <p className="text-slate-500 text-sm mb-1">Welcome Back</p>
+                <p className="text-xl font-bold text-slate-800">{customer.name}</p>
               </div>
 
-              <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 text-center">
-                <p className="text-gray-400 text-sm mb-1">Available Points</p>
-                <p className="text-4xl font-bold text-blue-400">{customer.points}</p>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center shadow-sm">
+                <p className="text-slate-500 text-sm mb-1">Available Points</p>
+                <p className="text-4xl font-bold text-[#25439b]">{customer.points}</p>
               </div>
 
-              <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 text-center">
-                <p className="text-gray-400 text-sm mb-1">Loyalty Tier</p>
-                <span className={`inline-block px-4 py-2 rounded-full border text-lg font-bold ${TIER_COLORS[customer.tier] || 'text-gray-400 bg-gray-400/10 border-gray-400/30'}`}>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 text-center shadow-sm">
+                <p className="text-slate-500 text-sm mb-1">Loyalty Tier</p>
+                <span className={`inline-block px-4 py-2 rounded-full border text-lg font-bold ${TIER_COLORS[customer.tier] || 'text-slate-500 bg-slate-50 border-slate-200'}`}>
                   {customer.tier}
                 </span>
               </div>
             </div>
 
             {/* Tier Benefits */}
-            <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-              <h3 className="text-lg font-semibold mb-4">Tier Benefits</h3>
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4 text-slate-800">Tier Benefits</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 {[
                   { tier: 'BRONZE', range: '0-999 pts', perks: '1x points' },
@@ -223,28 +223,28 @@ export default function CustomerPortalPage() {
                     key={t.tier}
                     className={`rounded-lg p-3 border ${
                       customer.tier === t.tier
-                        ? 'border-blue-500 bg-blue-500/10'
-                        : 'border-gray-700 bg-gray-800/50'
+                        ? 'border-[#25439b] bg-[#25439b]/5'
+                        : 'border-slate-200 bg-slate-50'
                     }`}
                   >
-                    <p className={`font-bold ${customer.tier === t.tier ? 'text-blue-400' : 'text-white'}`}>{t.tier}</p>
-                    <p className="text-gray-500 text-xs mt-1">{t.range}</p>
-                    <p className="text-gray-400 text-xs mt-1">{t.perks}</p>
+                    <p className={`font-bold ${customer.tier === t.tier ? 'text-[#25439b]' : 'text-slate-800'}`}>{t.tier}</p>
+                    <p className="text-slate-400 text-xs mt-1">{t.range}</p>
+                    <p className="text-slate-500 text-xs mt-1">{t.perks}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Transaction History */}
-            <div className="bg-gray-900 border border-gray-700 rounded-xl p-6">
-              <h3 className="text-lg font-semibold mb-4">Transaction History</h3>
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold mb-4 text-slate-800">Transaction History</h3>
               {transactions.length === 0 ? (
-                <p className="text-gray-500 text-center py-6">No transactions yet. Start earning points!</p>
+                <p className="text-slate-400 text-center py-6">No transactions yet. Start earning points!</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-gray-400 border-b border-gray-700">
+                      <tr className="text-left text-slate-500 border-b border-slate-200">
                         <th className="py-2 px-3">Date</th>
                         <th className="py-2 px-3">Description</th>
                         <th className="py-2 px-3 text-right">Amount</th>
@@ -254,15 +254,15 @@ export default function CustomerPortalPage() {
                     </thead>
                     <tbody>
                       {transactions.map((tx) => (
-                        <tr key={tx.id} className="border-b border-gray-800">
-                          <td className="py-2 px-3 text-gray-300">{new Date(tx.date).toLocaleDateString()}</td>
-                          <td className="py-2 px-3 text-white">{tx.description}</td>
-                          <td className="py-2 px-3 text-gray-300 text-right">${tx.amount.toFixed(2)}</td>
-                          <td className="py-2 px-3 text-green-400 text-right">
-                            {tx.pointsEarned > 0 ? `+${tx.pointsEarned}` : '—'}
+                        <tr key={tx.id} className="border-b border-slate-100">
+                          <td className="py-2 px-3 text-slate-600">{new Date(tx.date).toLocaleDateString()}</td>
+                          <td className="py-2 px-3 text-slate-800">{tx.description}</td>
+                          <td className="py-2 px-3 text-slate-600 text-right">${tx.amount.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-emerald-600 text-right">
+                            {tx.pointsEarned > 0 ? `+${tx.pointsEarned}` : '---'}
                           </td>
-                          <td className="py-2 px-3 text-red-400 text-right">
-                            {tx.pointsRedeemed > 0 ? `-${tx.pointsRedeemed}` : '—'}
+                          <td className="py-2 px-3 text-red-500 text-right">
+                            {tx.pointsRedeemed > 0 ? `-${tx.pointsRedeemed}` : '---'}
                           </td>
                         </tr>
                       ))}

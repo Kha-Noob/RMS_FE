@@ -62,13 +62,13 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="w-full max-w-md p-8 rounded-2xl bg-gray-900/80 backdrop-blur-xl border border-gray-700/50 shadow-2xl">
-      <Link href="/login" className="text-sm text-gray-400 hover:text-white transition mb-6 inline-block">
+    <div className="w-full max-w-md p-8 rounded-2xl bg-white border border-slate-200 shadow-lg">
+      <Link href="/login" className="text-sm text-slate-400 hover:text-[#25439b] transition mb-6 inline-block">
         &larr; Back to login
       </Link>
 
-      <h1 className="text-2xl font-bold text-white mb-2">Reset Password</h1>
-      <p className="text-gray-400 mb-8">
+      <h1 className="text-2xl font-bold text-slate-800 mb-2">Reset Password</h1>
+      <p className="text-slate-500 mb-8">
         {step === 1 && 'Enter your email to receive a verification code.'}
         {step === 2 && 'Enter the OTP sent to your email.'}
         {step === 3 && 'Enter your new password.'}
@@ -76,27 +76,27 @@ export default function ForgotPasswordPage() {
 
       <div className="flex gap-2 mb-8">
         {[1, 2, 3].map((s) => (
-          <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? 'bg-blue-500' : 'bg-gray-700'}`} />
+          <div key={s} className={`h-1 flex-1 rounded-full ${s <= step ? 'bg-[#25439b]' : 'bg-slate-200'}`} />
         ))}
       </div>
 
       {step === 1 && (
         <form onSubmit={handleRequestOtp} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]/20 focus:border-[#25439b] transition"
               placeholder="you@example.com"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
+            className="w-full py-3 rounded-lg bg-[#25439b] hover:bg-[#1c3580] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
           >
             {loading ? 'Sending...' : 'Send OTP'}
           </button>
@@ -106,13 +106,13 @@ export default function ForgotPasswordPage() {
       {step === 2 && (
         <form onSubmit={handleVerifyOtp} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">OTP Code</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">OTP Code</label>
             <input
               type="text"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition tracking-widest text-center text-lg"
+              className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]/20 focus:border-[#25439b] transition tracking-widest text-center text-lg"
               placeholder="000000"
               maxLength={6}
             />
@@ -120,7 +120,7 @@ export default function ForgotPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
+            className="w-full py-3 rounded-lg bg-[#25439b] hover:bg-[#1c3580] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
           >
             {loading ? 'Verifying...' : 'Verify OTP'}
           </button>
@@ -130,31 +130,31 @@ export default function ForgotPasswordPage() {
       {step === 3 && (
         <form onSubmit={handleResetPassword} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">New Password</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">New Password</label>
             <input
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]/20 focus:border-[#25439b] transition"
               placeholder="••••••••"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Confirm Password</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password</label>
             <input
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-600 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full px-4 py-3 rounded-lg bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]/20 focus:border-[#25439b] transition"
               placeholder="••••••••"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
+            className="w-full py-3 rounded-lg bg-[#25439b] hover:bg-[#1c3580] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition"
           >
             {loading ? 'Resetting...' : 'Reset Password'}
           </button>
