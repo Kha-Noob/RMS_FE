@@ -38,10 +38,10 @@ export function ToastContainer() {
   }, []);
 
   const colors = {
-    success: 'bg-green-600',
-    error: 'bg-red-600',
-    warning: 'bg-yellow-600',
-    info: 'bg-blue-600',
+    success: 'bg-emerald-600',
+    error: 'bg-red-500',
+    warning: 'bg-amber-500',
+    info: 'bg-[#25439b]',
   };
 
   if (items.length === 0) return null;

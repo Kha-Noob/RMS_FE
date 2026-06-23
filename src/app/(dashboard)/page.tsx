@@ -61,41 +61,44 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400 text-lg">Loading dashboard...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+          <div className="text-slate-500 text-sm">Loading dashboard...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-gray-400 mt-1">Welcome back, {user?.name}</p>
+        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+        <p className="text-slate-500 mt-1">Welcome back, {user?.name}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => (
           <div
             key={card.label}
-            className="p-5 rounded-xl bg-gray-900/80 backdrop-blur border border-gray-700/50"
+            className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm"
           >
             <div className="flex items-center justify-between mb-3">
-              <span className="text-gray-400 text-sm">{card.label}</span>
+              <span className="text-slate-500 text-sm">{card.label}</span>
               <span className="text-2xl">{card.icon}</span>
             </div>
-            <p className="text-2xl font-bold">{card.value}</p>
+            <p className="text-2xl font-bold text-slate-800">{card.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-xl bg-gray-900/80 backdrop-blur border border-gray-700/50 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-700/50">
-          <h2 className="text-lg font-semibold">Recent Orders Today</h2>
+      <div className="rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-800">Recent Orders Today</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-400 border-b border-gray-700/50">
+              <tr className="text-left text-slate-500 border-b border-slate-100">
                 <th className="px-5 py-3 font-medium">Order #</th>
                 <th className="px-5 py-3 font-medium">Amount</th>
                 <th className="px-5 py-3 font-medium">Status</th>
@@ -107,31 +110,31 @@ export default function DashboardPage() {
             <tbody>
               {orderLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
                     No orders today
                   </td>
                 </tr>
               ) : (
                 orderLogs.map((log) => (
-                  <tr key={log.id} className="border-b border-gray-700/30 hover:bg-gray-800/50 transition">
-                    <td className="px-5 py-3 font-medium">{log.orderNumber}</td>
-                    <td className="px-5 py-3">{formatCurrency(log.totalAmount)}</td>
+                  <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
+                    <td className="px-5 py-3 font-medium text-slate-700">{log.orderNumber}</td>
+                    <td className="px-5 py-3 text-slate-700">{formatCurrency(log.totalAmount)}</td>
                     <td className="px-5 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                         log.status === 'COMPLETED'
-                          ? 'bg-green-900/50 text-green-400'
+                          ? 'bg-emerald-50 text-emerald-600'
                           : log.status === 'CANCELLED'
-                          ? 'bg-red-900/50 text-red-400'
-                          : 'bg-yellow-900/50 text-yellow-400'
+                          ? 'bg-red-50 text-red-600'
+                          : 'bg-amber-50 text-amber-600'
                       }`}>
                         {log.status}
                       </span>
                     </td>
-                    <td className="px-5 py-3">{log.paymentMethod}</td>
-                    <td className="px-5 py-3 text-gray-400">
+                    <td className="px-5 py-3 text-slate-600">{log.paymentMethod}</td>
+                    <td className="px-5 py-3 text-slate-400">
                       {new Date(log.createdAt).toLocaleTimeString()}
                     </td>
-                    <td className="px-5 py-3">{log.createdBy}</td>
+                    <td className="px-5 py-3 text-slate-600">{log.createdBy}</td>
                   </tr>
                 ))
               )}

@@ -12,10 +12,10 @@ export default function HRManagementPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-white">HR Management</h1>
+      <h1 className="text-2xl font-bold text-slate-800">HR Management</h1>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 bg-gray-800 rounded-xl p-1 border border-gray-700">
+      <div className="flex gap-1 bg-white rounded-xl p-1 border border-slate-200 shadow-sm">
         {([
           { key: 'employees', label: 'Employees' },
           { key: 'leave', label: 'Leave Requests' },
@@ -27,8 +27,8 @@ export default function HRManagementPage() {
             onClick={() => setActiveTab(tab.key)}
             className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
               activeTab === tab.key
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                ? 'bg-[#25439b] text-white'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
             }`}
           >
             {tab.label}
@@ -44,23 +44,23 @@ export default function HRManagementPage() {
   );
 }
 
-const inputClass = 'w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400';
-const selectClass = 'w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-const labelClass = 'block text-sm font-medium text-gray-300 mb-1';
-const btnPrimary = 'bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-const btnDanger = 'bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-const btnSuccess = 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-const tableTh = 'px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider';
-const tableTd = 'px-4 py-3 text-sm text-gray-300';
+const inputClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent placeholder-slate-400';
+const selectClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent';
+const labelClass = 'block text-sm font-medium text-slate-600 mb-1';
+const btnPrimary = 'bg-[#25439b] hover:bg-[#1c3580] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const btnDanger = 'bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const btnSuccess = 'bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const tableTh = 'px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider';
+const tableTd = 'px-4 py-3 text-sm text-slate-600';
 
 function statusBadge(status: string) {
   const styles: Record<string, string> = {
-    PENDING: 'bg-yellow-600/20 text-yellow-400 border-yellow-600/30',
-    APPROVED: 'bg-green-600/20 text-green-400 border-green-600/30',
-    REJECTED: 'bg-red-600/20 text-red-400 border-red-600/30',
+    PENDING: 'bg-amber-50 text-amber-600 border-amber-200',
+    APPROVED: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+    REJECTED: 'bg-red-50 text-red-600 border-red-200',
   };
   return (
-    <span className={`px-2 py-1 rounded-full text-xs border ${styles[status] || 'bg-gray-600/20 text-gray-400 border-gray-600/30'}`}>
+    <span className={`px-2 py-1 rounded-full text-xs border ${styles[status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
       {status}
     </span>
   );
@@ -160,15 +160,15 @@ function EmployeesSection() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">Employee List</h2>
+        <h2 className="text-lg font-semibold text-slate-800">Employee List</h2>
         <button onClick={() => { resetForm(); setShowForm(true); }} className={btnPrimary}>
           + Add Employee
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-md font-semibold text-white mb-4">{editingId ? 'Edit Employee' : 'Add Employee'}</h3>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+          <h3 className="text-md font-semibold text-slate-800 mb-4">{editingId ? 'Edit Employee' : 'Add Employee'}</h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className={labelClass}>Full Name *</label>
@@ -214,7 +214,7 @@ function EmployeesSection() {
               <button type="submit" disabled={saving} className={btnPrimary}>
                 {saving ? 'Saving...' : editingId ? 'Update Employee' : 'Add Employee'}
               </button>
-              <button type="button" onClick={resetForm} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+              <button type="button" onClick={resetForm} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm transition-colors">
                 Cancel
               </button>
             </div>
@@ -222,19 +222,19 @@ function EmployeesSection() {
         </div>
       )}
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 text-gray-400 py-12">
-            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center justify-center gap-2 text-slate-500 py-12">
+            <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
             Loading employees...
           </div>
         ) : employees.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-12">No employees found.</p>
+          <p className="text-slate-400 text-sm text-center py-12">No employees found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-700">
+                <tr className="border-b border-slate-200">
                   <th className={tableTh}>Name</th>
                   <th className={tableTh}>Email</th>
                   <th className={tableTh}>Department</th>
@@ -246,21 +246,21 @@ function EmployeesSection() {
               </thead>
               <tbody>
                 {employees.map(emp => (
-                  <tr key={emp.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className={tableTd}>{emp.user?.name || '-'}</td>
                     <td className={tableTd}>{emp.user?.email || '-'}</td>
                     <td className={tableTd}>{emp.department || '-'}</td>
                     <td className={tableTd}>{emp.title || '-'}</td>
                     <td className={tableTd}>{emp.branch?.name || '-'}</td>
                     <td className={tableTd}>
-                      <span className={`px-2 py-1 rounded-full text-xs border ${emp.user?.isActive ? 'bg-green-600/20 text-green-400 border-green-600/30' : 'bg-red-600/20 text-red-400 border-red-600/30'}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs border ${emp.user?.isActive ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
                         {emp.user?.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className={tableTd}>
                       <div className="flex gap-2">
-                        <button onClick={() => openEdit(emp)} className="text-blue-400 hover:text-blue-300 text-xs">Edit</button>
-                        <button onClick={() => handleDelete(emp.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                        <button onClick={() => openEdit(emp)} className="text-[#25439b] hover:text-[#1c3580] text-xs">Edit</button>
+                        <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -326,20 +326,20 @@ function LeaveSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-white mb-4">Pending Leave Requests</h2>
-        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Pending Leave Requests</h2>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 text-gray-400 py-12">
-              <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center justify-center gap-2 text-slate-500 py-12">
+              <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
               Loading...
             </div>
           ) : pending.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-12">No pending requests.</p>
+            <p className="text-slate-400 text-sm text-center py-12">No pending requests.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-slate-200">
                     <th className={tableTh}>Employee</th>
                     <th className={tableTh}>Type</th>
                     <th className={tableTh}>Start</th>
@@ -350,7 +350,7 @@ function LeaveSection() {
                 </thead>
                 <tbody>
                   {pending.map(r => (
-                    <tr key={r.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
                       <td className={tableTd}>{r.leaveType}</td>
                       <td className={tableTd}>{new Date(r.startDate).toLocaleDateString()}</td>
@@ -385,12 +385,12 @@ function LeaveSection() {
 
       {processed.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-white mb-4">Processed Requests</h2>
-          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Processed Requests</h2>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-slate-200">
                     <th className={tableTh}>Employee</th>
                     <th className={tableTh}>Type</th>
                     <th className={tableTh}>Start</th>
@@ -400,7 +400,7 @@ function LeaveSection() {
                 </thead>
                 <tbody>
                   {processed.map(r => (
-                    <tr key={r.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
                       <td className={tableTd}>{r.leaveType}</td>
                       <td className={tableTd}>{new Date(r.startDate).toLocaleDateString()}</td>
@@ -470,20 +470,20 @@ function ForgotClockSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-white mb-4">Pending Forgot Clock Requests</h2>
-        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+        <h2 className="text-lg font-semibold text-slate-800 mb-4">Pending Forgot Clock Requests</h2>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 text-gray-400 py-12">
-              <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center justify-center gap-2 text-slate-500 py-12">
+              <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
               Loading...
             </div>
           ) : pending.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-12">No pending requests.</p>
+            <p className="text-slate-400 text-sm text-center py-12">No pending requests.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-slate-200">
                     <th className={tableTh}>Employee</th>
                     <th className={tableTh}>Date</th>
                     <th className={tableTh}>Clock Type</th>
@@ -494,7 +494,7 @@ function ForgotClockSection() {
                 </thead>
                 <tbody>
                   {pending.map(r => (
-                    <tr key={r.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
                       <td className={tableTd}>{new Date(r.date).toLocaleDateString()}</td>
                       <td className={tableTd}>{r.clockType}</td>
@@ -529,12 +529,12 @@ function ForgotClockSection() {
 
       {processed.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-white mb-4">Processed Requests</h2>
-          <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Processed Requests</h2>
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-700">
+                  <tr className="border-b border-slate-200">
                     <th className={tableTh}>Employee</th>
                     <th className={tableTh}>Date</th>
                     <th className={tableTh}>Type</th>
@@ -544,7 +544,7 @@ function ForgotClockSection() {
                 </thead>
                 <tbody>
                   {processed.map(r => (
-                    <tr key={r.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
                       <td className={tableTd}>{new Date(r.date).toLocaleDateString()}</td>
                       <td className={tableTd}>{r.clockType}</td>
@@ -638,15 +638,15 @@ function ShiftsSection() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-white">Shift Templates</h2>
+        <h2 className="text-lg font-semibold text-slate-800">Shift Templates</h2>
         <button onClick={() => { resetForm(); setShowForm(true); }} className={btnPrimary}>
           + Add Shift
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-gray-800 border border-gray-700 rounded-xl p-6">
-          <h3 className="text-md font-semibold text-white mb-4">{editingId ? 'Edit Shift' : 'Add Shift'}</h3>
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+          <h3 className="text-md font-semibold text-slate-800 mb-4">{editingId ? 'Edit Shift' : 'Add Shift'}</h3>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className={labelClass}>Name *</label>
@@ -668,7 +668,7 @@ function ShiftsSection() {
               <button type="submit" disabled={saving} className={btnPrimary}>
                 {saving ? 'Saving...' : editingId ? 'Update Shift' : 'Add Shift'}
               </button>
-              <button type="button" onClick={resetForm} className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+              <button type="button" onClick={resetForm} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm transition-colors">
                 Cancel
               </button>
             </div>
@@ -676,19 +676,19 @@ function ShiftsSection() {
         </div>
       )}
 
-      <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 text-gray-400 py-12">
-            <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center justify-center gap-2 text-slate-500 py-12">
+            <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
             Loading shifts...
           </div>
         ) : shifts.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-12">No shift templates found.</p>
+          <p className="text-slate-400 text-sm text-center py-12">No shift templates found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-700">
+                <tr className="border-b border-slate-200">
                   <th className={tableTh}>Name</th>
                   <th className={tableTh}>Start Time</th>
                   <th className={tableTh}>End Time</th>
@@ -698,15 +698,15 @@ function ShiftsSection() {
               </thead>
               <tbody>
                 {shifts.map(s => (
-                  <tr key={s.id} className="border-b border-gray-700/50 hover:bg-gray-700/30">
+                  <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className={tableTd}>{s.name}</td>
                     <td className={tableTd}>{s.startTime}</td>
                     <td className={tableTd}>{s.endTime}</td>
                     <td className={tableTd}>{s.durationHours}h</td>
                     <td className={tableTd}>
                       <div className="flex gap-2">
-                        <button onClick={() => openEdit(s)} className="text-blue-400 hover:text-blue-300 text-xs">Edit</button>
-                        <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:text-red-300 text-xs">Delete</button>
+                        <button onClick={() => openEdit(s)} className="text-[#25439b] hover:text-[#1c3580] text-xs">Edit</button>
+                        <button onClick={() => handleDelete(s.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
                       </div>
                     </td>
                   </tr>
