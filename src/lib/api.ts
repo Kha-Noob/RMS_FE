@@ -1,5 +1,20 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+function getStoredCredentials(): string | null {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem('rms_auth_credentials');
+  return raw || null;
+}
+
+export function storeCredentials(email: string, password: string) {
+  const encoded = btoa(`${email}:${password}`);
+  localStorage.setItem('rms_auth_credentials', encoded);
+}
+
+export function clearCredentials() {
+  localStorage.removeItem('rms_auth_credentials');
+}
+
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
@@ -19,13 +34,20 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     if (qs) url += `?${qs}`;
   }
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(fetchOptions.headers as Record<string, string> || {}),
+  };
+
+  const creds = getStoredCredentials();
+  if (creds) {
+    headers['Authorization'] = `Basic ${creds}`;
+  }
+
   const res = await fetch(url, {
     ...fetchOptions,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...fetchOptions.headers,
-    },
+    headers,
   });
 
   if (!res.ok) {
