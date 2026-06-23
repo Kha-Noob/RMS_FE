@@ -17,8 +17,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-gray-400 text-lg">Loading...</div>
+      <div className="min-h-screen bg-[#f8f9fc] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+          <div className="text-slate-500 text-sm">Loading...</div>
+        </div>
       </div>
     );
   }
@@ -26,9 +29,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-[#f8f9fc]">
       <Sidebar />
-      <main className="lg:ml-64 p-6">{children}</main>
+      <main className="lg:ml-64 min-h-screen">
+        <div className="p-4 lg:p-6 max-w-[1600px]">
+          {children}
+        </div>
+      </main>
     </div>
   );
 }
