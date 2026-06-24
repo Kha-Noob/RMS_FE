@@ -189,7 +189,6 @@ function StockTab({ activeBranchId }: { activeBranchId: string | null }) {
             <th className="py-3 px-4">Unit</th>
             <th className="py-3 px-4">Current Stock</th>
             <th className="py-3 px-4">Minimum Stock</th>
-            <th className="py-3 px-4">Branch</th>
             <th className="py-3 px-4">Status</th>
           </tr>
         </thead>
@@ -200,18 +199,19 @@ function StockTab({ activeBranchId }: { activeBranchId: string | null }) {
               <td className="py-3 px-4 text-slate-600">{item.unit}</td>
               <td className="py-3 px-4 text-slate-600">{item.currentStock}</td>
               <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
-              <td className="py-3 px-4 text-slate-600">{item.branchName}</td>
               <td className="py-3 px-4">
-                {item.currentStock <= item.minimumStock ? (
-                  <span className="px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-medium">Low Stock</span>
+                {item.currentStock <= 0 ? (
+                  <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">Hết hàng</span>
+                ) : item.currentStock <= item.minimumStock ? (
+                  <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-medium">Cần nhập thêm</span>
                 ) : (
-                  <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">OK</span>
+                  <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">Đủ</span>
                 )}
               </td>
             </tr>
           ))}
           {items.length === 0 && (
-            <tr><td colSpan={6} className="py-8 text-center text-slate-400">No stock items found</td></tr>
+            <tr><td colSpan={5} className="py-8 text-center text-slate-400">No stock items found</td></tr>
           )}
         </tbody>
       </table>
