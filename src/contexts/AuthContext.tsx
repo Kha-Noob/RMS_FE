@@ -4,6 +4,22 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { api, storeCredentials, clearCredentials } from '@/lib/api';
 import type { User, Branch } from '@/types';
 
+const BRANCH_STORAGE_KEY = 'rms_active_branch';
+
+function getStoredBranchId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(BRANCH_STORAGE_KEY) || null;
+}
+
+function setStoredBranchId(branchId: string | null) {
+  if (typeof window === 'undefined') return;
+  if (branchId) {
+    localStorage.setItem(BRANCH_STORAGE_KEY, branchId);
+  } else {
+    localStorage.removeItem(BRANCH_STORAGE_KEY);
+  }
+}
+
 interface AuthContextType {
   user: User | null;
   branches: Branch[];
@@ -15,7 +31,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  switchBranch: (branchId: string) => void;
+  switchBranch: (branchId: string) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -28,39 +44,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const loadBranchesAndSetDefault = useCallback(async (currentUser: User) => {
+    try {
+      const branchList = await api.get<Branch[]>('/api/branches/my-branches');
+      setBranches(branchList);
+
+      if (branchList.length === 0) {
+        setStoredBranchId(null);
+        return;
+      }
+
+      const storedBranchId = getStoredBranchId();
+      const storedStillValid = storedBranchId && branchList.some(b => b.branchId === storedBranchId);
+
+      if (storedStillValid) {
+        setActiveBranchId(storedBranchId);
+        const found = branchList.find(b => b.branchId === storedBranchId);
+        if (found) setActiveBranchName(found.name);
+      } else if (currentUser.branchId && branchList.some(b => b.branchId === currentUser.branchId)) {
+        setActiveBranchId(currentUser.branchId);
+        setStoredBranchId(currentUser.branchId);
+        const found = branchList.find(b => b.branchId === currentUser.branchId);
+        if (found) setActiveBranchName(found.name);
+      } else {
+        setActiveBranchId(branchList[0].branchId);
+        setStoredBranchId(branchList[0].branchId);
+        setActiveBranchName(branchList[0].name);
+      }
+    } catch {
+      setBranches([]);
+    }
+  }, []);
+
   const refreshUser = useCallback(async () => {
     try {
       const me = await api.get<User>('/api/auth/me');
       setUser(me);
-
-      const userIsAdmin = me.roles.includes('ADMIN');
-      const userIsSuperAdmin = userIsAdmin && !me.branchId;
-      const canSwitch = userIsSuperAdmin;
-
-      if (me.branchId) {
-        setActiveBranchId(me.branchId);
-      }
-
-      if (canSwitch) {
-        try {
-          const branchList = await api.get<Branch[]>('/api/branch/all');
-          setBranches(branchList);
-          setActiveBranchId(prev => {
-            if (prev) return prev;
-            if (branchList.length > 0) {
-              setActiveBranchName(branchList[0].name);
-              return branchList[0].branchId;
-            }
-            return null;
-          });
-        } catch {
-          setBranches([]);
-        }
-      }
+      await loadBranchesAndSetDefault(me);
     } catch {
       setUser(null);
     }
-  }, []);
+  }, [loadBranchesAndSetDefault]);
 
   useEffect(() => {
     refreshUser().finally(() => setLoading(false));
@@ -87,13 +111,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     } catch { /* ignore */ }
     clearCredentials();
+    setStoredBranchId(null);
     setUser(null);
     window.location.href = '/login';
   };
 
-  const switchBranch = (branchId: string) => {
-    setActiveBranchId(branchId);
-  };
+  const switchBranch = useCallback(async (branchId: string) => {
+    const previousBranchId = activeBranchId;
+    try {
+      await api.post('/api/branches/select', { branchId });
+      setActiveBranchId(branchId);
+      setStoredBranchId(branchId);
+      const found = branches.find(b => b.branchId === branchId);
+      if (found) setActiveBranchName(found.name);
+    } catch {
+      setActiveBranchId(previousBranchId);
+      if (previousBranchId) setStoredBranchId(previousBranchId);
+    }
+  }, [activeBranchId, branches]);
 
   const isSuperAdmin = user?.roles.includes('ADMIN') && !user?.branchId || false;
   const isAdmin = user?.roles.includes('ADMIN') || false;
