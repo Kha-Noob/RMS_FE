@@ -23,12 +23,18 @@ interface OrderLog {
 }
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, activeBranchId } = useAuth();
   const [summary, setSummary] = useState<RevenueSummary | null>(null);
   const [orderLogs, setOrderLogs] = useState<OrderLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!activeBranchId) {
+      setSummary(null);
+      setOrderLogs([]);
+      setLoading(false);
+      return;
+    }
     const fetchDashboard = async () => {
       try {
         const [summaryData, logsData] = await Promise.all([
@@ -44,7 +50,7 @@ export default function DashboardPage() {
       }
     };
     fetchDashboard();
-  }, []);
+  }, [activeBranchId]);
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
