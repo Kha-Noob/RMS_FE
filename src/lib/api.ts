@@ -6,6 +6,11 @@ function getStoredCredentials(): string | null {
   return raw || null;
 }
 
+function getActiveBranchId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('rms_active_branch') || null;
+}
+
 export function storeCredentials(email: string, password: string) {
   const encoded = btoa(`${email}:${password}`);
   localStorage.setItem('rms_auth_credentials', encoded);
@@ -42,6 +47,11 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const creds = getStoredCredentials();
   if (creds) {
     headers['Authorization'] = `Basic ${creds}`;
+  }
+
+  const branchId = getActiveBranchId();
+  if (branchId) {
+    headers['X-Branch-Id'] = branchId;
   }
 
   const res = await fetch(url, {
