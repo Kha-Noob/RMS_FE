@@ -142,7 +142,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'stock' && <StockTab />}
+      {activeTab === 'stock' && <StockTab activeBranchId={activeBranchId} />}
       {activeTab === 'recipes' && <RecipesTab />}
       {activeTab === 'menu' && <MenuTab activeBranchId={activeBranchId} />}
       {activeTab === 'raw-materials' && <RawMaterialsTab />}
@@ -155,11 +155,16 @@ export default function InventoryPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // STOCK TAB
 // ═══════════════════════════════════════════════════════════════════════════════
-function StockTab() {
+function StockTab({ activeBranchId }: { activeBranchId: string | null }) {
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    if (!activeBranchId) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await api.get<StockItem[]>('/api/inventory/stock');
@@ -169,7 +174,7 @@ function StockTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -427,7 +432,7 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -843,11 +848,18 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
+    if (!activeBranchId) {
+      setTransfers([]);
+      setBranches([]);
+      setItems([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [t, b, i] = await Promise.all([
         api.get<Transfer[]>('/api/inventory/transfer'),
-        api.get<Branch[]>('/api/branch/all'),
+        api.get<Branch[]>('/api/branches/my-branches'),
         api.get<StockItem[]>('/api/inventory/stock'),
       ]);
       setTransfers(t);
@@ -858,7 +870,7 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => { load(); }, [load]);
 
