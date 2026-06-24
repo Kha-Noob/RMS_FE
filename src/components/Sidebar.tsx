@@ -9,11 +9,11 @@ const menuItems = [
   { label: 'Dashboard', href: '/', icon: 'dashboard', roles: ['ADMIN', 'MANAGER'] },
   { label: 'POS', href: '/pos', icon: 'pos', roles: ['ADMIN', 'MANAGER', 'CASHIER', 'EMPLOYEE', 'KITCHEN', 'CHEF'] },
   { label: 'KDS', href: '/kds', icon: 'kds', roles: ['ADMIN', 'MANAGER', 'KITCHEN', 'CHEF'] },
-  { label: 'Employees', href: '/employees', icon: 'employees', roles: [] },
-  { label: 'Schedule', href: '/schedule', icon: 'schedule', roles: ['ADMIN', 'MANAGER', 'HR', 'EMPLOYEE', 'CASHIER', 'CHEF'] },
-  { label: 'HR Management', href: '/hr-management', icon: 'hr', roles: ['ADMIN', 'MANAGER', 'HR'] },
   { label: 'Inventory', href: '/inventory', icon: 'inventory', roles: ['ADMIN', 'MANAGER', 'WAREHOUSE', 'CHEF'] },
   { label: 'Procurement', href: '/procurement', icon: 'procurement', roles: ['ADMIN', 'MANAGER', 'PROCUREMENT'] },
+  { label: 'Employees', href: '/employees', icon: 'employees', roles: ['ADMIN', 'MANAGER', 'HR'] },
+  { label: 'Schedule', href: '/schedule', icon: 'schedule', roles: ['ADMIN', 'MANAGER', 'HR', 'EMPLOYEE'] },
+  { label: 'HR Management', href: '/hr-management', icon: 'hr', roles: ['ADMIN', 'MANAGER', 'HR'] },
 ];
 
 function MenuIcon({ icon, className }: { icon: string; className?: string }) {
