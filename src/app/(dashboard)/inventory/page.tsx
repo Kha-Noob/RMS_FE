@@ -142,7 +142,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'stock' && <StockTab />}
+      {activeTab === 'stock' && <StockTab activeBranchId={activeBranchId} />}
       {activeTab === 'recipes' && <RecipesTab />}
       {activeTab === 'menu' && <MenuTab activeBranchId={activeBranchId} />}
       {activeTab === 'raw-materials' && <RawMaterialsTab />}
@@ -155,11 +155,16 @@ export default function InventoryPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // STOCK TAB
 // ═══════════════════════════════════════════════════════════════════════════════
-function StockTab() {
+function StockTab({ activeBranchId }: { activeBranchId: string | null }) {
   const [items, setItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    if (!activeBranchId) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const data = await api.get<StockItem[]>('/api/inventory/stock');
@@ -169,7 +174,7 @@ function StockTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -184,7 +189,6 @@ function StockTab() {
             <th className="py-3 px-4">Unit</th>
             <th className="py-3 px-4">Current Stock</th>
             <th className="py-3 px-4">Minimum Stock</th>
-            <th className="py-3 px-4">Branch</th>
             <th className="py-3 px-4">Status</th>
           </tr>
         </thead>
@@ -195,18 +199,19 @@ function StockTab() {
               <td className="py-3 px-4 text-slate-600">{item.unit}</td>
               <td className="py-3 px-4 text-slate-600">{item.currentStock}</td>
               <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
-              <td className="py-3 px-4 text-slate-600">{item.branchName}</td>
               <td className="py-3 px-4">
-                {item.currentStock <= item.minimumStock ? (
-                  <span className="px-2 py-1 rounded-full bg-red-50 text-red-600 text-xs font-medium">Low Stock</span>
+                {item.currentStock <= 0 ? (
+                  <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">Hết hàng</span>
+                ) : item.currentStock <= item.minimumStock ? (
+                  <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-medium">Cần nhập thêm</span>
                 ) : (
-                  <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">OK</span>
+                  <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">Đủ</span>
                 )}
               </td>
             </tr>
           ))}
           {items.length === 0 && (
-            <tr><td colSpan={6} className="py-8 text-center text-slate-400">No stock items found</td></tr>
+            <tr><td colSpan={5} className="py-8 text-center text-slate-400">No stock items found</td></tr>
           )}
         </tbody>
       </table>
@@ -427,7 +432,7 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -843,11 +848,18 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
+    if (!activeBranchId) {
+      setTransfers([]);
+      setBranches([]);
+      setItems([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const [t, b, i] = await Promise.all([
         api.get<Transfer[]>('/api/inventory/transfer'),
-        api.get<Branch[]>('/api/branch/all'),
+        api.get<Branch[]>('/api/branches/my-branches'),
         api.get<StockItem[]>('/api/inventory/stock'),
       ]);
       setTransfers(t);
@@ -858,7 +870,7 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => { load(); }, [load]);
 

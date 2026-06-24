@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, connectWebSocket } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/Toast';
 
 interface KDSOrder {
@@ -40,12 +41,18 @@ function timeElapsed(createdAt: string): string {
 }
 
 export default function KDSPage() {
+  const { activeBranchId } = useAuth();
   const [orders, setOrders] = useState<KDSOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadOrders = useCallback(async () => {
+    if (!activeBranchId) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
     try {
       const data = await api.get<KDSOrder[]>('/api/kds/orders');
       setOrders(data);
@@ -54,7 +61,7 @@ export default function KDSPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranchId]);
 
   useEffect(() => {
     loadOrders();
@@ -105,7 +112,7 @@ export default function KDSPage() {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (wsRef.current) wsRef.current.close();
     };
-  }, [loadOrders]);
+  }, [loadOrders, activeBranchId]);
 
   const updateStatus = async (orderId: number, status: OrderStatus) => {
     try {
