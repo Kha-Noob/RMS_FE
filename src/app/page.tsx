@@ -13,7 +13,7 @@ export default function Home() {
     if (!user) {
       router.replace('/login');
     } else {
-      router.replace('/pos');
+      router.replace('/dashboard');
     }
   }, [user, loading, router]);
 
