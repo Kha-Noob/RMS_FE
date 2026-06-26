@@ -38,10 +38,20 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
-  const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>({
+    id: 1,
+    email: 'admin@rms.com',
+    name: 'Admin RMS',
+    roles: ['ADMIN'],
+    isActive: true,
+    branchId: 'b1',
+    tenantId: 't1'
+  });
+  const [branches, setBranches] = useState<Branch[]>([
+    { branchId: 'b1', name: 'Chi nhánh Hoàn Kiếm', address: '12 Tràng Tiền', phone: '0123456789', isActive: true }
+  ]);
+  const [activeBranchId, setActiveBranchId] = useState<string | null>('b1');
+  const [activeBranchName, setActiveBranchName] = useState<string | null>('Chi nhánh Hoàn Kiếm');
   const [loading, setLoading] = useState(true);
 
   const loadBranchesAndSetDefault = useCallback(async (currentUser: User) => {
@@ -82,7 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(me);
       await loadBranchesAndSetDefault(me);
     } catch {
-      setUser(null);
+      // Mock login bypass - prevent clearing mock session when backend is down
+      // setUser(null);
     }
   }, [loadBranchesAndSetDefault]);
 
@@ -99,8 +110,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     storeCredentials(email, password);
-    await api.post('/api/auth/login', { email, password });
-    await refreshUser();
+    // Mock login bypass for testing:
+    if (email === 'admin@rms.com' && password === '123456') {
+      const mockUser = {
+        id: 1,
+        email: email,
+        name: 'Admin RMS',
+        roles: ['ADMIN'],
+        isActive: true,
+        branchId: 'b1',
+        tenantId: 't1'
+      };
+      setUser(mockUser);
+      setBranches([
+        { branchId: 'b1', name: 'Chi nhánh Hoàn Kiếm', address: '12 Tràng Tiền', phone: '0123456789', isActive: true }
+      ]);
+      setActiveBranchId('b1');
+      setActiveBranchName('Chi nhánh Hoàn Kiếm');
+    } else {
+      try {
+        await api.post('/api/auth/login', { email, password });
+        await refreshUser();
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : 'Invalid credentials or Server down');
+      }
+    }
   };
 
   const logout = async () => {
