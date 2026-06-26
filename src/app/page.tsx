@@ -20,7 +20,8 @@ import {
   CheckCircle,
   LogOut,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  User as UserIcon
 } from 'lucide-react';
 
 // --- Types & Interfaces ---
@@ -39,6 +40,7 @@ interface Restaurant {
 export default function LandingPage() {
   const { user, logout } = useAuth();
   const { locale, setLocale } = useLanguage();
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   
   // --- Search & Filter States ---
   const [searchText, setSearchText] = useState('');
@@ -527,28 +529,67 @@ export default function LandingPage() {
               <span>{t.navSys}</span>
             </Link>
             {user ? (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
-                  <div className="h-6.5 w-6.5 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold uppercase">
+              <div className="relative">
+                <button
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-full border border-blue-100/75 transition duration-200 cursor-pointer focus:outline-none shadow-sm"
+                >
+                  <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
                     {user.name.charAt(0)}
                   </div>
-                  <span className="text-xs font-medium text-blue-800 hidden sm:inline max-w-[120px] truncate">
+                  <span className="text-xs font-bold text-blue-900 hidden sm:inline max-w-[120px] truncate select-none">
                     {user.name}
                   </span>
-                </div>
-                <Link 
-                  href="/dashboard" 
-                  className="hidden sm:inline-flex items-center justify-center rounded-lg bg-slate-105 hover:bg-slate-200 text-slate-800 px-4 py-2 text-sm font-medium transition"
-                >
-                  {t.navDashboard}
-                </Link>
-                <button 
-                  onClick={logout} 
-                  className="rounded-lg text-slate-500 hover:text-rose-600 p-2 transition"
-                  title={t.navLogout}
-                >
-                  <LogOut className="h-5 w-5" />
+                  <ChevronDown className={`h-3 w-3 text-blue-600 transition-transform duration-250 ${userDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
+                
+                {userDropdownOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setUserDropdownOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-100 bg-white p-1.5 shadow-lg ring-1 ring-black/5 z-50 animate-fade-in-scale">
+                      <Link 
+                        href="/dashboard"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Utensils className="h-4 w-4 text-slate-400" />
+                        <span>{locale === 'vi' ? 'Nhà hàng của tôi' : 'My Restaurant'}</span>
+                      </Link>
+                      <Link 
+                        href="/profile"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <UserIcon className="h-4 w-4 text-slate-400" />
+                        <span>{locale === 'vi' ? 'Trang cá nhân' : 'My Profile'}</span>
+                      </Link>
+                      <button 
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          toast.info(locale === 'vi' ? 'Tính năng lịch sử đặt bàn đang được phát triển!' : 'Booking history feature is under development!');
+                        }}
+                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                      >
+                        <Calendar className="h-4 w-4 text-slate-400" />
+                        <span>{locale === 'vi' ? 'Lịch sử đặt bàn' : 'Booking History'}</span>
+                      </button>
+                      <div className="my-1 border-t border-slate-100" />
+                      <button 
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          logout();
+                        }}
+                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>{locale === 'vi' ? 'Đăng xuất' : 'Log Out'}</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <>
