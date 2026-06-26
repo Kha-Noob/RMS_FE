@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/Toast';
@@ -9,6 +9,15 @@ import type { TableEntity, Room, Product, ProductVariant, Category, CartItem, Ta
 interface ProductWithVariants extends Product {
   variants: ProductVariant[];
   category: Category;
+}
+
+interface ActiveSessionResponse {
+  sessionId: number;
+  tableId: number;
+  tableName: string;
+  status: string;
+  items: CartItem[];
+  total: number;
 }
 
 type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED';
@@ -23,6 +32,12 @@ const statusLabel: Record<TableStatus, string> = {
   EMPTY: 'Trống',
   OCCUPIED: 'Đang dùng',
   RESERVED: 'Đặt trước',
+};
+
+const statusDotColor: Record<TableStatus, string> = {
+  EMPTY: 'bg-green-500',
+  OCCUPIED: 'bg-red-500',
+  RESERVED: 'bg-yellow-500',
 };
 
 export default function POSPage() {
@@ -59,32 +74,78 @@ export default function POSPage() {
   const [mergeTableIds, setMergeTableIds] = useState<number[]>([]);
   const [splitMode, setSplitMode] = useState(false);
 
+  const [panoramaOpen, setPanoramaOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const selectedRoomObj = rooms.find(r => r.id === selectedRoom);
+  const showFloorPlan = selectedRoomObj?.floorPlanImageUrl && selectedRoom !== null;
+
+  const mountedRef = useRef(true);
+  const loadIdRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const loadData = useCallback(async () => {
     if (!activeBranchId) {
       setLoading(false);
       return;
     }
+    const thisLoad = ++loadIdRef.current;
     setLoading(true);
+
+    let tablesOk = false;
+    let roomsOk = false;
+    let productsOk = false;
+
     try {
       const branchId = activeBranchId;
-      const [tableRes, roomRes, productRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.get<TableEntity[]>('/api/pos/tables', { params: { branchId } }),
         api.get<Room[]>('/api/pos/rooms', { params: { branchId } }),
         api.get<ProductWithVariants[]>('/api/pos/products', { params: { branchId } }),
       ]);
-      setTables(tableRes);
-      setRooms(roomRes);
-      setProducts(productRes);
 
-      const catSet = new Map<number, Category>();
-      productRes.forEach(p => {
-        if (p.category) catSet.set(p.category.id, p.category);
-      });
-      setCategories(Array.from(catSet.values()));
+      if (!mountedRef.current || thisLoad !== loadIdRef.current) return;
+
+      const [tablesResult, roomsResult, productsResult] = results;
+
+      if (tablesResult.status === 'fulfilled') {
+        setTables(tablesResult.value);
+        tablesOk = true;
+      }
+      if (roomsResult.status === 'fulfilled') {
+        setRooms(roomsResult.value);
+        roomsOk = true;
+      }
+      if (productsResult.status === 'fulfilled') {
+        setProducts(productsResult.value);
+        productsOk = true;
+
+        const catSet = new Map<number, Category>();
+        productsResult.value.forEach(p => {
+          if (p.category) catSet.set(p.category.id, p.category);
+        });
+        setCategories(Array.from(catSet.values()));
+      }
+
+      if (!tablesOk && !roomsOk && !productsOk) {
+        toast.error('Không tải được dữ liệu POS');
+      } else if (!productsOk) {
+        toast.warning('Tải thực đơn thất bại');
+      } else if (!tablesOk || !roomsOk) {
+        toast.warning('Tải bàn/phòng thất bại');
+      }
     } catch {
-      toast.error('Không tải được dữ liệu POS');
+      if (mountedRef.current && thisLoad === loadIdRef.current) {
+        toast.error('Không tải được dữ liệu POS');
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current && thisLoad === loadIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [activeBranchId]);
 
@@ -100,14 +161,14 @@ export default function POSPage() {
 
   const loadSession = useCallback(async (table: TableEntity) => {
     try {
-      const sess = await api.get<TableSession>('/api/pos/session/active', { params: { tableId: table.id } });
-      setSession(sess);
-      if (sess) {
-        const items = await api.get<CartItem[]>(`/api/pos/session/${sess.id}/items`);
-        setCartItems(items);
-      } else {
-        setCartItems([]);
-      }
+      const res = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: table.id } });
+      const tblSession: TableSession = {
+        id: res.sessionId,
+        table: table,
+        status: res.status,
+      };
+      setSession(tblSession);
+      setCartItems(res.items || []);
     } catch {
       setSession(null);
       setCartItems([]);
@@ -129,7 +190,11 @@ export default function POSPage() {
     }
     setCartLoading(true);
     try {
-      await api.post(`/api/pos/order/add?sessionId=${session.id}&variantId=${variant.id}&quantity=1`);
+      await api.postForm('/api/pos/order/add', {
+        sessionId: session.id,
+        variantId: variant.id,
+        quantity: 1,
+      });
       await loadSession(selectedTable!);
       toast.success(`Đã thêm ${variant.name}`);
     } catch {
@@ -149,7 +214,9 @@ export default function POSPage() {
       if (newQty <= 0) {
         await api.delete(`/api/pos/session/${session.id}/item/${detailId}`);
       } else {
-        await api.put(`/api/pos/session/${session.id}/item/${detailId}`, { quantity: newQty });
+        await api.put(`/api/pos/session/${session.id}/item/${detailId}`, null, {
+          params: { quantity: newQty },
+        });
       }
       await loadSession(selectedTable!);
     } catch {
@@ -163,7 +230,7 @@ export default function POSPage() {
     if (!session) return;
     setCartLoading(true);
     try {
-      await api.post('/api/pos/order/send', { sessionId: session.id });
+      await api.postForm('/api/pos/order/send', { sessionId: session.id });
       await loadSession(selectedTable!);
       toast.success('Đã gửi lên bếp');
     } catch {
@@ -178,14 +245,15 @@ export default function POSPage() {
     setProcessing(true);
     try {
       if (paymentMethod === 'VNPAY') {
-        const res = await api.post<{ paymentUrl: string }>('/api/pos/checkout/vnpay', {
+        const res = await api.postForm<{ qrData: string }>('/api/pos/checkout/vnpay', {
           sessionId: session.id,
         });
-        window.location.href = res.paymentUrl;
+        toast.info(res.qrData);
         return;
       }
-      await api.post('/api/pos/checkout/confirm', {
+      await api.postForm('/api/pos/checkout/confirm', {
         sessionId: session.id,
+        amount: total,
         paymentMethod,
       });
       toast.success('Thanh toán thành công');
@@ -207,7 +275,24 @@ export default function POSPage() {
       return;
     }
     try {
-      await api.post('/api/pos/bill/merge', { tableIds: mergeTableIds });
+      const sourceTableId = mergeTableIds[0];
+      const targetTableId = mergeTableIds[1];
+      const sourceTable = tables.find(t => t.id === sourceTableId);
+      const targetTable = tables.find(t => t.id === targetTableId);
+      if (!sourceTable || !targetTable) {
+        toast.error('Không tìm thấy bàn');
+        return;
+      }
+      const sourceSession = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: sourceTableId } }).catch(() => null);
+      const targetSession = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: targetTableId } }).catch(() => null);
+      if (!sourceSession || !targetSession) {
+        toast.error('Cần 2 bàn đang có phiên hoạt động để gộp');
+        return;
+      }
+      await api.postForm('/api/pos/bill/merge', {
+        sourceSessionId: sourceSession.sessionId,
+        targetSessionId: targetSession.sessionId,
+      });
       toast.success('Gộp bàn thành công');
       setMergeMode(false);
       setMergeTableIds([]);
@@ -218,9 +303,12 @@ export default function POSPage() {
   };
 
   const handleSplitBill = async () => {
-    if (!selectedTable) return;
+    if (!selectedTable || !session) return;
     try {
-      await api.post('/api/pos/bill/split', { tableId: selectedTable.id });
+      await api.postForm('/api/pos/bill/split', {
+        sessionId: session.id,
+        detailIds: cartItems.map(i => i.detailId).join(','),
+      });
       toast.success('Tách bill thành công');
       setSplitMode(false);
       await loadSession(selectedTable);
@@ -236,10 +324,15 @@ export default function POSPage() {
     }
     try {
       if (editingRoom) {
-        await api.put(`/api/pos/rooms/${editingRoom.id}`, { name: roomName.trim() });
+        await api.postForm('/api/pos/rooms/update', {
+          roomId: editingRoom.id,
+          name: roomName.trim(),
+        });
         toast.success('Cập nhật phòng thành công');
       } else {
-        await api.post('/api/pos/rooms/add', { name: roomName.trim(), branchId: activeBranchId });
+        await api.postForm('/api/pos/rooms/add', {
+          name: roomName.trim(),
+        });
         toast.success('Thêm phòng thành công');
       }
       setEditingRoom(null);
@@ -254,7 +347,7 @@ export default function POSPage() {
   const handleDeleteRoom = async (id: number) => {
     if (!confirm('Xóa phòng này?')) return;
     try {
-      await api.delete(`/api/pos/rooms/${id}`);
+      await api.postForm('/api/pos/rooms/delete', { roomId: id });
       toast.success('Xóa phòng thành công');
       setRooms(r => r.filter(room => room.id !== id));
     } catch {
@@ -267,18 +360,26 @@ export default function POSPage() {
       toast.warning('Nhập tên bàn');
       return;
     }
+    const roomId = tableRoomId || rooms[0]?.id;
+    if (!roomId) {
+      toast.warning('Chọn phòng cho bàn');
+      return;
+    }
     try {
-      const payload = {
-        name: tableName.trim(),
-        capacity: tableCapacity,
-        roomId: tableRoomId || rooms[0]?.id,
-        branchId: activeBranchId,
-      };
       if (editingTable) {
-        await api.put(`/api/pos/tables/${editingTable.id}`, payload);
+        await api.postForm('/api/pos/tables/update', {
+          tableId: editingTable.id,
+          name: tableName.trim(),
+          capacity: tableCapacity,
+          roomId,
+        });
         toast.success('Cập nhật bàn thành công');
       } else {
-        await api.post('/api/pos/tables/add', payload);
+        await api.postForm('/api/pos/tables/add', {
+          name: tableName.trim(),
+          capacity: tableCapacity,
+          roomId,
+        });
         toast.success('Thêm bàn thành công');
       }
       setEditingTable(null);
@@ -294,7 +395,7 @@ export default function POSPage() {
   const handleDeleteTable = async (id: number) => {
     if (!confirm('Xóa bàn này?')) return;
     try {
-      await api.delete(`/api/pos/tables/${id}`);
+      await api.postForm('/api/pos/tables/delete', { tableId: id });
       toast.success('Xóa bàn thành công');
       setTables(t => t.filter(table => table.id !== id));
     } catch {
@@ -334,55 +435,126 @@ export default function POSPage() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[#f8f9fc] text-slate-800 overflow-hidden -m-4 lg:-m-6">
-      {/* LEFT: Table Map */}
-      <div className="w-72 min-w-[280px] border-r border-slate-200 flex flex-col bg-white">
-        <div className="flex items-center justify-between p-3 border-b border-slate-200">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Bàn</h2>
-          <div className="flex gap-1">
-            {mergeMode && (
+      {/* ═══════════════════════════════════════════════════════════════
+          MAIN AREA: Floor Plan / Table Map (takes up most of the screen)
+          ═══════════════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top bar: Room tabs + actions */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-200">
+          <div className="flex gap-1 overflow-x-auto flex-1">
+            <button
+              onClick={() => setSelectedRoom(null)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
+                selectedRoom === null ? 'bg-[#25439b] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              Tất cả
+            </button>
+            {rooms.map(room => (
               <button
-                onClick={handleMergeBills}
-                className="px-2 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-500"
+                key={room.id}
+                onClick={() => setSelectedRoom(room.id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
+                  selectedRoom === room.id ? 'bg-[#25439b] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
               >
-                Gộp ({mergeTableIds.length})
+                {room.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1.5 ml-2">
+            {selectedRoomObj?.panoramaUrl && (
+              <button
+                onClick={() => setPanoramaOpen(true)}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-sm flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                360°
               </button>
             )}
             <button
               onClick={() => { setManagerOpen(true); setManagerTab('rooms'); }}
-              className="px-2 py-1 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200"
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              title="Quản lý bàn & phòng"
             >
-              ⚙
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
           </div>
         </div>
 
-        <div className="flex gap-1 p-2 overflow-x-auto border-b border-slate-200">
-          <button
-            onClick={() => setSelectedRoom(null)}
-            className={`px-3 py-1 text-xs rounded whitespace-nowrap transition-colors ${
-              selectedRoom === null ? 'bg-[#25439b] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả
-          </button>
-          {rooms.map(room => (
-            <button
-              key={room.id}
-              onClick={() => setSelectedRoom(room.id)}
-              className={`px-3 py-1 text-xs rounded whitespace-nowrap transition-colors ${
-                selectedRoom === room.id ? 'bg-[#25439b] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-              }`}
-            >
-              {room.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3">
+        {/* Floor plan canvas / Table grid */}
+        <div className="flex-1 overflow-auto p-4">
           {filteredTables.length === 0 ? (
-            <div className="text-slate-400 text-sm text-center mt-8">Không có bàn</div>
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <svg className="w-12 h-12 mb-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <div className="text-sm">Không có bàn</div>
+              {selectedRoom && <div className="text-xs mt-1">Thử chọn phòng khác</div>}
+            </div>
+          ) : showFloorPlan ? (
+            <div
+              className="relative mx-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+              style={{
+                maxWidth: '100%',
+                aspectRatio: (selectedRoomObj!.floorPlanWidth && selectedRoomObj!.floorPlanHeight)
+                  ? `${selectedRoomObj!.floorPlanWidth} / ${selectedRoomObj!.floorPlanHeight}`
+                  : '5 / 4',
+              }}
+            >
+              {/* Background 2D floor diagram */}
+              <img
+                src={selectedRoomObj!.floorPlanImageUrl!}
+                alt="Sơ đồ tầng"
+                className="absolute inset-0 w-full h-full object-contain"
+                draggable={false}
+              />
+              {/* Table markers overlay */}
+              {filteredTables.map(table => {
+                const isSelected = selectedTable?.id === table.id;
+                const isMergeSelected = mergeTableIds.includes(table.id);
+                const radius = table.layoutRadius || 25;
+                const x = table.layoutX ?? 50;
+                const y = table.layoutY ?? 50;
+                const markerColor = statusColor[table.status as TableStatus] || '#94a3b8';
+                return (
+                  <button
+                    key={table.id}
+                    onClick={() => {
+                      if (mergeMode) {
+                        if (table.status === 'OCCUPIED' || isSelected) toggleMergeTable(table.id);
+                      } else {
+                        handleSelectTable(table);
+                      }
+                    }}
+                    className="absolute cursor-pointer transition-all duration-150"
+                    style={{
+                      left: `${x}%`,
+                      top: `${y}%`,
+                      width: radius * 2,
+                      height: radius * 2,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: isSelected ? 20 : isMergeSelected ? 15 : 10,
+                    }}
+                    title={`${table.name} — ${table.capacity} chỗ — ${statusLabel[table.status as TableStatus]}`}
+                  >
+                    <div className="absolute inset-0 rounded-full" style={{ boxShadow: isSelected ? '0 0 0 3px rgba(37,67,155,0.4), 0 4px 12px rgba(0,0,0,0.3)' : isMergeSelected ? '0 0 0 3px rgba(168,85,247,0.4), 0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.25)' }} />
+                    <div
+                      className="absolute inset-0 rounded-full flex items-center justify-center border-2 transition-all"
+                      style={{
+                        backgroundColor: markerColor,
+                        borderColor: isSelected ? '#25439b' : isMergeSelected ? '#a855f7' : 'rgba(255,255,255,0.6)',
+                      }}
+                    >
+                      <span className="text-white text-[10px] font-bold leading-none select-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                        {table.displayLabel || table.name}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           ) : (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
               {filteredTables.map(table => {
                 const isSelected = selectedTable?.id === table.id;
                 const isMergeSelected = mergeTableIds.includes(table.id);
@@ -396,16 +568,16 @@ export default function POSPage() {
                         handleSelectTable(table);
                       }
                     }}
-                    className={`relative p-3 rounded-lg text-center transition-all text-white ${
+                    className={`relative p-4 rounded-xl text-center transition-all text-white ${
                       statusColor[table.status as TableStatus] || 'bg-slate-400'
-                    } ${isSelected ? 'ring-2 ring-[#25439b] ring-offset-2 ring-offset-white' : ''} ${
+                    } ${isSelected ? 'ring-2 ring-[#25439b] ring-offset-2 ring-offset-white scale-105' : 'hover:scale-105'} ${
                       isMergeSelected ? 'ring-2 ring-purple-400 ring-offset-2 ring-offset-white' : ''
                     }`}
                   >
-                    <div className="text-xs font-bold">{table.name}</div>
-                    <div className="text-[10px] mt-1 opacity-75">{table.capacity} chỗ</div>
+                    <div className="text-sm font-bold">{table.name}</div>
+                    <div className="text-[11px] mt-1 opacity-75">{table.capacity} chỗ</div>
                     {table.status !== 'EMPTY' && (
-                      <div className="text-[9px] mt-0.5">{statusLabel[table.status as TableStatus]}</div>
+                      <div className="text-[10px] mt-0.5 opacity-80">{statusLabel[table.status as TableStatus]}</div>
                     )}
                   </button>
                 );
@@ -414,200 +586,317 @@ export default function POSPage() {
           )}
         </div>
 
-        <div className="p-2 border-t border-slate-200 flex gap-1">
+        {/* Bottom bar: Merge/Split actions */}
+        <div className="px-4 py-2 bg-white border-t border-slate-200 flex items-center gap-2">
           <button
             onClick={() => { setMergeMode(!mergeMode); setMergeTableIds([]); }}
-            className={`flex-1 py-2 text-xs rounded transition-colors ${
+            className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
               mergeMode ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
             }`}
           >
-            Gộp bàn
+            {mergeMode ? `Gộp (${mergeTableIds.length})` : 'Gộp bàn'}
           </button>
           <button
             onClick={() => setSplitMode(!splitMode)}
-            className={`flex-1 py-2 text-xs rounded transition-colors ${
+            className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
               splitMode ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
             }`}
             disabled={!selectedTable || selectedTable.status !== 'OCCUPIED'}
           >
             Tách bill
           </button>
+          <div className="flex-1" />
+          <div className="text-xs text-slate-400">
+            {tables.filter(t => t.status === 'EMPTY').length} trống / {tables.length} tổng
+          </div>
         </div>
       </div>
 
-      {/* CENTER: Menu */}
-      <div className="flex-1 flex flex-col bg-[#f8f9fc] min-w-0">
-        <div className="flex items-center gap-1 p-3 overflow-x-auto border-b border-slate-200 bg-white">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`px-3 py-1.5 text-xs rounded whitespace-nowrap transition-colors ${
-              selectedCategory === null ? 'bg-[#25439b] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-            }`}
-          >
-            Tất cả
-          </button>
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 text-xs rounded whitespace-nowrap transition-colors ${
-                selectedCategory === cat.id ? 'bg-[#25439b] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-              }`}
-            >
-              {cat.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3">
-          {filteredProducts.length === 0 ? (
-            <div className="text-slate-400 text-sm text-center mt-8">Không có sản phẩm</div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {filteredProducts.map(product => (
-                <div
-                  key={product.id}
-                  className="bg-white rounded-xl overflow-hidden transition-colors border border-slate-200 hover:border-slate-300 hover:shadow-sm"
-                >
-                  <div className="p-3">
-                    <div className="text-sm font-medium text-slate-800 truncate">{product.name}</div>
-                    {product.category && (
-                      <div className="text-[10px] text-slate-400 mt-0.5">{product.category.name}</div>
-                    )}
+      {/* ═══════════════════════════════════════════════════════════════
+          RIGHT PANEL: Table Detail / Order Info
+          ═══════════════════════════════════════════════════════════════ */}
+      <div className="w-96 min-w-[340px] border-l border-slate-200 flex flex-col bg-white">
+        {selectedTable ? (
+          <>
+            {/* Table header */}
+            <div className="p-4 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold ${
+                    statusColor[selectedTable.status as TableStatus] || 'bg-slate-400'
+                  }`}>
+                    {selectedTable.name.slice(-2)}
                   </div>
-                  {product.variants && product.variants.length > 0 && (
-                    <div className="border-t border-slate-100 divide-y divide-slate-100">
-                      {product.variants.map(variant => (
-                        <button
-                          key={variant.id}
-                          onClick={() => handleAddToCart(variant)}
-                          disabled={!session || cartLoading}
-                          className="w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center"
-                        >
-                          <span className="text-xs text-slate-600 truncate mr-2">{variant.name}</span>
-                          <span className="text-xs font-semibold text-emerald-600 whitespace-nowrap">
-                            {variant.price.toLocaleString('vi-VN')}đ
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div>
+                    <h3 className="font-semibold text-slate-800">{selectedTable.name}</h3>
+                    <p className="text-[11px] text-slate-400">
+                      {selectedTable.capacity} chỗ · {statusLabel[selectedTable.status as TableStatus]}
+                    </p>
+                  </div>
                 </div>
-              ))}
+                <button
+                  onClick={() => { setSelectedTable(null); setSession(null); setCartItems([]); }}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                  title="Đóng"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              {session && (
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
+                    Phiên #{session.id}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {cartItems.length} món
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* QR Ordering section */}
+            <div className="p-4 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                  <span className="text-xs font-medium text-slate-600">QR gọi món</span>
+                </div>
+                <button
+                  disabled
+                  className="px-3 py-1.5 text-[11px] font-medium bg-white border border-slate-200 text-slate-400 rounded-lg cursor-not-allowed"
+                >
+                  Tạo QR
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5">
+                {/* TODO: When QR ordering is implemented, show order URL here */}
+                Khách hàng quét QR để tự gọi món — sắp ra mắt
+              </p>
+            </div>
+
+            {/* Order items */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {cartItems.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="w-10 h-10 mx-auto text-slate-200 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2C6.48 2 2 6 2 11h20c0-5-4.48-9-10-9z"/><path d="M2 13h20v1a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-1z"/></svg>
+                  <div className="text-sm text-slate-400">Chưa có món</div>
+                  <div className="text-xs text-slate-300 mt-1">Nhấn "Thêm món" để bắt đầu</div>
+                </div>
+              ) : (
+                cartItems.map(item => (
+                  <div
+                    key={item.detailId}
+                    className={`rounded-xl p-3 border transition-colors ${
+                      item.status === 'COOKING' ? 'border-orange-200 bg-orange-50' :
+                      item.status === 'READY' ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-slate-800 truncate">{item.productName}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">{item.variantName}</div>
+                        <div className="text-[10px] mt-1">
+                          {item.status === 'PENDING' && <span className="text-slate-400">⏳ Chờ xử lý</span>}
+                          {item.status === 'COOKING' && <span className="text-orange-500">🔥 Đang nấu</span>}
+                          {item.status === 'READY' && <span className="text-emerald-500">✅ Sẵn sàng</span>}
+                        </div>
+                      </div>
+                      <div className="text-sm font-semibold text-emerald-600 ml-2 whitespace-nowrap">
+                        {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleUpdateQuantity(item.detailId, -1)}
+                          disabled={cartLoading}
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 transition-colors"
+                        >
+                          −
+                        </button>
+                        <span className="text-sm w-6 text-center text-slate-700 font-medium">{item.quantity}</span>
+                        <button
+                          onClick={() => handleUpdateQuantity(item.detailId, 1)}
+                          disabled={cartLoading}
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-slate-400">
+                        {item.price.toLocaleString('vi-VN')}đ × {item.quantity}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Total & Action buttons */}
+            <div className="border-t border-slate-200 p-4 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-500">Tổng cộng</span>
+                <span className="text-xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</span>
+              </div>
+              <button
+                onClick={() => setMenuOpen(true)}
+                className="w-full py-2.5 bg-[#25439b] hover:bg-[#1c3580] rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Thêm món
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleSendToKitchen}
+                  disabled={!session || cartItems.length === 0 || cartLoading}
+                  className="py-2.5 bg-orange-500 hover:bg-orange-400 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {cartLoading ? '...' : '🔥 Gửi bếp'}
+                </button>
+                <button
+                  onClick={() => setCheckoutOpen(true)}
+                  disabled={!session || cartItems.length === 0}
+                  className="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  💳 Thanh toán
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* No table selected — empty state */
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+              <svg className="w-10 h-10 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M3 9h18M9 21V9"/>
+              </svg>
+            </div>
+            <h3 className="text-base font-semibold text-slate-700 mb-1">Chọn bàn để bắt đầu</h3>
+            <p className="text-sm text-slate-400 max-w-[200px]">
+              Nhấn vào bàn trên sơ đồ để xem thông tin và bắt đầu đặt món
+            </p>
+            <div className="mt-6 flex flex-col gap-2 w-full max-w-[180px]">
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <div className="w-3 h-3 rounded-full bg-green-500" />
+                <span>Trống — có thể chọn</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <div className="w-3 h-3 rounded-full bg-red-500" />
+                <span>Đang dùng</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                <span>Đặt trước</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* RIGHT: Cart */}
-      <div className="w-80 min-w-[300px] border-l border-slate-200 flex flex-col bg-white">
-        <div className="p-3 border-b border-slate-200">
-          {selectedTable ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-sm text-slate-800">{selectedTable.name}</h3>
-                <p className="text-[11px] text-slate-400">
-                  {session ? `Phiên #${session.id}` : 'Chưa có phiên'}
-                </p>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                selectedTable.status === 'OCCUPIED' ? 'bg-red-50 text-red-600' :
-                selectedTable.status === 'RESERVED' ? 'bg-amber-50 text-amber-600' :
-                'bg-emerald-50 text-emerald-600'
-              }`}>
-                {statusLabel[selectedTable.status as TableStatus]}
-              </span>
-            </div>
-          ) : (
-            <h3 className="text-sm text-slate-400">Chọn bàn để bắt đầu</h3>
-          )}
-        </div>
+      {/* ═══════════════════════════════════════════════════════════════
+          MENU MODAL — Opens when "Thêm món" is clicked
+          ═══════════════════════════════════════════════════════════════ */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex">
+          {/* Click outside to close */}
+          <div className="flex-1" onClick={() => setMenuOpen(false)} />
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {cartItems.length === 0 ? (
-            <div className="text-slate-400 text-sm text-center mt-8">
-              {session ? 'Chưa có món' : 'Chọn bàn và bắt đầu đặt món'}
+          {/* Slide-in panel from right */}
+          <div className="w-[520px] max-w-[90vw] bg-white shadow-2xl flex flex-col animate-slide-in-right">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800">Thực đơn</h3>
+                {selectedTable && (
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Thêm món cho {selectedTable.name}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
-          ) : (
-            cartItems.map(item => (
-              <div
-                key={item.detailId}
-                className={`bg-slate-50 rounded-lg p-3 border ${
-                  item.status === 'COOKING' ? 'border-orange-300 bg-orange-50' :
-                  item.status === 'READY' ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200'
+
+            {/* Category tabs */}
+            <div className="flex gap-1 p-3 overflow-x-auto border-b border-slate-200 bg-slate-50">
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
+                  selectedCategory === null ? 'bg-[#25439b] text-white' : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate">{item.productName}</div>
-                    <div className="text-[11px] text-slate-500">{item.variantName}</div>
-                    {item.notes && (
-                      <div className="text-[10px] text-slate-400 mt-1 italic">{item.notes}</div>
-                    )}
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      {item.status === 'PENDING' && '⏳ Chờ xử lý'}
-                      {item.status === 'COOKING' && '🔥 Đang nấu'}
-                      {item.status === 'READY' && '✅ Sẵn sàng'}
+                Tất cả
+              </button>
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
+                    selectedCategory === cat.id ? 'bg-[#25439b] text-white' : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Product grid */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {filteredProducts.length === 0 ? (
+                <div className="text-slate-400 text-sm text-center mt-12">Không có sản phẩm</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {filteredProducts.map(product => (
+                    <div
+                      key={product.id}
+                      className="bg-white rounded-xl overflow-hidden border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
+                    >
+                      <div className="p-3">
+                        <div className="text-sm font-medium text-slate-800 truncate">{product.name}</div>
+                        {product.category && (
+                          <div className="text-[10px] text-slate-400 mt-0.5">{product.category.name}</div>
+                        )}
+                      </div>
+                      {product.variants && product.variants.length > 0 && (
+                        <div className="border-t border-slate-100 divide-y divide-slate-100">
+                          {product.variants.map(variant => (
+                            <button
+                              key={variant.id}
+                              onClick={() => {
+                                handleAddToCart(variant);
+                              }}
+                              disabled={!session || cartLoading}
+                              className="w-full px-3 py-2.5 text-left hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center"
+                            >
+                              <span className="text-xs text-slate-600 truncate mr-2">{variant.name}</span>
+                              <span className="text-xs font-semibold text-emerald-600 whitespace-nowrap">
+                                {variant.price.toLocaleString('vi-VN')}đ
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className="text-sm font-semibold text-emerald-600 ml-2">
-                    {(item.price * item.quantity).toLocaleString('vi-VN')}đ
-                  </div>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between mt-2">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleUpdateQuantity(item.detailId, -1)}
-                      disabled={cartLoading}
-                      className="w-7 h-7 rounded bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-sm text-slate-600 disabled:opacity-50 transition-colors"
-                    >
-                      −
-                    </button>
-                    <span className="text-sm w-6 text-center text-slate-700">{item.quantity}</span>
-                    <button
-                      onClick={() => handleUpdateQuantity(item.detailId, 1)}
-                      disabled={cartLoading}
-                      className="w-7 h-7 rounded bg-slate-200 hover:bg-slate-300 flex items-center justify-center text-sm text-slate-600 disabled:opacity-50 transition-colors"
-                    >
-                      +
-                    </button>
-                  </div>
-                  <div className="text-[11px] text-slate-400">
-                    {item.price.toLocaleString('vi-VN')}đ × {item.quantity}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Total & Actions */}
-        <div className="border-t border-slate-200 p-3 space-y-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-slate-500">Tổng cộng</span>
-            <span className="text-lg font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</span>
+              )}
+            </div>
           </div>
-          <button
-            onClick={handleSendToKitchen}
-            disabled={!session || cartItems.length === 0 || cartLoading}
-            className="w-full py-2.5 bg-orange-500 hover:bg-orange-400 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {cartLoading ? 'Đang xử lý...' : '🔥 Gửi bếp'}
-          </button>
-          <button
-            onClick={() => setCheckoutOpen(true)}
-            disabled={!session || cartItems.length === 0}
-            className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            💳 Thanh toán
-          </button>
         </div>
-      </div>
+      )}
 
-      {/* Checkout Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          CHECKOUT MODAL
+          ═══════════════════════════════════════════════════════════════ */}
       {checkoutOpen && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200">
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setCheckoutOpen(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="text-lg font-semibold text-slate-800">Thanh toán</h3>
               <button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">✕</button>
@@ -617,7 +906,6 @@ export default function POSPage() {
                 <div className="text-sm text-slate-500 mb-1">Tổng tiền</div>
                 <div className="text-2xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</div>
               </div>
-
               <div>
                 <div className="text-sm text-slate-500 mb-2">Phương thức thanh toán</div>
                 <div className="grid grid-cols-1 gap-2">
@@ -641,7 +929,6 @@ export default function POSPage() {
                   ))}
                 </div>
               </div>
-
               <button
                 onClick={handleCheckout}
                 disabled={processing}
@@ -654,67 +941,34 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* Manager Modal */}
+      {/* ═══════════════════════════════════════════════════════════════
+          MANAGER MODAL
+          ═══════════════════════════════════════════════════════════════ */}
       {managerOpen && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200">
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setManagerOpen(false); setEditingRoom(null); setEditingTable(null); }}>
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="text-lg font-semibold text-slate-800">Quản lý bàn & phòng</h3>
               <button onClick={() => { setManagerOpen(false); setEditingRoom(null); setEditingTable(null); }} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">✕</button>
             </div>
-
             <div className="flex border-b border-slate-200">
-              <button
-                onClick={() => setManagerTab('rooms')}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                  managerTab === 'rooms' ? 'border-b-2 border-[#25439b] text-[#25439b]' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Phòng
-              </button>
-              <button
-                onClick={() => setManagerTab('tables')}
-                className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                  managerTab === 'tables' ? 'border-b-2 border-[#25439b] text-[#25439b]' : 'text-slate-400 hover:text-slate-600'
-                }`}
-              >
-                Bàn
-              </button>
+              <button onClick={() => setManagerTab('rooms')} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${managerTab === 'rooms' ? 'border-b-2 border-[#25439b] text-[#25439b]' : 'text-slate-400 hover:text-slate-600'}`}>Phòng</button>
+              <button onClick={() => setManagerTab('tables')} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${managerTab === 'tables' ? 'border-b-2 border-[#25439b] text-[#25439b]' : 'text-slate-400 hover:text-slate-600'}`}>Bàn</button>
             </div>
-
             <div className="p-4 max-h-[60vh] overflow-y-auto">
               {managerTab === 'rooms' && (
                 <div className="space-y-3">
                   <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={roomName}
-                      onChange={e => setRoomName(e.target.value)}
-                      placeholder="Tên phòng..."
-                      className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20"
-                      onKeyDown={e => e.key === 'Enter' && handleSaveRoom()}
-                    />
-                    <button onClick={handleSaveRoom} className="px-4 py-2 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-lg text-sm transition-colors">
-                      {editingRoom ? 'Cập nhật' : 'Thêm'}
-                    </button>
+                    <input type="text" value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Tên phòng..." className="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20" onKeyDown={e => e.key === 'Enter' && handleSaveRoom()} />
+                    <button onClick={handleSaveRoom} className="px-4 py-2 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-lg text-sm transition-colors">{editingRoom ? 'Cập nhật' : 'Thêm'}</button>
                   </div>
                   <div className="space-y-1">
                     {rooms.map(room => (
                       <div key={room.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg group">
                         <span className="text-sm text-slate-700">{room.name}</span>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => { setEditingRoom(room); setRoomName(room.name); }}
-                            className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRoom(room.id)}
-                            className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
-                          >
-                            Xóa
-                          </button>
+                          <button onClick={() => { setEditingRoom(room); setRoomName(room.name); }} className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300">Sửa</button>
+                          <button onClick={() => handleDeleteRoom(room.id)} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Xóa</button>
                         </div>
                       </div>
                     ))}
@@ -722,48 +976,19 @@ export default function POSPage() {
                   </div>
                 </div>
               )}
-
               {managerTab === 'tables' && (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      value={tableName}
-                      onChange={e => setTableName(e.target.value)}
-                      placeholder="Tên bàn..."
-                      className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20"
-                    />
-                    <input
-                      type="number"
-                      value={tableCapacity}
-                      onChange={e => setTableCapacity(parseInt(e.target.value) || 1)}
-                      min={1}
-                      placeholder="Số chỗ"
-                      className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20"
-                    />
-                    <select
-                      value={tableRoomId}
-                      onChange={e => setTableRoomId(parseInt(e.target.value))}
-                      className="col-span-2 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20"
-                    >
+                    <input type="text" value={tableName} onChange={e => setTableName(e.target.value)} placeholder="Tên bàn..." className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20" />
+                    <input type="number" value={tableCapacity} onChange={e => setTableCapacity(parseInt(e.target.value) || 1)} min={1} placeholder="Số chỗ" className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20" />
+                    <select value={tableRoomId} onChange={e => setTableRoomId(parseInt(e.target.value))} className="col-span-2 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20">
                       <option value={0}>-- Chọn phòng --</option>
-                      {rooms.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
-                      ))}
+                      {rooms.map(r => (<option key={r.id} value={r.id}>{r.name}</option>))}
                     </select>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={handleSaveTable} className="flex-1 py-2 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-lg text-sm transition-colors">
-                      {editingTable ? 'Cập nhật' : 'Thêm bàn'}
-                    </button>
-                    {editingTable && (
-                      <button
-                        onClick={() => { setEditingTable(null); setTableName(''); setTableCapacity(4); }}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors"
-                      >
-                        Hủy
-                      </button>
-                    )}
+                    <button onClick={handleSaveTable} className="flex-1 py-2 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-lg text-sm transition-colors">{editingTable ? 'Cập nhật' : 'Thêm bàn'}</button>
+                    {editingTable && <button onClick={() => { setEditingTable(null); setTableName(''); setTableCapacity(4); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors">Hủy</button>}
                   </div>
                   <div className="space-y-1 mt-2">
                     {tables.map(table => (
@@ -773,23 +998,8 @@ export default function POSPage() {
                           <span className="text-[10px] text-slate-400 ml-2">{table.capacity} chỗ · {table.room?.name}</span>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => {
-                              setEditingTable(table);
-                              setTableName(table.name);
-                              setTableCapacity(table.capacity);
-                              setTableRoomId(table.room?.id || 0);
-                            }}
-                            className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTable(table.id)}
-                            className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
-                          >
-                            Xóa
-                          </button>
+                          <button onClick={() => { setEditingTable(table); setTableName(table.name); setTableCapacity(table.capacity); setTableRoomId(table.room?.id || 0); }} className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300">Sửa</button>
+                          <button onClick={() => handleDeleteTable(table.id)} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Xóa</button>
                         </div>
                       </div>
                     ))}
@@ -801,6 +1011,35 @@ export default function POSPage() {
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          360 PANORAMA MODAL
+          ═══════════════════════════════════════════════════════════════ */}
+      {panoramaOpen && selectedRoomObj?.panoramaUrl && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setPanoramaOpen(false)}>
+          <button onClick={() => setPanoramaOpen(false)} className="absolute top-4 right-4 text-white text-2xl z-10 hover:text-slate-300">✕</button>
+          {selectedRoomObj.panoramaType === 'EXTERNAL_LINK' ? (
+            <div className="text-center" onClick={e => e.stopPropagation()}>
+              <iframe src={selectedRoomObj.panoramaUrl} className="w-[90vw] h-[80vh] rounded-lg border-0 bg-slate-900" title="360 View" />
+              <button onClick={() => window.open(selectedRoomObj.panoramaUrl!, '_blank')} className="mt-3 px-4 py-2 bg-white/20 text-white rounded-lg text-sm hover:bg-white/30">Mở trong tab mới</button>
+            </div>
+          ) : (
+            <img src={selectedRoomObj.panoramaUrl} alt="360 panorama" className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+          )}
+          <div className="absolute bottom-4 text-white/70 text-xs">{selectedRoomObj.name} — 360 View</div>
+        </div>
+      )}
+
+      {/* Slide-in animation */}
+      <style jsx global>{`
+        @keyframes slide-in-right {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+        .animate-slide-in-right {
+          animation: slide-in-right 0.25s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
