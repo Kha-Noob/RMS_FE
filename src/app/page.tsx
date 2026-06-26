@@ -3,14 +3,12 @@
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
 import {
   Search,
   MapPin,
   Utensils,
-  ThumbsUp,
-  MessageSquare,
-  Share2,
   Heart,
   Calendar,
   ChevronRight,
@@ -18,63 +16,14 @@ import {
   Award,
   Phone,
   Mail,
-  Clock,
-  Sparkles,
-  TrendingUp,
   X,
   CheckCircle,
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Sparkles
 } from 'lucide-react';
 
 // --- Types & Interfaces ---
-interface District {
-  name: string;
-  postCount: number;
-}
-
-interface CulinaryEvent {
-  id: number;
-  title: string;
-  date: string;
-  time?: string;
-  location: string;
-  tag: string;
-  imageUrl: string;
-}
-
-interface ReviewPost {
-  id: number;
-  author: {
-    name: string;
-    avatar: string;
-    level: string;
-  };
-  rating: number;
-  location: string;
-  timestamp: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  likes: number;
-  commentsCount: number;
-  restaurantName: string;
-  tags: string[];
-}
-
-interface TrendingHashtag {
-  tag: string;
-  count: string;
-}
-
-interface LeaderboardUser {
-  rank: number;
-  name: string;
-  points: number;
-  avatar: string;
-  isTop?: boolean;
-}
-
 interface Restaurant {
   id: string;
   name: string;
@@ -89,6 +38,7 @@ interface Restaurant {
 
 export default function LandingPage() {
   const { user, logout } = useAuth();
+  const { locale, setLocale } = useLanguage();
   
   // --- Search & Filter States ---
   const [searchText, setSearchText] = useState('');
@@ -96,12 +46,8 @@ export default function LandingPage() {
   const [selectedCuisine, setSelectedCuisine] = useState('Tất cả loại hình');
   const [sortBy, setSortBy] = useState('Sắp xếp');
   
-  // --- Active Tab for Reviews ---
-  const [activeReviewTab, setActiveReviewTab] = useState<'latest' | 'popular'>('latest');
-  const [activeHashtagFilter, setActiveHashtagFilter] = useState<string | null>(null);
-
-  // --- Show More State for Review Cards ---
-  const [expandedReviews, setExpandedReviews] = useState<Record<number, boolean>>({});
+  // --- Wishlist State ---
+  const [wishlistedRestaurants, setWishlistedRestaurants] = useState<Record<string, boolean>>({});
 
   // --- Booking Modal State ---
   const [bookingRestaurant, setBookingRestaurant] = useState<string | null>(null);
@@ -115,122 +61,269 @@ export default function LandingPage() {
   });
   const [isBookedSuccess, setIsBookedSuccess] = useState(false);
 
-  // --- Like/Wishlist States (Interactive UI) ---
-  const [likedReviews, setLikedReviews] = useState<Record<number, boolean>>({});
-  const [reviewLikeCounts, setReviewLikeCounts] = useState<Record<number, number>>({});
-  const [wishlistedRestaurants, setWishlistedRestaurants] = useState<Record<string, boolean>>({});
-
-  // --- Mock Databases ---
-  const districts: District[] = [
-    { name: 'Quận Hoàn Kiếm', postCount: 18 },
-    { name: 'Quận Cầu Giấy', postCount: 14 },
-    { name: 'Quận Tây Hồ', postCount: 12 },
-    { name: 'Quận Đống Đa', postCount: 9 },
-    { name: 'Quận Hai Bà Trưng', postCount: 7 }
-  ];
-
-  const culinaryEvents: CulinaryEvent[] = [
-    {
-      id: 1,
-      title: 'Lễ hội Tinh hoa Ẩm thực Đường phố',
-      date: '28/06 - 30/06/2026',
-      time: '16:00 - 22:00',
-      location: 'Phố đi bộ Hồ Gươm, Hoàn Kiếm',
-      tag: 'Festival',
-      imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&q=80&w=400'
-    },
-    {
-      id: 2,
-      title: 'Đêm nhạc Acoustic & Fine Wine Tasting',
-      date: 'Thứ 7 tuần này',
-      time: '19:30 - 22:30',
-      location: 'Skyline Lounge, Cầu Giấy',
-      tag: 'Fine Dining',
-      imageUrl: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&q=80&w=400'
-    },
-    {
-      id: 3,
-      title: 'Masterclass: Nghệ thuật làm Sushi truyền thống',
-      date: '05/07/2026',
-      time: '09:00 - 12:00',
-      location: 'The Én Restaurant, Hoàn Kiếm',
-      tag: 'Workshop',
-      imageUrl: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&q=80&w=400'
-    }
-  ];
-
-  const reviewPosts: ReviewPost[] = [
-    {
-      id: 1,
-      author: {
-        name: 'Nguyễn Minh Anh',
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150',
-        level: 'Thành viên Vàng'
+  const t = useMemo(() => {
+    return locale === 'vi' ? {
+      // Nav
+      navExplore: 'Khám phá',
+      navFeed: 'Diễn đàn Review',
+      navEvents: 'Sự kiện & Ưu đãi',
+      navAbout: 'Về chúng tôi',
+      navSys: 'Hệ thống Quản lý',
+      navSignIn: 'Sign In',
+      navSignUp: 'Sign Up',
+      navDashboard: 'Dashboard',
+      navLogout: 'Đăng xuất',
+      
+      // Hero
+      heroBadge: 'Nền tảng tìm kiếm ẩm thực hàng đầu của bạn',
+      heroTitle: 'Khám phá & Đặt bàn tại những nhà hàng tuyệt vời',
+      heroDesc: 'Tìm kiếm nhà hàng yêu thích, xem thông tin chi tiết, thực đơn và đặt bàn nhanh chóng, dễ dàng.',
+      
+      // Search
+      searchPlaceholder: 'Tìm kiếm nhà hàng, món ăn, địa điểm...',
+      filterDistrict: 'Tất cả khu vực',
+      filterCuisine: 'Tất cả loại hình',
+      filterSort: 'Sắp xếp',
+      searchBtn: 'Tìm kiếm',
+      activeFilters: 'Bộ lọc đang áp dụng:',
+      clearFilters: 'Xóa bộ lọc',
+      toastFilterUpdated: 'Đã cập nhật bộ lọc hiển thị!',
+      
+      // Districts
+      districts: {
+        'Tất cả khu vực': 'Tất cả khu vực',
+        'Quận Hoàn Kiếm': 'Quận Hoàn Kiếm',
+        'Quận Cầu Giấy': 'Quận Cầu Giấy',
+        'Quận Tây Hồ': 'Quận Tây Hồ',
+        'Quận Đống Đa': 'Quận Đống Đa'
       },
-      rating: 4.9,
-      location: 'Quận Tây Hồ, Hà Nội',
-      timestamp: '2 giờ trước',
-      title: 'Trải nghiệm ẩm thực thuần Việt tinh tế tại Tầm Vị',
-      description: 'Không gian ở Tầm Vị thực sự mang lại cảm giác hoài cổ vô cùng ấm áp, gợi nhớ về những ngôi nhà cổ Hà Nội xưa. Các món ăn được bày biện và chế biến vô cùng tỉ mỉ, chuẩn hương vị cơm nhà Bắc Bộ nhưng được nâng tầm lên đẳng cấp Fine Dining. Nhất định các bạn phải thử món thịt kho quẹt đậm đà ăn kèm rau củ luộc và canh cua mồng tơi ngọt lịm mát rượi nhé!',
-      imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=800',
-      likes: 42,
-      commentsCount: 15,
-      restaurantName: 'Tầm Vị Restaurant',
-      tags: ['#MonVietAmCung', '#FineDiningHanoi']
-    },
-    {
-      id: 2,
-      author: {
-        name: 'Trần Thanh Sơn',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
-        level: 'Ẩm thực Gia'
+      cuisines: {
+        'Tất cả loại hình': 'Tất cả loại hình',
+        'Fine Dining': 'Fine Dining',
+        'Món Việt': 'Món Việt',
+        'Lounge & Cocktail': 'Lounge & Cocktail',
+        'Hải sản': 'Hải sản'
       },
-      rating: 4.7,
-      location: 'Quận Cầu Giấy, Hà Nội',
-      timestamp: '1 ngày trước',
-      title: 'Skyline Lounge - View ngắm trọn hoàng hôn Hà Nội cực chill',
-      description: 'Nếu bạn đang tìm kiếm một địa điểm hẹn hò lãng mạn lộng gió vào buổi chiều tối thì đây chắc chắn là lựa chọn số một tại Cầu Giấy. Cocktails ở đây pha chế rất sáng tạo, nhạc deep house nhẹ nhàng thư giãn và view ngắm thành phố từ trên tầng cao thực sự đắt giá. Menu đồ ăn nhẹ cũng phong phú, đặc biệt món bò nướng đá nóng ăn rất mềm vị đậm đà.',
-      imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=800',
-      likes: 35,
-      commentsCount: 8,
-      restaurantName: 'Skyline Lounge',
-      tags: ['#SkylineCocktails', '#HenHoLangMan']
-    },
-    {
-      id: 3,
-      author: {
-        name: 'Lê Thuỳ Trang',
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150',
-        level: 'Chuyên gia Review'
+      sorts: {
+        'Sắp xếp': 'Sắp xếp',
+        'Đánh giá cao nhất': 'Đánh giá cao nhất',
+        'Phổ biến nhất': 'Phổ biến nhất'
       },
-      rating: 4.8,
-      location: 'Quận Hoàn Kiếm, Hà Nội',
-      timestamp: '3 ngày trước',
-      title: 'Hương vị biển cả tươi rói giữa lòng phố cổ tại The Én',
-      description: 'The Én mang đến phong cách ẩm thực Á Âu kết hợp hải sản vô cùng mới mẻ. Đĩa tôm hùm đút lò phô mai béo ngậy thơm nức mũi, thịt tôm dai giòn ngọt lịm. Nhân viên siêu thân thiện và nhiệt tình, không gian sang trọng rất thích hợp tiếp khách hoặc họp mặt gia đình cuối tuần.',
-      imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=800',
-      likes: 29,
-      commentsCount: 11,
-      restaurantName: 'The Én Restaurant',
-      tags: ['#FineDiningHanoi', '#MonVietAmCung']
-    }
-  ];
+      
+      // Grid
+      gridTitle: 'Nhà hàng nổi bật',
+      gridBadge: 'Hot nhất tuần này',
+      gridBtnViewAll: 'Xem tất cả',
+      gridDistance: 'Khoảng cách:',
+      gridBtnBook: 'Đặt bàn ngay',
+      noRestaurant: 'Không tìm thấy nhà hàng nào khớp với tìm kiếm',
+      noRestaurantDesc: 'Thử điều chỉnh lại từ khóa hoặc xóa các bộ lọc hiện tại để xem thêm kết quả.',
+      toastWishlistAdd: 'Đã thêm nhà hàng vào danh sách yêu thích!',
+      toastWishlistRemove: 'Đã xóa nhà hàng khỏi danh sách yêu thích!',
+      
+      // About Us Section
+      aboutTag: 'Về chúng tôi - RMS',
+      aboutTitle: 'Sứ mệnh kết nối tinh hoa ẩm thực',
+      aboutDesc: 'RMS được sinh ra với mong muốn rút ngắn khoảng cách giữa thực khách và các nhà hàng cao cấp. Chúng tôi không chỉ cung cấp dịch vụ tìm kiếm và đặt bàn nhanh chóng, mà còn xây dựng cộng đồng đánh giá ẩm thực uy tín, nơi các tín đồ ẩm thực chia sẻ trải nghiệm chân thực.',
+      aboutStat1: 'Nhà hàng đối tác',
+      aboutStat2: 'Thực khách tin dùng',
+      aboutStat3: 'Dịch vụ tận tâm',
+      aboutOverlay: 'Đồng hành cùng thực khách Việt',
+      
+      // Booking Modal
+      bookingTitle: 'Phiếu Đặt Bàn',
+      bookingSubtitle: 'Đặt bàn tại',
+      bookingSuccess: 'Đặt bàn thành công!',
+      bookingCodeText: 'Mã đặt bàn của bạn là',
+      bookingConfirmContact: 'Nhân viên nhà hàng sẽ liên hệ lại với bạn trong vòng 10 phút để xác nhận.',
+      bookingLabelName: 'Họ và tên *',
+      bookingLabelPhone: 'Số điện thoại *',
+      bookingLabelDate: 'Chọn ngày *',
+      bookingLabelTime: 'Giờ đặt *',
+      bookingLabelGuests: 'Số lượng khách *',
+      bookingLabelNotes: 'Ghi chú đặc biệt (nếu có)',
+      bookingPlaceholderName: 'VD: Nguyễn Văn A',
+      bookingPlaceholderPhone: 'VD: 0912345678',
+      bookingPlaceholderNotes: 'VD: Muốn ngồi cạnh cửa sổ, kỷ niệm ngày cưới...',
+      bookingBtnCancel: 'Hủy bộ',
+      bookingBtnConfirm: 'Xác nhận đặt',
+      bookingBtnComplete: 'Hoàn tất',
+      bookingCustomer: 'Khách hàng',
+      bookingPhone: 'Số điện thoại',
+      bookingTime: 'Thời gian',
+      bookingGuests: 'Số khách',
+      toastEnterName: 'Vui lòng nhập họ và tên',
+      toastEnterPhone: 'Vui lòng nhập số điện thoại',
+      toastBookingSuccess: 'Đặt bàn thành công tại',
+      
+      // Promotion & Contact Banners
+      bannerHelpTitle: 'Bạn cần hỗ trợ?',
+      bannerHelpDesc: 'Liên hệ với đội ngũ CSKH của chúng tôi để được tư vấn dịch vụ tốt nhất.',
+      bannerContactTitle: 'Contact Us',
+      bannerContactSubtitle: 'Chúng tôi luôn sẵn sàng hỗ trợ bạn!',
+      bannerContactBtn: 'Liên hệ ngay',
+      bannerHotline: 'Hotline 24/7',
+      bannerEmail: 'Gửi Email',
+      toastContactInfo: 'Hotline hỗ trợ: 1900 1234. Email: support@rms.com',
+      
+      // USP Banners
+      usp1Title: 'Đặt bàn dễ dàng',
+      usp1Desc: 'Chọn nhà hàng, chọn thời gian và đặt bàn chỉ với vài thao tác',
+      usp2Title: 'Xác nhận nhanh chóng',
+      usp2Desc: 'Nhà hàng sẽ xác nhận đặt bàn trong thời gian sớm nhất',
+      usp3Title: 'Ưu đãi hấp dẫn',
+      usp3Desc: 'Nhận nhiều ưu đãi và khuyến mãi độc quyền từ nhà hàng',
+      usp4Title: 'Hỗ trợ 24/7',
+      usp4Desc: 'Đội ngũ hỗ trợ luôn sẵn sàng giúp đỡ bạn',
+      
+      // Footer
+      footerDesc: 'Kết nối những tâm hồn ẩm thực với các nhà hàng sang trọng và uy tín. Tìm kiếm, đánh giá và đặt bàn trực tuyến dễ dàng.',
+      footerExplore: 'Khám phá',
+      footerSearch: 'Tìm kiếm nhà hàng',
+      footerCuisineCol: 'Bộ sưu tập món ăn',
+      footerLatestRev: 'Đánh giá mới nhất',
+      footerWeeklyOffers: 'Ưu đãi tuần này',
+      footerPartner: 'Hợp tác',
+      footerRegOwner: 'Đăng ký chủ nhà hàng',
+      footerAdPacks: 'Gói dịch vụ quảng bá',
+      footerGuide: 'Hướng dẫn đặt bàn',
+      footerContact: 'Liên hệ & Kết nối',
+      footerTerms: 'Điều khoản dịch vụ',
+      footerPrivacy: 'Chính sách bảo mật',
+      footerAllRights: 'Bảo lưu mọi quyền.'
+    } : {
+      // Nav
+      navExplore: 'Explore',
+      navFeed: 'Review Feed',
+      navEvents: 'Events & Offers',
+      navAbout: 'About Us',
+      navSys: 'Management System',
+      navSignIn: 'Sign In',
+      navSignUp: 'Sign Up',
+      navDashboard: 'Dashboard',
+      navLogout: 'Log Out',
+      
+      // Hero
+      heroBadge: 'Your Premium Culinary Discovery Platform',
+      heroTitle: 'Discover & Book Tables at Amazing Restaurants',
+      heroDesc: 'Search for your favorite restaurants, view details, menu, and book tables quickly and easily.',
+      
+      // Search
+      searchPlaceholder: 'Search restaurants, dishes, locations...',
+      filterDistrict: 'All Districts',
+      filterCuisine: 'All Cuisines',
+      filterSort: 'Sort By',
+      searchBtn: 'Search',
+      activeFilters: 'Active Filters:',
+      clearFilters: 'Clear Filters',
+      toastFilterUpdated: 'Filters updated successfully!',
+      
+      // Districts
+      districts: {
+        'Tất cả khu vực': 'All Districts',
+        'Quận Hoàn Kiếm': 'Hoan Kiem District',
+        'Quận Cầu Giấy': 'Cau Giay District',
+        'Quận Tây Hồ': 'Tay Ho District',
+        'Quận Đống Đa': 'Dong Da District'
+      },
+      cuisines: {
+        'Tất cả loại hình': 'All Cuisines',
+        'Fine Dining': 'Fine Dining',
+        'Món Việt': 'Vietnamese Cuisine',
+        'Lounge & Cocktail': 'Lounge & Cocktail',
+        'Hải sản': 'Seafood'
+      },
+      sorts: {
+        'Sắp xếp': 'Sort By',
+        'Đánh giá cao nhất': 'Highest Rating',
+        'Phổ biến nhất': 'Most Popular'
+      },
+      
+      // Grid
+      gridTitle: 'Featured Restaurants',
+      gridBadge: 'Trending This Week',
+      gridBtnViewAll: 'View All',
+      gridDistance: 'Distance:',
+      gridBtnBook: 'Book Now',
+      noRestaurant: 'No restaurants match your search',
+      noRestaurantDesc: 'Try adjusting your keywords or clearing current filters to see more results.',
+      toastWishlistAdd: 'Added to your wishlist!',
+      toastWishlistRemove: 'Removed from your wishlist!',
+      
+      // About Us Section
+      aboutTag: 'About Us - RMS',
+      aboutTitle: 'Our Mission to Connect Culinary Excellence',
+      aboutDesc: 'RMS was born with the vision to bridge the gap between diners and premium restaurants. We don\'t just provide fast search and table booking services, but also build a reputable food review community where food lovers share authentic experiences.',
+      aboutStat1: 'Partner Restaurants',
+      aboutStat2: 'Happy Diners',
+      aboutStat3: 'Dedicated Service',
+      aboutOverlay: 'Accompanying Vietnamese Diners',
+      
+      // Booking Modal
+      bookingTitle: 'Booking Voucher',
+      bookingSubtitle: 'Book table at',
+      bookingSuccess: 'Booking Successful!',
+      bookingCodeText: 'Your booking code is',
+      bookingConfirmContact: 'Restaurant staff will contact you within 10 minutes to confirm.',
+      bookingLabelName: 'Full name *',
+      bookingLabelPhone: 'Phone number *',
+      bookingLabelDate: 'Select date *',
+      bookingLabelTime: 'Select time *',
+      bookingLabelGuests: 'Guest count *',
+      bookingLabelNotes: 'Special notes (if any)',
+      bookingPlaceholderName: 'E.g., John Doe',
+      bookingPlaceholderPhone: 'E.g., 0912345678',
+      bookingPlaceholderNotes: 'E.g., Window seat, anniversary dinner...',
+      bookingBtnCancel: 'Cancel',
+      bookingBtnConfirm: 'Confirm Booking',
+      bookingBtnComplete: 'Complete',
+      bookingCustomer: 'Customer',
+      bookingPhone: 'Phone',
+      bookingTime: 'Time',
+      bookingGuests: 'Guests',
+      toastEnterName: 'Please enter your full name',
+      toastEnterPhone: 'Please enter your phone number',
+      toastBookingSuccess: 'Booking successful at',
+      
+      // Promotion & Contact Banners
+      bannerHelpTitle: 'Need Assistance?',
+      bannerHelpDesc: 'Contact our customer support team for the best service consultation.',
+      bannerContactTitle: 'Contact Us',
+      bannerContactSubtitle: 'We are always ready to help you!',
+      bannerContactBtn: 'Contact Now',
+      bannerHotline: '24/7 Hotline',
+      bannerEmail: 'Send Email',
+      toastContactInfo: 'Support Hotline: 1900 1234. Email: support@rms.com',
+      
+      // USP Banners
+      usp1Title: 'Easy Booking',
+      usp1Desc: 'Choose restaurant, choose time, and book table in just a few clicks',
+      usp2Title: 'Quick Confirmation',
+      usp2Desc: 'Restaurant will confirm your booking as soon as possible',
+      usp3Title: 'Attractive Offers',
+      usp3Desc: 'Receive exclusive deals and promotions from the restaurant',
+      usp4Title: '24/7 Support',
+      usp4Desc: 'Our support team is always ready to assist you',
+      
+      // Footer
+      footerDesc: 'Connecting food lovers with prestigious and luxurious restaurants. Search, review, and book tables online with ease.',
+      footerExplore: 'Explore',
+      footerSearch: 'Search Restaurants',
+      footerCuisineCol: 'Food Collections',
+      footerLatestRev: 'Latest Reviews',
+      footerWeeklyOffers: 'Weekly Offers',
+      footerPartner: 'Partnerships',
+      footerRegOwner: 'Register Restaurant Owner',
+      footerAdPacks: 'Promotional Packages',
+      footerGuide: 'Booking Guide',
+      footerContact: 'Contact & Connect',
+      footerTerms: 'Terms of Service',
+      footerPrivacy: 'Privacy Policy',
+      footerAllRights: 'All rights reserved.'
+    };
+  }, [locale]);
 
-  const trendingHashtags: TrendingHashtag[] = [
-    { tag: '#MonVietAmCung', count: '124 bài' },
-    { tag: '#SkylineCocktails', count: '89 bài' },
-    { tag: '#FineDiningHanoi', count: '76 bài' },
-    { tag: '#AmThucDuongPho', count: '62 bài' },
-    { tag: '#HenHoLangMan', count: '45 bài' }
-  ];
-
-  const leaderboardUsers: LeaderboardUser[] = [
-    { rank: 1, name: 'Lê Hải Nam', points: 1240, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100', isTop: true },
-    { rank: 2, name: 'Hoàng Minh Lan', points: 950, avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=100' },
-    { rank: 3, name: 'Phạm Minh Quốc', points: 820, avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100' },
-    { rank: 4, name: 'Nguyễn Kiều Trang', points: 760, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100' }
-  ];
-
+  // --- Mock Database ---
   const restaurants: Restaurant[] = [
     {
       id: 'r1',
@@ -278,72 +371,45 @@ export default function LandingPage() {
     }
   ];
 
-  // --- Filtering Logic ---
-  const filteredReviewPosts = useMemo(() => {
-    let posts = [...reviewPosts];
+  // --- Filtering Logic for Restaurants ---
+  const filteredRestaurants = useMemo(() => {
+    let list = [...restaurants];
 
-    // Filter by Search text in post title or content
+    // Filter by search text (name or categories)
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
-      posts = posts.filter(p => 
-        p.title.toLowerCase().includes(q) || 
-        p.description.toLowerCase().includes(q) ||
-        p.restaurantName.toLowerCase().includes(q)
+      list = list.filter(r => 
+        r.name.toLowerCase().includes(q) || 
+        r.categories.some(cat => cat.toLowerCase().includes(q))
       );
     }
 
-    // Filter by District
+    // Filter by district (location)
     if (selectedDistrict !== 'Tất cả khu vực') {
-      posts = posts.filter(p => p.location.includes(selectedDistrict));
+      const districtShort = selectedDistrict.replace('Quận ', '');
+      list = list.filter(r => r.location.toLowerCase().includes(districtShort.toLowerCase()));
     }
 
-    // Filter by Cuisine/Category Type
+    // Filter by cuisine type (categories)
     if (selectedCuisine !== 'Tất cả loại hình') {
-      const typeMap: Record<string, string> = {
-        'Fine Dining': 'Fine Dining',
-        'Món Việt': 'Món Việt',
-        'Lounge & Cocktail': 'Lounge',
-        'Hải sản': 'Hải sản'
-      };
-      const searchTag = typeMap[selectedCuisine];
-      if (searchTag) {
-        posts = posts.filter(p => p.tags.some(t => t.toLowerCase().includes(searchTag.toLowerCase())) || p.restaurantName.toLowerCase().includes(searchTag.toLowerCase()));
-      }
+      const cuisineShort = selectedCuisine.split(' & ')[0];
+      list = list.filter(r => 
+        r.categories.some(cat => 
+          cat.toLowerCase().includes(cuisineShort.toLowerCase()) || 
+          cuisineShort.toLowerCase().includes(cat.toLowerCase())
+        )
+      );
     }
 
-    // Filter by Hashtag Clicked
-    if (activeHashtagFilter) {
-      posts = posts.filter(p => p.tags.includes(activeHashtagFilter));
+    // Sort logic
+    if (sortBy === 'Đánh giá cao nhất') {
+      list.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === 'Phổ biến nhất') {
+      list.sort((a, b) => b.reviewsCount - a.reviewsCount);
     }
 
-    // Sort by Likes (Popular) vs Latest
-    if (activeReviewTab === 'popular') {
-      posts.sort((a, b) => b.likes - a.likes);
-    }
-
-    return posts;
-  }, [searchText, selectedDistrict, selectedCuisine, activeHashtagFilter, activeReviewTab]);
-
-  // --- Toggle Show More ---
-  const toggleExpand = (id: number) => {
-    setExpandedReviews(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
-
-  // --- Handle Click Like Review ---
-  const handleLikeReview = (id: number) => {
-    const isLiked = likedReviews[id];
-    setLikedReviews(prev => ({ ...prev, [id]: !isLiked }));
-    setReviewLikeCounts(prev => ({
-      ...prev,
-      [id]: (prev[id] ?? reviewPosts.find(p => p.id === id)?.likes ?? 0) + (isLiked ? -1 : 1)
-    }));
-    if (!isLiked) {
-      toast.success('Đã thêm bài viết vào danh sách yêu thích!');
-    }
-  };
+    return list;
+  }, [searchText, selectedDistrict, selectedCuisine, sortBy]);
 
   // --- Handle Toggle Wishlist Restaurant ---
   const handleToggleWishlist = (id: string) => {
@@ -377,8 +443,6 @@ export default function LandingPage() {
       toast.error('Vui lòng nhập số điện thoại');
       return;
     }
-    
-    // Simulate API call to save booking
     setIsBookedSuccess(true);
     toast.success(`Đặt bàn thành công tại ${bookingRestaurant}!`);
   };
@@ -400,53 +464,67 @@ export default function LandingPage() {
             </span>
           </Link>
 
-          {/* Nav Items - Pill shaped */}
+          {/* Nav Items - Pill shaped (Khám phá is active) */}
           <nav className="hidden md:flex items-center gap-1.5 bg-blue-50/50 p-1 rounded-full border border-blue-100/50">
-            <button 
-              onClick={() => {
-                setActiveHashtagFilter(null);
-                const section = document.getElementById('search-section');
-                section?.scrollIntoView({ behavior: 'smooth' });
-              }}
+            <Link 
+              href="/"
+              className="rounded-full bg-white shadow-sm px-4 py-1.5 text-sm font-bold text-blue-600 transition-all"
+            >
+              {t.navExplore}
+            </Link>
+            <Link 
+              href="/feed"
               className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
             >
-              Khám phá
-            </button>
-            <button 
-              onClick={() => {
-                const section = document.getElementById('review-feed-section');
-                section?.scrollIntoView({ behavior: 'smooth' });
-              }}
+              {t.navFeed}
+            </Link>
+            <Link 
+              href="/events"
               className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
             >
-              Diễn đàn Review
-            </button>
-            <button 
-              onClick={() => {
-                const section = document.getElementById('events-widget');
-                section?.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
-            >
-              Sự kiện & Ưu đãi
-            </button>
+              {t.navEvents}
+            </Link>
             <a 
-              href="#footer"
+              href="#about-us-section"
               className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
             >
-              Về chúng tôi
+              {t.navAbout}
             </a>
           </nav>
 
           {/* Auth Actions */}
           <div className="flex items-center gap-3">
+            {/* Language Switcher */}
+            <div className="flex items-center gap-0.5 bg-blue-50/75 p-0.5 rounded-full border border-blue-100 shadow-inner mr-1 shrink-0">
+              <button 
+                onClick={() => {
+                  setLocale('vi');
+                  toast.success('Đã chuyển sang Tiếng Việt');
+                }}
+                className={`rounded-full px-2 py-0.5 text-[9px] font-black transition-all ${locale === 'vi' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                title="Tiếng Việt"
+              >
+                VI
+              </button>
+              <button 
+                onClick={() => {
+                  setLocale('en');
+                  toast.success('Switched to English');
+                }}
+                className={`rounded-full px-2 py-0.5 text-[9px] font-black transition-all ${locale === 'en' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                title="English"
+              >
+                EN
+              </button>
+            </div>
+
             {/* Nút dẫn vào phần mềm quản lý nhà hàng */}
             <Link 
               href="/dashboard" 
               className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/40 hover:bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-all duration-200 hover:scale-102 hover:shadow"
             >
               <Award className="h-3.5 w-3.5 text-blue-500" />
-              <span>Hệ thống Quản lý</span>
+              <span>{t.navSys}</span>
             </Link>
             {user ? (
               <div className="flex items-center gap-3">
@@ -462,12 +540,12 @@ export default function LandingPage() {
                   href="/dashboard" 
                   className="hidden sm:inline-flex items-center justify-center rounded-lg bg-slate-105 hover:bg-slate-200 text-slate-800 px-4 py-2 text-sm font-medium transition"
                 >
-                  Dashboard
+                  {t.navDashboard}
                 </Link>
                 <button 
                   onClick={logout} 
                   className="rounded-lg text-slate-500 hover:text-rose-600 p-2 transition"
-                  title="Đăng xuất"
+                  title={t.navLogout}
                 >
                   <LogOut className="h-5 w-5" />
                 </button>
@@ -478,13 +556,13 @@ export default function LandingPage() {
                   href="/login" 
                   className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-blue-600 transition"
                 >
-                  Sign In
+                  {t.navSignIn}
                 </Link>
                 <Link 
                   href="/customer-portal" 
                   className="rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 text-white px-5 py-2 text-sm font-semibold shadow-md hover:shadow-lg hover:scale-102 hover:brightness-105 active:scale-98 transition-all duration-200"
                 >
-                  Sign Up
+                  {t.navSignUp}
                 </Link>
               </>
             )}
@@ -502,27 +580,27 @@ export default function LandingPage() {
           
           <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50/80 px-3.5 py-1.5 text-xs font-semibold text-blue-700 border border-blue-100 shadow-sm">
             <Sparkles className="h-3.5 w-3.5 text-blue-500 fill-blue-500" />
-            <span>Nền tảng tìm kiếm ẩm thực hàng đầu của bạn</span>
+            <span>{t.heroBadge}</span>
           </div>
 
           <div className="space-y-4 max-w-3xl mx-auto">
             <h1 className="text-4xl font-black tracking-tight sm:text-5xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 bg-clip-text text-transparent">
-              Khám phá & Đặt bàn tại những nhà hàng tuyệt vời
+              {t.heroTitle}
             </h1>
             <p className="text-base text-slate-500 sm:text-lg max-w-2xl mx-auto">
-              Tìm kiếm nhà hàng yêu thích, xem thông tin chi tiết, thực đơn và đặt bàn nhanh chóng, dễ dàng.
+              {t.heroDesc}
             </p>
           </div>
 
-                    {/* Floating Search Container - Redesigned to be perfectly balanced with Search Input on Top */}
-          <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-blue-100 shadow-xl p-5 max-w-4xl mx-auto transition-all duration-300 flex flex-col gap-4">
+          {/* Floating Search Container - Redesigned with Search Input on Top */}
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-blue-100 shadow-xl p-5 max-w-4xl mx-auto transition-all duration-300 flex flex-col gap-4 text-left">
             
             {/* Input Keyword - Full width on top */}
             <div className="w-full relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
               <input 
                 type="text"
-                placeholder="Tìm kiếm nhà hàng, món ăn, địa điểm..."
+                placeholder={t.searchPlaceholder}
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
                 className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base bg-[#FDFDFD] text-slate-700 placeholder-slate-400 shadow-sm transition-all"
@@ -540,11 +618,11 @@ export default function LandingPage() {
                   onChange={(e) => setSelectedDistrict(e.target.value)}
                   className="w-full pl-10 pr-8 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white appearance-none cursor-pointer text-slate-750 truncate shadow-sm"
                 >
-                  <option>Tất cả khu vực</option>
-                  <option>Quận Hoàn Kiếm</option>
-                  <option>Quận Cầu Giấy</option>
-                  <option>Quận Tây Hồ</option>
-                  <option>Quận Đống Đa</option>
+                  <option value="Tất cả khu vực">{t.districts['Tất cả khu vực']}</option>
+                  <option value="Quận Hoàn Kiếm">{t.districts['Quận Hoàn Kiếm']}</option>
+                  <option value="Quận Cầu Giấy">{t.districts['Quận Cầu Giấy']}</option>
+                  <option value="Quận Tây Hồ">{t.districts['Quận Tây Hồ']}</option>
+                  <option value="Quận Đống Đa">{t.districts['Quận Đống Đa']}</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               </div>
@@ -557,11 +635,11 @@ export default function LandingPage() {
                   onChange={(e) => setSelectedCuisine(e.target.value)}
                   className="w-full pl-10 pr-8 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white appearance-none cursor-pointer text-slate-750 truncate shadow-sm"
                 >
-                  <option>Tất cả loại hình</option>
-                  <option>Fine Dining</option>
-                  <option>Món Việt</option>
-                  <option>Lounge & Cocktail</option>
-                  <option>Hải sản</option>
+                  <option value="Tất cả loại hình">{t.cuisines['Tất cả loại hình']}</option>
+                  <option value="Fine Dining">{t.cuisines['Fine Dining']}</option>
+                  <option value="Món Việt">{t.cuisines['Món Việt']}</option>
+                  <option value="Lounge & Cocktail">{t.cuisines['Lounge & Cocktail']}</option>
+                  <option value="Hải sản">{t.cuisines['Hải sản']}</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               </div>
@@ -571,11 +649,11 @@ export default function LandingPage() {
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
-                  className="w-full pl-3.5 pr-8 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white appearance-none cursor-pointer text-slate-755 truncate shadow-sm"
+                  className="w-full pl-3.5 pr-8 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white appearance-none cursor-pointer text-slate-750 truncate shadow-sm"
                 >
-                  <option>Sắp xếp</option>
-                  <option>Đánh giá cao nhất</option>
-                  <option>Phổ biến nhất</option>
+                  <option value="Sắp xếp">{t.sorts['Sắp xếp']}</option>
+                  <option value="Đánh giá cao nhất">{t.sorts['Đánh giá cao nhất']}</option>
+                  <option value="Phổ biến nhất">{t.sorts['Phổ biến nhất']}</option>
                 </select>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
               </div>
@@ -583,20 +661,20 @@ export default function LandingPage() {
               {/* Search Submit CTA */}
               <button 
                 onClick={() => {
-                  const section = document.getElementById('review-feed-section');
+                  const section = document.getElementById('featured-section');
                   section?.scrollIntoView({ behavior: 'smooth' });
-                  toast.info('Đã cập nhật bộ lọc hiển thị!');
+                  toast.info(t.toastFilterUpdated);
                 }}
                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-755 text-white rounded-xl py-3 px-4 text-sm font-semibold shadow-md transition-all duration-200 active:scale-98 cursor-pointer text-center"
               >
-                Tìm kiếm
+                {t.searchBtn}
               </button>
             </div>
-            
+
             {/* Active Filters Summary */}
-            {(searchText || selectedDistrict !== 'Tất cả khu vực' || selectedCuisine !== 'Tất cả loại hình' || activeHashtagFilter) && (
+            {(searchText || selectedDistrict !== 'Tất cả khu vực' || selectedCuisine !== 'Tất cả loại hình') && (
               <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
-                <span className="font-semibold text-blue-950">Bộ lọc đang áp dụng:</span>
+                <span className="font-semibold text-blue-950">{t.activeFilters}</span>
                 {searchText && (
                   <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100 flex items-center gap-1">
                     "{searchText}"
@@ -605,20 +683,14 @@ export default function LandingPage() {
                 )}
                 {selectedDistrict !== 'Tất cả khu vực' && (
                   <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100 flex items-center gap-1">
-                    {selectedDistrict}
+                    {t.districts[selectedDistrict as keyof typeof t.districts] || selectedDistrict}
                     <X className="h-3 w-3 cursor-pointer hover:text-blue-900" onClick={() => setSelectedDistrict('Tất cả khu vực')} />
                   </span>
                 )}
                 {selectedCuisine !== 'Tất cả loại hình' && (
                   <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100 flex items-center gap-1">
-                    {selectedCuisine}
+                    {t.cuisines[selectedCuisine as keyof typeof t.cuisines] || selectedCuisine}
                     <X className="h-3 w-3 cursor-pointer hover:text-blue-900" onClick={() => setSelectedCuisine('Tất cả loại hình')} />
-                  </span>
-                )}
-                {activeHashtagFilter && (
-                  <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100 flex items-center gap-1">
-                    {activeHashtagFilter}
-                    <X className="h-3 w-3 cursor-pointer hover:text-blue-900" onClick={() => setActiveHashtagFilter(null)} />
                   </span>
                 )}
                 <button 
@@ -627,11 +699,10 @@ export default function LandingPage() {
                     setSelectedDistrict('Tất cả khu vực');
                     setSelectedCuisine('Tất cả loại hình');
                     setSortBy('Sắp xếp');
-                    setActiveHashtagFilter(null);
                   }}
-                  className="text-slate-405 hover:text-blue-600 transition"
+                  className="text-slate-400 hover:text-blue-600 transition text-xs font-bold"
                 >
-                  Xóa bộ lọc
+                  {t.clearFilters}
                 </button>
               </div>
             )}
@@ -639,434 +710,148 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 3. COMMUNITY FORUM & SOCIAL REVIEW FEED */}
-      <section id="review-feed-section" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
-          {/* A. LEFT SIDEBAR (Span 3 on Desktop) */}
-          <aside className="lg:col-span-3 space-y-6">
-            
-            {/* Widget 1: Trending Districts */}
-            <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
-                <MapPin className="h-4 w-4 text-blue-500" />
-                <h3 className="font-bold text-slate-800 text-sm">Địa điểm nổi bật</h3>
-              </div>
-              <ul className="space-y-3">
-                {districts.map((d, index) => (
-                  <li key={index}>
-                    <button
-                      onClick={() => {
-                        setSelectedDistrict(d.name);
-                        const section = document.getElementById('review-feed-section');
-                        section?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl transition ${selectedDistrict === d.name ? 'bg-blue-50 text-blue-700 font-bold border border-blue-105' : 'text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="text-[10px] bg-slate-100 text-slate-500 rounded-md h-5 w-5 flex items-center justify-center font-bold">
-                          {index + 1}
-                        </span>
-                        {d.name}
-                      </span>
-                      <span className="text-slate-400 text-[10px] font-medium bg-slate-100/50 px-2 py-0.5 rounded-full">
-                        {d.postCount} bài viết
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Widget 2: Upcoming Culinary Events */}
-            <div id="events-widget" className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50 justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4.5 w-4.5 text-blue-500" />
-                  <h3 className="font-bold text-slate-800 text-sm">Sự kiện ẩm thực</h3>
-                </div>
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
-              </div>
-              <div className="space-y-4">
-                {culinaryEvents.map((evt) => (
-                  <div key={evt.id} className="group relative rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50 hover:bg-white hover:border-blue-100 transition-all duration-300">
-                    <div className="h-24 w-full relative">
-                      <img src={evt.imageUrl} alt={evt.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      <span className="absolute top-2 left-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                        {evt.tag}
-                      </span>
-                    </div>
-                    <div className="p-3 space-y-1.5">
-                      <h4 className="text-xs font-bold text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                        {evt.title}
-                      </h4>
-                      <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                        <Clock className="h-3 w-3 text-blue-400" />
-                        {evt.date} {evt.time && `| ${evt.time}`}
-                      </p>
-                      <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                        <MapPin className="h-3 w-3 text-blue-400" />
-                        {evt.location}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button 
-                onClick={() => toast.info('Tính năng chi tiết sự kiện sẽ ra mắt sau!')}
-                className="w-full mt-4 text-center text-xs font-semibold text-blue-600 hover:text-blue-700 transition flex items-center justify-center gap-1"
-              >
-                Xem tất cả sự kiện <ChevronRight className="h-3 w-3" />
-              </button>
-            </div>
-          </aside>
-
-          {/* B. MIDDLE COLUMN (Dynamic Review Feed - Span 6 on Desktop) */}
-          <main className="lg:col-span-6 space-y-6">
-            
-            {/* Feed Header */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">💬</span>
-                <h2 className="font-extrabold text-slate-800 text-base">Bảng tin Review</h2>
-                {activeHashtagFilter && (
-                  <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100">
-                    Lọc: {activeHashtagFilter}
-                  </span>
-                )}
-              </div>
-              <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
-                <button
-                  onClick={() => {
-                    setActiveReviewTab('latest');
-                    toast.info('Đang hiển thị đánh giá mới nhất.');
-                  }}
-                  className={`flex-1 sm:flex-none text-xs font-semibold px-4 py-1.5 rounded-lg transition ${activeReviewTab === 'latest' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  Mới nhất
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveReviewTab('popular');
-                    toast.info('Đang hiển thị đánh giá được yêu thích nhất.');
-                  }}
-                  className={`flex-1 sm:flex-none text-xs font-semibold px-4 py-1.5 rounded-lg transition ${activeReviewTab === 'popular' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  Yêu thích nhất
-                </button>
-              </div>
-            </div>
-
-            {/* Posts Feed */}
-            {filteredReviewPosts.length === 0 ? (
-              <div className="bg-white/80 rounded-2xl border border-slate-100 py-12 px-6 text-center space-y-3">
-                <div className="text-3xl">🍲</div>
-                <h3 className="font-bold text-slate-700">Không tìm thấy bài viết review nào</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  Hãy thử thay đổi từ khóa tìm kiếm hoặc đổi bộ lọc khu vực để xem thêm đánh giá.
-                </p>
-                <button 
-                  onClick={() => {
-                    setSearchText('');
-                    setSelectedDistrict('Tất cả khu vực');
-                    setSelectedCuisine('Tất cả loại hình');
-                    setActiveHashtagFilter(null);
-                  }}
-                  className="text-xs text-blue-600 font-bold hover:underline"
-                >
-                  Đặt lại bộ lọc
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {filteredReviewPosts.map((post) => {
-                  const isExpanded = expandedReviews[post.id] || false;
-                  const isLiked = likedReviews[post.id] || false;
-                  const likesCount = reviewLikeCounts[post.id] ?? post.likes;
-
-                  return (
-                    <article key={post.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col">
-                      
-                      {/* Post Header */}
-                      <div className="p-5 flex items-center justify-between border-b border-slate-50">
-                        <div className="flex items-center gap-3">
-                          <img src={post.author.avatar} alt={post.author.name} className="h-10 w-10 rounded-full object-cover ring-2 ring-blue-105" />
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <h4 className="font-bold text-sm text-slate-800">{post.author.name}</h4>
-                              <span className="text-[9px] bg-blue-50 text-blue-600 font-extrabold px-2 py-0.5 rounded-full border border-blue-100">
-                                {post.author.level}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                              <span className="flex items-center gap-0.5">
-                                <MapPin className="h-3 w-3" /> {post.location}
-                              </span>
-                              <span>•</span>
-                              <span>{post.timestamp}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100/50">
-                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                          <span className="text-xs font-bold text-amber-700">{post.rating}</span>
-                        </div>
-                      </div>
-
-                      {/* Post Content */}
-                      <div className="p-5 space-y-3 flex-1">
-                        <h3 className="font-extrabold text-base text-slate-800 leading-tight">
-                          {post.title}
-                        </h3>
-                        <p className="text-xs text-slate-600 leading-relaxed">
-                          {isExpanded ? post.description : `${post.description.slice(0, 180)}...`}
-                        </p>
-                        {post.description.length > 180 && (
-                          <button
-                            onClick={() => toggleExpand(post.id)}
-                            className="text-xs text-blue-600 font-bold hover:underline inline-flex items-center"
-                          >
-                            {isExpanded ? 'Thu gọn' : 'Xem thêm'}
-                          </button>
-                        )}
-
-                        {/* Large Image */}
-                        <div className="relative h-60 w-full rounded-xl overflow-hidden mt-3 shadow-sm bg-slate-50">
-                          <img src={post.imageUrl} alt={post.restaurantName} className="w-full h-full object-cover" />
-                          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-lg text-[10px] font-bold">
-                            📍 {post.restaurantName}
-                          </div>
-                        </div>
-
-                        {/* Hashtag List */}
-                        <div className="flex flex-wrap gap-1.5 pt-2">
-                          {post.tags.map((t, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setActiveHashtagFilter(t);
-                                toast.info(`Đang lọc các bài viết gắn thẻ ${t}`);
-                              }}
-                              className={`text-[10px] px-2.5 py-0.5 rounded-full transition ${activeHashtagFilter === t ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600'}`}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Post Footer Actions */}
-                      <div className="px-5 py-4 border-t border-slate-50 bg-slate-50/50 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          {/* Like Button */}
-                          <button 
-                            onClick={() => handleLikeReview(post.id)}
-                            className={`flex items-center gap-1.5 text-xs transition ${isLiked ? 'text-rose-500 font-bold' : 'text-slate-500 hover:text-rose-500'}`}
-                          >
-                            <ThumbsUp className={`h-4 w-4 ${isLiked ? 'fill-rose-500' : ''}`} />
-                            <span>{likesCount} Thích</span>
-                          </button>
-
-                          {/* Comment Button */}
-                          <button 
-                            onClick={() => toast.info('Bình luận sẽ được kích hoạt sau khi liên kết BE!')}
-                            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 transition"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                            <span>{post.commentsCount} Bình luận</span>
-                          </button>
-
-                          {/* Share Button */}
-                          <button 
-                            onClick={() => {
-                              navigator.clipboard.writeText(window.location.href);
-                              toast.success('Đã sao chép liên kết chia sẻ!');
-                            }}
-                            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 transition"
-                          >
-                            <Share2 className="h-4 w-4" />
-                            <span>Chia sẻ</span>
-                          </button>
-                        </div>
-
-                        {/* Booking CTA */}
-                        <button
-                          onClick={() => handleOpenBooking(post.restaurantName)}
-                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-                        >
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>Đặt bàn ngay</span>
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </main>
-
-          {/* C. RIGHT SIDEBAR (Span 3 on Desktop) */}
-          <aside className="lg:col-span-3 space-y-6">
-            
-            {/* Widget 1: Trending Hashtags */}
-            <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
-                <TrendingUp className="h-4 w-4 text-blue-500" />
-                <h3 className="font-bold text-slate-800 text-sm"># Xu hướng</h3>
-              </div>
-              <ul className="space-y-3">
-                {trendingHashtags.map((hash, idx) => (
-                  <li key={idx}>
-                    <button
-                      onClick={() => {
-                        setActiveHashtagFilter(hash.tag);
-                        toast.info(`Lọc bài viết theo thẻ ${hash.tag}`);
-                      }}
-                      className={`w-full text-left text-xs px-2.5 py-1.5 rounded-xl transition-all flex items-center justify-between ${activeHashtagFilter === hash.tag ? 'bg-blue-500 text-white font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600'}`}
-                    >
-                      <span>{hash.tag}</span>
-                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${activeHashtagFilter === hash.tag ? 'bg-blue-650 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                        {hash.count}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Widget 2: Leaderboard (Top Contributors) */}
-            <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
-                <Award className="h-4 w-4 text-blue-500" />
-                <h3 className="font-bold text-slate-800 text-sm">Thành viên tích cực</h3>
-              </div>
-              <div className="space-y-3.5">
-                {leaderboardUsers.map((user) => (
-                  <div key={user.rank} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="relative">
-                        <img src={user.avatar} alt={user.name} className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-100" />
-                        {user.isTop && (
-                          <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-[8px] h-4 w-4 rounded-full flex items-center justify-center font-bold border border-white">
-                            👑
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800 leading-none">{user.name}</h4>
-                        <span className="text-[9px] text-slate-400 mt-1 block">Hạng #{user.rank}</span>
-                      </div>
-                    </div>
-                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-55 px-2 py-0.5 rounded-full">
-                      {user.points} pts
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-        </div>
-      </section>
-
       {/* 4. FEATURED RESTAURANTS GRID */}
-      <section className="bg-gradient-to-b from-white to-blue-50/20 border-y border-blue-100/50 py-16">
+      <section id="featured-section" className="bg-gradient-to-b from-white to-blue-50/20 border-y border-blue-100/50 py-16 scroll-mt-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-8">
           
           {/* Section Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🔥</span>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-800">Nhà hàng nổi bật</h2>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-800">{t.gridTitle}</h2>
               <span className="bg-blue-100 text-blue-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-blue-200">
-                Hot nhất tuần này
+                {t.gridBadge}
               </span>
             </div>
             <button 
-              onClick={() => {
-                const s = document.getElementById('search-section');
-                s?.scrollIntoView({behavior: 'smooth'});
-                toast.info('Sử dụng bộ tìm kiếm để lọc toàn bộ nhà hàng!');
-              }}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              onClick={() => toast.info(locale === 'vi' ? 'Tính năng xem danh sách chi tiết sẽ sớm ra mắt!' : 'Full listings page coming soon!')}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
             >
-              Xem tất cả <ChevronRight className="h-4 w-4" />
+              <span>{t.gridBtnViewAll}</span>
+              <ChevronRight className="h-3 w-3" />
             </button>
           </div>
 
           {/* Responsive 4-Column Restaurant Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {restaurants.map((rest) => {
-              const isWishlisted = wishlistedRestaurants[rest.id] || false;
-              return (
-                <div key={rest.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between">
-                  
-                  {/* Restaurant Image */}
-                  <div className="h-48 w-full relative overflow-hidden bg-slate-100">
-                    <img src={rest.imageUrl} alt={rest.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          {filteredRestaurants.length === 0 ? (
+            <div className="bg-white/80 rounded-2xl border border-slate-100 py-16 px-6 text-center space-y-3">
+              <div className="text-3xl">🍲</div>
+              <h3 className="font-bold text-slate-700">{t.noRestaurant}</h3>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                {t.noRestaurantDesc}
+              </p>
+              <button 
+                onClick={() => {
+                  setSearchText('');
+                  setSelectedDistrict('Tất cả khu vực');
+                  setSelectedCuisine('Tất cả loại hình');
+                }}
+                className="text-xs text-blue-600 font-bold hover:underline"
+              >
+                {t.clearFilters}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {filteredRestaurants.map((rest) => {
+                const isWishlisted = wishlistedRestaurants[rest.id] || false;
+
+                // Dynamic translation maps for mock data badges & categories
+                const badgeText = rest.badge ? (
+                  locale === 'vi' ? rest.badge : { 'Mới': 'New', 'Ưu đãi': 'Offer', 'Đặt nhiều': 'Popular' }[rest.badge] || rest.badge
+                ) : null;
+
+                const translateCategory = (cat: string) => {
+                  if (locale === 'vi') return cat;
+                  const dict: Record<string, string> = {
+                    'Hải sản': 'Seafood',
+                    'Á Âu': 'Asian-Western',
+                    'Sang trọng': 'Luxury',
+                    'Bar': 'Bar',
+                    'Cocktail': 'Cocktail',
+                    'View đẹp': 'Nice View',
+                    'Món Việt': 'Vietnamese',
+                    'Mộc mạc': 'Rustic',
+                    'Ấm cúng': 'Cozy',
+                    'Bình dân': 'Casual',
+                    'Gia định': 'Family',
+                    'Sân vườn': 'Garden',
+                    'Lãng mạn': 'Romantic',
+                    'Yên tĩnh': 'Quiet',
+                    'Nhạc sống': 'Live Music'
+                  };
+                  return dict[cat] || cat;
+                };
+
+                return (
+                  <div key={rest.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between">
                     
-                    {/* Top-Left Badge */}
-                    {rest.badge && (
-                      <span className="absolute top-3 left-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md">
-                        {rest.badge}
-                      </span>
-                    )}
-
-                    {/* Top-Right Heart Wishlist */}
-                    <button 
-                      onClick={() => handleToggleWishlist(rest.id)}
-                      className="absolute top-3 right-3 h-8.5 w-8.5 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
-                    >
-                      <Heart className={`h-4.5 w-4.5 transition-colors ${isWishlisted ? 'text-rose-500 fill-rose-500' : 'text-slate-400 hover:text-rose-500'}`} />
-                    </button>
-                  </div>
-
-                  {/* Information Body */}
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-2">
-                      <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                        {rest.name}
-                      </h3>
+                    {/* Restaurant Image */}
+                    <div className="h-48 w-full relative overflow-hidden bg-slate-100">
+                      <img src={rest.imageUrl} alt={rest.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       
-                      {/* Stars & Reviews */}
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                        <span className="font-extrabold text-slate-800">{rest.rating}</span>
-                        <span className="text-slate-400">({rest.reviewsCount} đánh giá)</span>
-                      </div>
+                      {/* Top-Left Badge */}
+                      {badgeText && (
+                        <span className="absolute top-3 left-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md">
+                          {badgeText}
+                        </span>
+                      )}
 
-                      {/* Location & Distance */}
-                      <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{rest.location}</span>
-                        <span className="text-slate-300">•</span>
-                        <span className="shrink-0">{rest.distance}</span>
-                      </p>
-
-                      {/* Category Badges */}
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {rest.categories.map((cat, idx) => (
-                          <span key={idx} className="bg-slate-50 text-slate-500 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-slate-100">
-                            {cat}
-                          </span>
-                        ))}
-                      </div>
+                      {/* Top-Right Heart Wishlist */}
+                      <button 
+                        onClick={() => handleToggleWishlist(rest.id)}
+                        className="absolute top-3 right-3 h-8.5 w-8.5 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
+                      >
+                        <Heart className={`h-4.5 w-4.5 transition-colors ${isWishlisted ? 'text-rose-500 fill-rose-500' : 'text-slate-400 hover:text-rose-500'}`} />
+                      </button>
                     </div>
 
-                    {/* Book Now Button */}
-                    <button
-                      onClick={() => handleOpenBooking(rest.name)}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-1.5 group-hover:shadow-md"
-                    >
-                      <Calendar className="h-4 w-4" />
-                      <span>Đặt bàn ngay</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                    {/* Information Body */}
+                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                      <div className="space-y-2">
+                        <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                          {rest.name}
+                        </h3>
+                        
+                        {/* Stars & Reviews */}
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                          <span className="font-extrabold text-slate-800">{rest.rating}</span>
+                          <span className="text-slate-400">({rest.reviewsCount} {locale === 'vi' ? 'đánh giá' : 'reviews'})</span>
+                        </div>
 
+                        {/* Location & Distance */}
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                          <span className="truncate">{rest.location}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="shrink-0">{rest.distance}</span>
+                        </p>
+
+                        {/* Category Badges */}
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {rest.categories.map((cat, idx) => (
+                            <span key={idx} className="bg-slate-50 text-slate-500 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-slate-100">
+                              {translateCategory(cat)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Book Now Button */}
+                      <button
+                        onClick={() => handleOpenBooking(rest.name)}
+                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-1.5 group-hover:shadow-md"
+                      >
+                        <Calendar className="h-4 w-4" />
+                        <span>{t.gridBtnBook}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -1084,9 +869,9 @@ export default function LandingPage() {
                 <X className="h-5 w-5" />
               </button>
               <span className="text-[10px] font-bold tracking-widest uppercase bg-white/25 px-2 py-0.5 rounded">
-                Phiếu Đặt Bàn
+                {t.bookingTitle}
               </span>
-              <h3 className="text-lg font-black mt-1">Đặt bàn tại {bookingRestaurant}</h3>
+              <h3 className="text-lg font-black mt-1">{t.bookingSubtitle} {bookingRestaurant}</h3>
             </div>
 
             {/* Modal Body */}
@@ -1096,48 +881,48 @@ export default function LandingPage() {
                   <CheckCircle className="h-6 w-6" />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-slate-800">Đặt bàn thành công!</h4>
+                  <h4 className="text-sm font-bold text-slate-800">{t.bookingSuccess}</h4>
                   <p className="text-xs text-slate-500 px-4">
-                    Mã đặt bàn của bạn là <strong className="text-blue-600">#ERD-{Math.floor(1000 + Math.random() * 9000)}</strong>. Nhân viên nhà hàng sẽ liên hệ lại với bạn trong vòng 10 phút để xác nhận.
+                    {t.bookingCodeText} <strong className="text-blue-600">#ERD-{Math.floor(1000 + Math.random() * 9000)}</strong>. {t.bookingConfirmContact}
                   </p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl text-left text-xs space-y-2 border border-slate-100">
-                  <p><strong>Khách hàng:</strong> {bookingForm.name}</p>
-                  <p><strong>Số điện thoại:</strong> {bookingForm.phone}</p>
-                  <p><strong>Thời gian:</strong> {bookingForm.time} - {bookingForm.date}</p>
-                  <p><strong>Số khách:</strong> {bookingForm.guests} người</p>
+                  <p><strong>{t.bookingCustomer}:</strong> {bookingForm.name}</p>
+                  <p><strong>{t.bookingPhone}:</strong> {bookingForm.phone}</p>
+                  <p><strong>{t.bookingTime}:</strong> {bookingForm.time} - {bookingForm.date}</p>
+                  <p><strong>{t.bookingGuests}:</strong> {bookingForm.guests} {locale === 'vi' ? 'người' : 'guests'}</p>
                 </div>
                 <button
                   onClick={() => setBookingRestaurant(null)}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-650 text-white rounded-xl py-2.5 text-xs font-bold transition shadow-sm hover:brightness-105"
                 >
-                  Hoàn tất
+                  {t.bookingBtnComplete}
                 </button>
               </div>
             ) : (
               <form onSubmit={handleConfirmBooking} className="p-6 space-y-4">
                 {/* Full Name */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Họ và tên *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelName}</label>
                   <input
                     type="text"
                     required
                     value={bookingForm.name}
                     onChange={(e) => setBookingForm({...bookingForm, name: e.target.value})}
-                    placeholder="VD: Nguyễn Văn A"
+                    placeholder={t.bookingPlaceholderName}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
 
                 {/* Phone */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelPhone}</label>
                   <input
                     type="tel"
                     required
                     value={bookingForm.phone}
                     onChange={(e) => setBookingForm({...bookingForm, phone: e.target.value})}
-                    placeholder="VD: 0912345678"
+                    placeholder={t.bookingPlaceholderPhone}
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
@@ -1145,7 +930,7 @@ export default function LandingPage() {
                 {/* Date & Time */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Chọn ngày *</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelDate}</label>
                     <input
                       type="date"
                       required
@@ -1155,7 +940,7 @@ export default function LandingPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Giờ đặt *</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelTime}</label>
                     <select
                       value={bookingForm.time}
                       onChange={(e) => setBookingForm({...bookingForm, time: e.target.value})}
@@ -1178,7 +963,7 @@ export default function LandingPage() {
 
                 {/* Guest Count */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Số lượng khách *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelGuests}</label>
                   <input
                     type="number"
                     min="1"
@@ -1192,7 +977,7 @@ export default function LandingPage() {
 
                 {/* Notes */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú đặc biệt (nếu có)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelNotes}</label>
                   <textarea
                     rows={2}
                     value={bookingForm.notes}
@@ -1208,13 +993,13 @@ export default function LandingPage() {
                     onClick={() => setBookingRestaurant(null)}
                     className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 text-xs font-bold"
                   >
-                    Hủy bỏ
+                    {t.bookingBtnCancel}
                   </button>
                   <button
                     type="submit"
                     className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:brightness-105 text-white text-xs font-bold shadow-md"
                   >
-                    Xác nhận đặt
+                    {t.bookingBtnConfirm}
                   </button>
                 </div>
               </form>
@@ -1223,11 +1008,176 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* 6. PLATFORM FOOTER - Fixed columns with correct integer layout & Blue icons */}
+      {/* 5. ABOUT US SECTION */}
+      <section id="about-us-section" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 bg-gradient-to-r from-blue-50/40 via-indigo-50/20 to-transparent rounded-3xl border border-blue-100/50 mt-12 scroll-mt-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center text-left">
+          {/* Left Block: Slogan & Mission */}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-100">
+              <span>{t.aboutTag}</span>
+            </div>
+            <h2 className="text-3xl font-black text-slate-800 leading-tight">
+              {t.aboutTitle}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+              {t.aboutDesc}
+            </p>
+            {/* Stat indicators */}
+            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-blue-100">
+              <div>
+                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">50+</span>
+                <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{t.aboutStat1}</span>
+              </div>
+              <div>
+                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">10,000+</span>
+                <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{t.aboutStat2}</span>
+              </div>
+              <div>
+                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">24/7</span>
+                <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{t.aboutStat3}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Block: Image with card overlays */}
+          <div className="lg:col-span-5 relative">
+            <div className="h-64 sm:h-80 w-full rounded-2xl overflow-hidden shadow-lg border border-slate-100 bg-slate-100 relative">
+              <img 
+                src="https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&q=80&w=600" 
+                alt="RMS Team Culinary" 
+                className="w-full h-full object-cover" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
+              {/* Overlay card */}
+              <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-md border border-white/50 flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-cyan-400 to-indigo-600 flex items-center justify-center text-white font-black text-lg shadow">
+                  R
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">RMS Platform</span>
+                  <span className="text-[10px] text-slate-500">{t.aboutOverlay}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 6. PROMOTION & CONTACT BANNERS */}
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
+        
+        {/* Banner 1: Contact Us */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-100 p-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+          {/* Left Block */}
+          <div className="flex items-center gap-4 md:w-1/3">
+            <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
+              <Phone className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-sm text-slate-800">{t.bannerHelpTitle}</h4>
+              <p className="text-xs text-slate-500 leading-normal">
+                {t.bannerHelpDesc}
+              </p>
+            </div>
+          </div>
+
+          {/* Middle Block */}
+          <div className="flex flex-col items-center text-center space-y-3 md:w-1/3">
+            <h3 className="text-lg font-black text-slate-800 tracking-tight">{t.bannerContactTitle}</h3>
+            <p className="text-xs text-slate-500">{t.bannerContactSubtitle}</p>
+            <button 
+              onClick={() => toast.info(t.toastContactInfo)}
+              className="bg-slate-900 hover:bg-slate-850 text-white rounded-xl py-2.5 px-6 text-xs font-bold shadow-sm transition-all duration-200 flex items-center gap-1.5 active:scale-98"
+            >
+              <span>{t.bannerContactBtn}</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* Right Block */}
+          <div className="flex flex-col gap-3 md:w-1/3 text-left">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-blue-50/50 flex items-center justify-center text-blue-600 shrink-0">
+                <Phone className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">{t.bannerHotline}</span>
+                <span className="text-xs font-extrabold text-slate-800">1900 1234</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-full bg-blue-50/50 flex items-center justify-center text-blue-600 shrink-0">
+                <Mail className="h-4 w-4" />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block font-medium">{t.bannerEmail}</span>
+                <span className="text-xs font-extrabold text-slate-800">support@rms.com</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Banner 2: Core Values (USPs) */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-100 p-6 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* USP 1 */}
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
+              <Calendar className="h-4.5 w-4.5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-xs text-slate-800">{t.usp1Title}</h4>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                {t.usp1Desc}
+              </p>
+            </div>
+          </div>
+
+          {/* USP 2 */}
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
+              <CheckCircle className="h-4.5 w-4.5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-xs text-slate-800">{t.usp2Title}</h4>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                {t.usp2Desc}
+              </p>
+            </div>
+          </div>
+
+          {/* USP 3 */}
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
+              <Award className="h-4.5 w-4.5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-xs text-slate-800">{t.usp3Title}</h4>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                {t.usp3Desc}
+              </p>
+            </div>
+          </div>
+
+          {/* USP 4 */}
+          <div className="flex items-start gap-4">
+            <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
+              <Phone className="h-4.5 w-4.5" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-extrabold text-xs text-slate-800">{t.usp4Title}</h4>
+              <p className="text-[11px] text-slate-500 leading-normal">
+                {t.usp4Desc}
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      {/* 7. PLATFORM FOOTER */}
       <footer id="footer" className="bg-[#111827] text-slate-400 border-t border-slate-900 pt-16 pb-8 mt-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           
-          {/* Spaced properly using flex row layout to distribute columns evenly */}
           <div className="flex flex-col md:flex-row justify-between gap-8 pb-12 border-b border-slate-800">
             
             {/* Col 1: Platform Info */}
@@ -1239,34 +1189,34 @@ export default function LandingPage() {
                 <span className="text-lg font-bold text-white tracking-wider">RMS</span>
               </div>
               <p className="text-xs text-slate-450 leading-relaxed">
-                Kết nối những tâm hồn ẩm thực với các nhà hàng sang trọng và uy tín. Tìm kiếm, đánh giá và đặt bàn trực tuyến dễ dàng.
+                {t.footerDesc}
               </p>
             </div>
 
             {/* Col 2: Explore */}
             <div className="space-y-3">
-              <h4 className="text-white text-xs font-bold uppercase tracking-wider">Khám phá</h4>
+              <h4 className="text-white text-xs font-bold uppercase tracking-wider">{t.footerExplore}</h4>
               <ul className="space-y-2 text-xs">
-                <li><button onClick={() => { setSearchText(''); setSelectedDistrict('Tất cả khu vực'); }} className="hover:text-white transition">Tìm kiếm nhà hàng</button></li>
-                <li><button onClick={() => toast.info('Tính năng bộ sưu tập sẽ sớm ra mắt!')} className="hover:text-white transition">Bộ sưu tập món ăn</button></li>
-                <li><button onClick={() => { const s = document.getElementById('review-feed-section'); s?.scrollIntoView({behavior: 'smooth'}); }} className="hover:text-white transition">Đánh giá mới nhất</button></li>
-                <li><button onClick={() => toast.info('Khuyến mãi sẽ được hiển thị khi BE sẵn sàng!')} className="hover:text-white transition">Ưu đãi tuần này</button></li>
+                <li><Link href="/" className="hover:text-white transition">{t.footerSearch}</Link></li>
+                <li><button onClick={() => toast.info(locale === 'vi' ? 'Tính năng bộ sưu tập sẽ sớm ra mắt!' : 'Food collections feature coming soon!')} className="hover:text-white transition">{t.footerCuisineCol}</button></li>
+                <li><Link href="/feed" className="hover:text-white transition">{t.footerLatestRev}</Link></li>
+                <li><button onClick={() => toast.info(locale === 'vi' ? 'Khuyến mãi sẽ được hiển thị khi BE sẵn sàng!' : 'Offers will be displayed when Backend is ready!')} className="hover:text-white transition">{t.footerWeeklyOffers}</button></li>
               </ul>
             </div>
 
-            {/* Col 3: Partnerships (Span 2) */}
-            <div className="md:col-span-2 space-y-3">
-              <h4 className="text-white text-xs font-bold uppercase tracking-wider">Hợp tác</h4>
+            {/* Col 3: Partnerships */}
+            <div className="space-y-3">
+              <h4 className="text-white text-xs font-bold uppercase tracking-wider">{t.footerPartner}</h4>
               <ul className="space-y-2 text-xs">
-                <li><a href="/login" className="hover:text-white transition">Đăng ký chủ nhà hàng</a></li>
-                <li><button onClick={() => toast.info('Các gói dịch vụ tiếp thị liên kết!')} className="hover:text-white transition">Gói dịch vụ quảng bá</button></li>
-                <li><a href="#search-section" className="hover:text-white transition">Hướng dẫn đặt bàn</a></li>
+                <li><a href="/login" className="hover:text-white transition">{t.footerRegOwner}</a></li>
+                <li><button onClick={() => toast.info(locale === 'vi' ? 'Các gói dịch vụ tiếp thị liên kết!' : 'Affiliate marketing packages!')} className="hover:text-white transition">{t.footerAdPacks}</button></li>
+                <li><Link href="/" className="hover:text-white transition">{t.footerGuide}</Link></li>
               </ul>
             </div>
 
-            {/* Col 4: Contact & Socials (Span 4) */}
-            <div className="md:col-span-4 space-y-3">
-              <h4 className="text-white text-xs font-bold uppercase tracking-wider">Liên hệ & Kết nối</h4>
+            {/* Col 4: Contact & Socials */}
+            <div className="space-y-3">
+              <h4 className="text-white text-xs font-bold uppercase tracking-wider">{t.footerContact}</h4>
               <ul className="space-y-2 text-xs">
                 <li className="flex items-center gap-2">
                   <Phone className="h-3.5 w-3.5 text-blue-500" />
@@ -1304,10 +1254,10 @@ export default function LandingPage() {
 
           {/* Bottom copyright bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between pt-8 text-slate-500 text-[10px]">
-            <p>© {new Date().getFullYear()} RMS. Bảo lưu mọi quyền.</p>
+            <p>© {new Date().getFullYear()} RMS. {t.footerAllRights}</p>
             <div className="flex gap-4 mt-4 sm:mt-0">
-              <a href="#" className="hover:underline hover:text-slate-400">Điều khoản dịch vụ</a>
-              <a href="#" className="hover:underline hover:text-slate-400">Chính sách bảo mật</a>
+              <a href="#" className="hover:underline hover:text-slate-400">{t.footerTerms}</a>
+              <a href="#" className="hover:underline hover:text-slate-400">{t.footerPrivacy}</a>
             </div>
           </div>
 
