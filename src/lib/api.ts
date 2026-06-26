@@ -122,6 +122,21 @@ export const api = {
       ...opts,
     });
   },
+
+  uploadFile: <T>(endpoint: string, file: File, extraParams?: Record<string, string>) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (extraParams) {
+      Object.entries(extraParams).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
+    }
+    return request<T>(endpoint, {
+      method: 'POST',
+      body: formData,
+      headers: {},
+    });
+  },
 };
 
 export function connectWebSocket(path: string): WebSocket {
