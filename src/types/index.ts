@@ -6,6 +6,7 @@ export interface User {
   isActive: boolean;
   branchId: string | null;
   tenantId: string | null;
+  avatarUrl?: string | null;
 }
 
 export interface Branch {
