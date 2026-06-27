@@ -1,0 +1,22 @@
+[CONTEXT-BRIDGE-TOKEN: FE-AVATAR-UPLOAD]
+=========================================
+- FEATURE: Profile Avatar Image Upload (S3 via Backend Proxy)
+- FE_REPO_COMMIT: 1b1c015
+- API_SPECS:
+  * Endpoint: /api/profile/upload-avatar
+  * Method: POST
+  * Content-Type: multipart/form-data
+  * Payload Form Key: "avatar" (binary/file, image/*, max 5MB)
+  * Response Schema (Success 200/201):
+    {
+      "avatarUrl": "https://[bucket-name].s3.[region].amazonaws.com/avatars/[filename]"
+    }
+  * Response Schema (Error 400/500):
+    {
+      "message": "Error details string"
+    }
+- BE_DATABASE_REQUIREMENTS:
+  * Table: "users" (hoặc bảng lưu thông tin User tương đương)
+  * Column: "avatar_url" (VARCHAR/TEXT, nullable)
+- AWS_S3_PATH: "avatars/"
+=========================================

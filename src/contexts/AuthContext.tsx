@@ -45,7 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     roles: ['ADMIN'],
     isActive: true,
     branchId: 'b1',
-    tenantId: 't1'
+    tenantId: 't1',
+    bookingCount: 24,
+    totalSpent: 18450000,
+    loyaltyPoints: 1845,
+    tier: 'GOLD',
+    loyaltyCardNo: 'RMS-9882-7481',
+    memberSince: '2025-06-25'
   });
   const [branches, setBranches] = useState<Branch[]>([
     { branchId: 'b1', name: 'Chi nhánh Hoàn Kiếm', address: '12 Tràng Tiền', phone: '0123456789', isActive: true }
@@ -119,7 +125,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         roles: ['ADMIN'],
         isActive: true,
         branchId: 'b1',
-        tenantId: 't1'
+        tenantId: 't1',
+        bookingCount: 24,
+        totalSpent: 18450000,
+        loyaltyPoints: 1845,
+        tier: 'GOLD',
+        loyaltyCardNo: 'RMS-9882-7481',
+        memberSince: '2025-06-25'
       };
       setUser(mockUser);
       setBranches([
