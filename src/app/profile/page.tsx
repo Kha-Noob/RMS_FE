@@ -373,11 +373,7 @@ export default function PublicProfilePage() {
 
     try {
       setUploading(true);
-      const response = await api.post<{ avatarUrl: string }>('/api/profile/upload-avatar', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post<{ avatarUrl: string }>('/api/profile/upload-avatar', formData);
       setAvatarUrl(response.avatarUrl);
       if (refreshUser) {
         await refreshUser();

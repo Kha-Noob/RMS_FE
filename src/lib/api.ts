@@ -40,9 +40,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string> || {}),
   };
+
+  if (!(fetchOptions.body instanceof FormData)) {
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  }
 
   const creds = getStoredCredentials();
   if (creds) {
@@ -76,12 +79,14 @@ export const api = {
   get: <T>(endpoint: string, opts?: RequestOptions) =>
     request<T>(endpoint, { method: 'GET', ...opts }),
 
-  post: <T>(endpoint: string, body?: unknown, opts?: RequestOptions) =>
-    request<T>(endpoint, {
+  post: <T>(endpoint: string, body?: unknown, opts?: RequestOptions) => {
+    const isFormData = body instanceof FormData;
+    return request<T>(endpoint, {
       method: 'POST',
-      body: body ? JSON.stringify(body) : undefined,
+      body: isFormData ? (body as FormData) : (body ? JSON.stringify(body) : undefined),
       ...opts,
-    }),
+    });
+  },
 
   postForm: <T>(endpoint: string, params: Record<string, string | number | undefined>, opts?: RequestOptions) => {
     const searchParams = new URLSearchParams();
