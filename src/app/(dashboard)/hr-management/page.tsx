@@ -72,6 +72,7 @@ function EmployeesSection() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: '', email: '', password: '', department: '', title: '',
     hireDate: '', baseSalary: '', salaryType: 'MONTHLY', branchId: '',
@@ -146,8 +147,7 @@ function EmployeesSection() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return;
+  const executeDelete = async (id: number) => {
     try {
       await api.post(`/api/hr/employees/delete/${id}`);
       toast.success('Employee deleted');
@@ -260,7 +260,7 @@ function EmployeesSection() {
                     <td className={tableTd}>
                       <div className="flex gap-2">
                         <button onClick={() => openEdit(emp)} className="text-[#25439b] hover:text-[#1c3580] text-xs">Edit</button>
-                        <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
+                        <button onClick={() => setDeleteConfirmId(emp.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -270,6 +270,38 @@ function EmployeesSection() {
           </div>
         )}
       </div>
+
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl border border-slate-100 transform scale-100 transition-all duration-300">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-4 text-red-500">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Xác nhận xóa</h3>
+            <p className="text-slate-500 text-sm mb-6">Bạn có chắc chắn muốn xóa nhân viên này khỏi hệ thống? Thao tác này không thể hoàn tác.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  const id = deleteConfirmId;
+                  setDeleteConfirmId(null);
+                  await executeDelete(id);
+                }}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-2 rounded-xl text-sm transition-colors"
+              >
+                Xóa
+              </button>
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 rounded-xl text-sm transition-colors"
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
