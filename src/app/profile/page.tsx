@@ -16,20 +16,12 @@ import {
   Phone,
   Mail,
   User as UserIcon,
-  ChevronRight,
   Shield,
   Upload,
   Lock,
   KeyRound,
-  CheckCircle2,
   Sparkles,
-  CreditCard,
-  TrendingUp,
-  CircleDollarSign,
-  Users,
-  Compass,
-  MapPin,
-  Clock
+  CircleDollarSign
 } from 'lucide-react';
 
 export default function PublicProfilePage() {
@@ -46,6 +38,9 @@ export default function PublicProfilePage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPass, setChangingPass] = useState(false);
+
+  // Allow dynamic card previewing of all tiers
+  const [previewTier, setPreviewTier] = useState<string | null>(null);
 
   // --- Authentication Redirect Guard ---
   useEffect(() => {
@@ -89,14 +84,19 @@ export default function PublicProfilePage() {
       profileTitle: 'Hồ Sơ Thành Viên',
       profileSub: 'Quản lý thông tin hội viên, điểm tích lũy và lịch sử giao dịch',
       
-      // Loyalty Card
+      // Loyalty Card Tiers
       tierLabel: 'CẤP ĐỘ THÀNH VIÊN',
+      tierStandard: 'THÀNH VIÊN THƯỜNG',
+      tierBronze: 'THÀNH VIÊN ĐỒNG',
+      tierSilver: 'THÀNH VIÊN BẠC',
       tierGold: 'THÀNH VIÊN VÀNG',
       tierPlatinum: 'THÀNH VIÊN BẠCH KIM',
+      tierDiamond: 'THÀNH VIÊN KIM CƯƠNG',
       cardHolder: 'CHỦ THẺ',
       cardNumber: 'MÃ SỐ THẺ',
       ptsBalance: 'ĐIỂM TÍCH LŨY HIỆN TẠI',
       nextTierHint: 'Tích lũy thêm {pts} điểm để thăng hạng {next}',
+      previewTierLabel: 'Xem thiết kế thẻ các hạng:',
       
       // Stats Cards
       statBookings: 'Số lần đặt bàn',
@@ -180,14 +180,19 @@ export default function PublicProfilePage() {
       profileTitle: 'Membership Profile',
       profileSub: 'Manage your loyalty tier, reward points, and table reservation history',
       
-      // Loyalty Card
+      // Loyalty Card Tiers
       tierLabel: 'MEMBERSHIP TIER',
+      tierStandard: 'STANDARD MEMBER',
+      tierBronze: 'BRONZE MEMBER',
+      tierSilver: 'SILVER MEMBER',
       tierGold: 'GOLD MEMBER',
       tierPlatinum: 'PLATINUM MEMBER',
+      tierDiamond: 'DIAMOND MEMBER',
       cardHolder: 'CARDHOLDER',
       cardNumber: 'CARD NUMBER',
       ptsBalance: 'CURRENT LOYALTY POINTS',
       nextTierHint: 'Accumulate {pts} more points to reach {next}',
+      previewTierLabel: 'Preview other tier card designs:',
 
       // Stats Cards
       statBookings: 'Total Bookings',
@@ -258,12 +263,67 @@ export default function PublicProfilePage() {
     };
   }, [locale]);
 
+  // --- Resolve Card Styles dynamically based on tier ---
+  const cardStyle = useMemo(() => {
+    const activeTier = previewTier || user?.tier || 'STANDARD';
+    const styles = {
+      STANDARD: {
+        bg: 'bg-gradient-to-br from-slate-650 via-slate-700 to-slate-800',
+        text: 'text-slate-100',
+        accentText: 'text-slate-400',
+        glow: 'shadow-slate-500/10',
+        badgeBg: 'bg-white/10',
+        displayName: t.tierStandard
+      },
+      BRONZE: {
+        bg: 'bg-gradient-to-br from-orange-800 via-amber-800 to-amber-950',
+        text: 'text-amber-50',
+        accentText: 'text-amber-300',
+        glow: 'shadow-amber-900/15',
+        badgeBg: 'bg-white/10',
+        displayName: t.tierBronze
+      },
+      SILVER: {
+        bg: 'bg-gradient-to-br from-slate-200 via-zinc-400 to-slate-450',
+        text: 'text-slate-900',
+        accentText: 'text-slate-600',
+        glow: 'shadow-slate-400/10',
+        badgeBg: 'bg-slate-900/10',
+        displayName: t.tierSilver
+      },
+      GOLD: {
+        bg: 'bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600',
+        text: 'text-white',
+        accentText: 'text-amber-100',
+        glow: 'shadow-amber-500/25',
+        badgeBg: 'bg-white/20',
+        displayName: t.tierGold
+      },
+      PLATINUM: {
+        bg: 'bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900',
+        text: 'text-indigo-50',
+        accentText: 'text-indigo-300',
+        glow: 'shadow-indigo-950/30 border border-indigo-900/20',
+        badgeBg: 'bg-indigo-500/25',
+        displayName: t.tierPlatinum
+      },
+      DIAMOND: {
+        bg: 'bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-650',
+        text: 'text-white',
+        accentText: 'text-cyan-100',
+        glow: 'shadow-cyan-500/30 border border-cyan-300/30',
+        badgeBg: 'bg-white/25',
+        displayName: t.tierDiamond
+      }
+    };
+    return styles[activeTier as keyof typeof styles] || styles.STANDARD;
+  }, [user?.tier, previewTier, t]);
+
   // --- Currency Formatter Helper ---
   const formatCurrency = (amount: number) => {
     if (locale === 'vi') {
       return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
     } else {
-      // Convert approximately to USD for demonstration
       return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(Math.round(amount / 25000));
     }
   };
@@ -434,7 +494,7 @@ export default function PublicProfilePage() {
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-full border border-blue-100/75 transition duration-200 cursor-pointer focus:outline-none shadow-sm"
               >
-                <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
+                <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-650 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
                   {user.name.charAt(0)}
                 </div>
                 <span className="text-xs font-bold text-blue-900 hidden sm:inline max-w-[120px] truncate select-none">
@@ -517,23 +577,23 @@ export default function PublicProfilePage() {
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center gap-8 md:gap-10">
           
           {/* Membership Virtual Card */}
-          <div className="relative overflow-hidden w-full max-w-sm h-52 rounded-2xl bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600 p-6 text-white shadow-md flex flex-col justify-between group hover:shadow-lg hover:scale-[1.01] transition-all duration-300 shrink-0">
-            {/* Gloss overlay */}
+          <div className={`relative overflow-hidden w-full max-w-sm h-52 rounded-2xl ${cardStyle.bg} p-6 ${cardStyle.text} shadow-md ${cardStyle.glow} flex flex-col justify-between group hover:shadow-lg hover:scale-[1.01] transition-all duration-300 shrink-0`}>
+            {/* Glass overlay */}
             <div className="absolute inset-0 bg-white/5 backdrop-blur-[0.5px]" />
             
             {/* Top row */}
             <div className="flex justify-between items-start relative z-10">
               <div className="flex items-center gap-1.5">
-                <div className="h-7 w-7 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                  <Utensils className="h-4 w-4 text-white" />
+                <div className={`h-7 w-7 rounded-lg ${cardStyle.badgeBg} flex items-center justify-center backdrop-blur-sm`}>
+                  <Utensils className="h-4 w-4" />
                 </div>
                 <span className="font-extrabold text-sm tracking-wider">RMS MEMBER</span>
               </div>
               <div className="flex flex-col items-end">
-                <span className="text-[9px] font-bold text-amber-100 uppercase tracking-widest">{t.tierLabel}</span>
-                <span className="text-xs font-black tracking-wide text-yellow-50 drop-shadow-sm flex items-center gap-0.5">
-                  <Sparkles className="h-3.5 w-3.5 fill-yellow-200 text-yellow-100" />
-                  {user.tier === 'GOLD' ? t.tierGold : user.tier}
+                <span className={`text-[9px] font-bold ${cardStyle.accentText} uppercase tracking-widest`}>{t.tierLabel}</span>
+                <span className="text-xs font-black tracking-wide drop-shadow-sm flex items-center gap-0.5">
+                  <Sparkles className="h-3.5 w-3.5 fill-current opacity-90" />
+                  {cardStyle.displayName}
                 </span>
               </div>
             </div>
@@ -565,11 +625,11 @@ export default function PublicProfilePage() {
             {/* Bottom Row */}
             <div className="flex justify-between items-end relative z-10 mt-auto">
               <div className="space-y-0.5">
-                <p className="text-[9px] text-amber-100 uppercase font-bold tracking-wider">{t.cardHolder}</p>
+                <p className={`text-[9px] ${cardStyle.accentText} uppercase font-bold tracking-wider`}>{t.cardHolder}</p>
                 <p className="text-xs font-bold tracking-wide uppercase">{user.name}</p>
               </div>
               <div className="text-right space-y-0.5">
-                <p className="text-[9px] text-amber-100 uppercase font-bold tracking-wider">{t.cardNumber}</p>
+                <p className={`text-[9px] ${cardStyle.accentText} uppercase font-bold tracking-wider`}>{t.cardNumber}</p>
                 <p className="text-[11px] font-mono font-bold tracking-wider">{user.loyaltyCardNo || '---'}</p>
               </div>
             </div>
@@ -581,7 +641,7 @@ export default function PublicProfilePage() {
               <div className="space-y-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{t.ptsBalance}</span>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-4xl font-black bg-gradient-to-r from-amber-500 to-yellow-600 bg-clip-text text-transparent">
+                  <span className="text-4xl font-black bg-gradient-to-r from-amber-505 to-yellow-600 bg-clip-text text-transparent">
                     {currentPoints}
                   </span>
                   <span className="text-xs font-bold text-slate-500">PTS</span>
@@ -595,7 +655,7 @@ export default function PublicProfilePage() {
             {/* Visual Progress Bar */}
             <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50 p-0.5">
               <div 
-                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-yellow-500 to-indigo-600 transition-all duration-1000 shadow-inner"
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-yellow-500 to-indigo-650 transition-all duration-1000 shadow-inner"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
@@ -604,6 +664,36 @@ export default function PublicProfilePage() {
               <span>0 PTS</span>
               <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-150">{t.tierGold} (1,500 pts)</span>
               <span className="text-slate-500">{t.tierPlatinum} (3,000 pts)</span>
+            </div>
+
+            {/* Dynamic Card Design Switcher for User Preview */}
+            <div className="pt-3 border-t border-slate-150/75">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">
+                {t.previewTierLabel}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {['STANDARD', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'].map((tierOption) => (
+                  <button
+                    key={tierOption}
+                    onClick={() => setPreviewTier(tierOption)}
+                    className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wider transition border cursor-pointer ${
+                      (previewTier || user.tier || 'STANDARD') === tierOption
+                        ? 'bg-blue-600 text-white border-blue-650 shadow-sm'
+                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
+                    }`}
+                  >
+                    {tierOption}
+                  </button>
+                ))}
+                {previewTier && previewTier !== user.tier && (
+                  <button
+                    onClick={() => setPreviewTier(null)}
+                    className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider transition bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 cursor-pointer"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
