@@ -21,7 +21,8 @@ import {
   Lock,
   KeyRound,
   Sparkles,
-  CircleDollarSign
+  CircleDollarSign,
+  Heart
 } from 'lucide-react';
 
 export default function PublicProfilePage() {
@@ -34,12 +35,19 @@ export default function PublicProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
 
+  // Account Information form states
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [birthday, setBirthday] = useState(user?.birthday || '');
+  const [gender, setGender] = useState(user?.gender || 'OTHER');
+  const [dietaryNotes, setDietaryNotes] = useState(user?.dietaryNotes || '');
+  const [updatingInfo, setUpdatingInfo] = useState(false);
+
+  // Security Form States
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPass, setChangingPass] = useState(false);
-
-
 
   // --- Authentication Redirect Guard ---
   useEffect(() => {
@@ -48,12 +56,17 @@ export default function PublicProfilePage() {
     }
   }, [user, loading, router]);
 
-  // --- Sync Avatar State ---
+  // --- Sync Avatar & Info State ---
   useEffect(() => {
-    if (user?.avatarUrl) {
-      setAvatarUrl(user.avatarUrl);
+    if (user) {
+      setAvatarUrl(user.avatarUrl || '');
+      setName(user.name || '');
+      setPhone(user.phone || '');
+      setBirthday(user.birthday || '');
+      setGender(user.gender || 'OTHER');
+      setDietaryNotes(user.dietaryNotes || '');
     }
-  }, [user?.avatarUrl]);
+  }, [user]);
 
   // --- Mock Booking History ---
   const mockBookings = useMemo(() => {
@@ -95,7 +108,6 @@ export default function PublicProfilePage() {
       cardNumber: 'MÃ SỐ THẺ',
       ptsBalance: 'ĐIỂM TÍCH LŨY HIỆN TẠI',
       nextTierHint: 'Tích lũy thêm {pts} điểm để thăng hạng {next}',
-      previewTierLabel: 'Xem thiết kế thẻ các hạng:',
       
       // Stats Cards
       statBookings: 'Số lần đặt bàn',
@@ -118,15 +130,21 @@ export default function PublicProfilePage() {
       statusCancelled: 'Đã hủy',
       
       // Edit Account Info
-      cardInfoTitle: 'Thông tin tài khoản',
+      cardInfoTitle: 'Thông tin cá nhân',
       labelName: 'Họ và tên',
-      labelEmail: 'Địa chỉ Email',
-      labelRoles: 'Vai trò hệ thống',
-      labelStatus: 'Trạng thái',
-      statusActive: 'Đang hoạt động',
-      statusInactive: 'Ngừng hoạt động',
-      btnChangePhoto: 'Thay ảnh mới',
+      labelEmail: 'Địa chỉ Email (Không thể thay đổi)',
+      labelPhone: 'Số điện thoại',
+      labelBirthday: 'Ngày sinh',
+      labelGender: 'Giới tính',
+      genderMale: 'Nam',
+      genderFemale: 'Nữ',
+      genderOther: 'Khác',
+      labelDietary: 'Sở thích ăn uống & Ghi chú dị ứng',
+      placeholderDietary: 'Ví dụ: Ăn chay, không ăn cay, dị ứng đậu phộng, ưu tiên ngồi bàn gần cửa sổ...',
+      btnChangePhoto: 'Thay ảnh',
       uploadingText: 'Đang tải...',
+      btnSaveInfo: 'Lưu thay đổi',
+      btnSavingInfo: 'Đang lưu...',
       
       // Password
       cardPassTitle: 'Đổi mật khẩu bảo mật',
@@ -146,7 +164,9 @@ export default function PublicProfilePage() {
       toastPassMinLength: 'Mật khẩu mới phải từ 6 ký tự trở lên',
       toastPassMismatch: 'Xác nhận mật khẩu không khớp',
       toastPassSuccess: 'Đổi mật khẩu thành công',
+      toastInfoSuccess: 'Đã cập nhật thông tin cá nhân thành công',
       toastMockMode: 'API offline. Đã cập nhật ảnh ở chế độ giả lập!',
+      toastMockInfoMode: 'API offline. Đã cập nhật thông tin cá nhân giả lập!',
       
       // Footer
       footerDesc: 'Kết nối những tâm hồn ẩm thực với các nhà hàng sang trọng và uy tín. Tìm kiếm, đánh giá và đặt bàn trực tuyến dễ dàng.',
@@ -191,7 +211,6 @@ export default function PublicProfilePage() {
       cardNumber: 'CARD NUMBER',
       ptsBalance: 'CURRENT LOYALTY POINTS',
       nextTierHint: 'Accumulate {pts} more points to reach {next}',
-      previewTierLabel: 'Preview other tier card designs:',
 
       // Stats Cards
       statBookings: 'Total Bookings',
@@ -214,15 +233,21 @@ export default function PublicProfilePage() {
       statusCancelled: 'Cancelled',
       
       // Edit Account Info
-      cardInfoTitle: 'Account Information',
+      cardInfoTitle: 'Personal Information',
       labelName: 'Full Name',
-      labelEmail: 'Email Address',
-      labelRoles: 'System Roles',
-      labelStatus: 'Status',
-      statusActive: 'Active',
-      statusInactive: 'Inactive',
+      labelEmail: 'Email Address (Non-changeable)',
+      labelPhone: 'Phone Number',
+      labelBirthday: 'Date of Birth',
+      labelGender: 'Gender',
+      genderMale: 'Male',
+      genderFemale: 'Female',
+      genderOther: 'Other',
+      labelDietary: 'Dietary Preferences & Allergy Notes',
+      placeholderDietary: 'Example: Vegetarian, no spicy, peanut allergy, prefers tables near window...',
       btnChangePhoto: 'Change Photo',
       uploadingText: 'Uploading...',
+      btnSaveInfo: 'Save Changes',
+      btnSavingInfo: 'Saving...',
       
       // Password
       cardPassTitle: 'Change Account Password',
@@ -242,7 +267,9 @@ export default function PublicProfilePage() {
       toastPassMinLength: 'New password must be at least 6 characters',
       toastPassMismatch: 'Passwords do not match',
       toastPassSuccess: 'Password changed successfully',
+      toastInfoSuccess: 'Personal information updated successfully',
       toastMockMode: 'API offline. Updated avatar in Mock Mode!',
+      toastMockInfoMode: 'API offline. Updated profile details locally!',
       
       // Footer
       footerDesc: 'Connecting food lovers with prestigious and luxurious restaurants. Search, review, and book tables online with ease.',
@@ -275,9 +302,9 @@ export default function PublicProfilePage() {
         displayName: t.tierStandard
       },
       BRONZE: {
-        bg: 'bg-gradient-to-br from-orange-800 via-amber-800 to-amber-950',
+        bg: 'bg-gradient-to-br from-orange-850 via-amber-800 to-amber-950',
         text: 'text-amber-50',
-        accentText: 'text-amber-300',
+        accentText: 'text-amber-355',
         glow: 'shadow-amber-900/15',
         badgeBg: 'bg-white/10',
         displayName: t.tierBronze
@@ -365,6 +392,38 @@ export default function PublicProfilePage() {
         toast.success(t.toastMockMode);
         setUploading(false);
       }, 1000);
+    }
+  };
+
+  // --- Handle Save Personal Info ---
+  const handleUpdateInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setUpdatingInfo(true);
+      await api.post('/api/profile/update-info', {
+        name,
+        phone,
+        birthday,
+        gender,
+        dietaryNotes
+      });
+      if (refreshUser) {
+        await refreshUser();
+      }
+      toast.success(t.toastInfoSuccess);
+    } catch (err) {
+      console.warn('Backend API offline. Saving profile details locally (Mock Mode):', err);
+      setTimeout(() => {
+        if (user) {
+          user.name = name;
+          user.phone = phone;
+          user.birthday = birthday;
+          user.gender = gender;
+          user.dietaryNotes = dietaryNotes;
+        }
+        toast.success(t.toastMockInfoMode);
+        setUpdatingInfo(false);
+      }, 800);
     }
   };
 
@@ -493,7 +552,7 @@ export default function PublicProfilePage() {
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-full border border-blue-100/75 transition duration-200 cursor-pointer focus:outline-none shadow-sm"
               >
-                <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-650 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
+                <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
                   {user.name.charAt(0)}
                 </div>
                 <span className="text-xs font-bold text-blue-900 hidden sm:inline max-w-[120px] truncate select-none">
@@ -640,7 +699,7 @@ export default function PublicProfilePage() {
               <div className="space-y-1">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{t.ptsBalance}</span>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-4xl font-black bg-gradient-to-r from-amber-505 to-yellow-600 bg-clip-text text-transparent">
+                  <span className="text-4xl font-black bg-gradient-to-r from-amber-500 to-yellow-600 bg-clip-text text-transparent">
                     {currentPoints}
                   </span>
                   <span className="text-xs font-bold text-slate-500">PTS</span>
@@ -664,8 +723,6 @@ export default function PublicProfilePage() {
               <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-150">{t.tierGold} (1,500 pts)</span>
               <span className="text-slate-500">{t.tierPlatinum} (3,000 pts)</span>
             </div>
-
-
           </div>
         </div>
 
@@ -784,7 +841,7 @@ export default function PublicProfilePage() {
         {/* Card 4: Edit Account Information & Avatar Upload */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-            <Shield className="h-5 w-5 text-blue-600" />
+            <Shield className="h-5 w-5 text-blue-650" />
             <h2 className="text-base font-extrabold text-slate-800">{t.cardInfoTitle}</h2>
           </div>
 
@@ -794,7 +851,7 @@ export default function PublicProfilePage() {
             <div className="flex flex-col items-center gap-3 shrink-0">
               <div className="relative h-28 w-28 rounded-full overflow-hidden border-3 border-blue-50 bg-slate-50 shadow-inner group">
                 <img 
-                  src={avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=25439b&color=fff&size=128`} 
+                  src={avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=25439b&color=fff&size=128`} 
                   alt="Profile Avatar" 
                   className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-300" 
                 />
@@ -818,49 +875,120 @@ export default function PublicProfilePage() {
               </label>
             </div>
 
-            {/* Profile Info Details Grid */}
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-6 w-full text-left">
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.labelName}</label>
-                <p className="text-slate-800 text-sm font-semibold bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100">{user.name}</p>
-              </div>
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.labelEmail}</label>
-                <p className="text-slate-800 text-sm font-semibold bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-100">{user.email}</p>
-              </div>
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.labelRoles}</label>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {user.roles.map((role) => (
-                    <span
-                      key={role}
-                      className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100"
-                    >
-                      {role}
-                    </span>
-                  ))}
+            {/* Editable Profile Info Details Form */}
+            <form onSubmit={handleUpdateInfo} className="flex-1 w-full text-left space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                
+                {/* Full Name */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-750">{t.labelName}</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                  />
                 </div>
-              </div>
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.labelStatus}</label>
-                <div className="pt-1">
-                  <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                    user.isActive
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                      : 'bg-rose-50 text-rose-700 border-rose-100'
-                  }`}>
-                    {user.isActive ? t.statusActive : t.statusInactive}
-                  </span>
+
+                {/* Email (Disabled for safety) */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-400">{t.labelEmail}</label>
+                  <input
+                    type="email"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-sm select-none cursor-not-allowed"
+                    value={user.email}
+                    disabled
+                  />
                 </div>
+
+                {/* Phone Number */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-755">{t.labelPhone}</label>
+                  <input
+                    type="tel"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="e.g. 0912345678"
+                  />
+                </div>
+
+                {/* Date of Birth */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-755">{t.labelBirthday}</label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                    value={birthday}
+                    onChange={e => setBirthday(e.target.value)}
+                  />
+                </div>
+
+                {/* Gender */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-755 mb-1.5">{t.labelGender}</label>
+                  <div className="flex gap-4">
+                    {['MALE', 'FEMALE', 'OTHER'].map((g) => (
+                      <label 
+                        key={g} 
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition ${
+                          gender === g 
+                            ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="gender"
+                          value={g}
+                          checked={gender === g}
+                          onChange={() => setGender(g)}
+                          className="hidden"
+                        />
+                        <span>
+                          {g === 'MALE' ? t.genderMale : g === 'FEMALE' ? t.genderFemale : t.genderOther}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dietary Notes */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <div className="flex items-center gap-1">
+                    <Heart className="h-4 w-4 text-rose-500 fill-rose-500" />
+                    <label className="block text-xs font-bold text-slate-755">{t.labelDietary}</label>
+                  </div>
+                  <textarea
+                    rows={3}
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition resize-none"
+                    value={dietaryNotes}
+                    onChange={e => setDietaryNotes(e.target.value)}
+                    placeholder={t.placeholderDietary}
+                  />
+                </div>
+
               </div>
-            </div>
+
+              {/* Submit Buttons */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={updatingInfo}
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 px-6 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer flex items-center gap-1.5"
+                >
+                  {updatingInfo ? t.btnSavingInfo : t.btnSaveInfo}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
 
         {/* Card 5: Change Password Form */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-            <Lock className="h-5 w-5 text-blue-600" />
+            <Lock className="h-5 w-5 text-blue-650" />
             <h2 className="text-base font-extrabold text-slate-800">{t.cardPassTitle}</h2>
           </div>
 

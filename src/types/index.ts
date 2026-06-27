@@ -13,6 +13,10 @@ export interface User {
   tier?: string;
   loyaltyCardNo?: string;
   memberSince?: string;
+  phone?: string | null;
+  birthday?: string | null;
+  gender?: string | null;
+  dietaryNotes?: string | null;
 }
 
 export interface Branch {

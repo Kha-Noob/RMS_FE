@@ -51,7 +51,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loyaltyPoints: 1845,
     tier: 'GOLD',
     loyaltyCardNo: 'RMS-9882-7481',
-    memberSince: '2025-06-25'
+    memberSince: '2025-06-25',
+    phone: '0987654321',
+    birthday: '1995-10-15',
+    gender: 'MALE',
+    dietaryNotes: 'Không ăn cay, thích bàn gần cửa sổ (No spicy, window seat preferred)'
   });
   const [branches, setBranches] = useState<Branch[]>([
     { branchId: 'b1', name: 'Chi nhánh Hoàn Kiếm', address: '12 Tràng Tiền', phone: '0123456789', isActive: true }
@@ -131,7 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loyaltyPoints: 1845,
         tier: 'GOLD',
         loyaltyCardNo: 'RMS-9882-7481',
-        memberSince: '2025-06-25'
+        memberSince: '2025-06-25',
+        phone: '0987654321',
+        birthday: '1995-10-15',
+        gender: 'MALE',
+        dietaryNotes: 'Không ăn cay, thích bàn gần cửa sổ (No spicy, window seat preferred)'
       };
       setUser(mockUser);
       setBranches([
