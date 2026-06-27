@@ -7,7 +7,15 @@ export interface User {
   branchId: string | null;
   tenantId: string | null;
   avatarUrl?: string | null;
+  bookingCount?: number;
+  totalSpent?: number;
+  loyaltyPoints?: number;
+  tier?: string;
+  loyaltyCardNo?: string;
+  memberSince?: string;
   phone?: string | null;
+  birthday?: string | null;
+  gender?: string | null;
   dietaryNotes?: string | null;
 }
 
