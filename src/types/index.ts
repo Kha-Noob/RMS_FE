@@ -271,3 +271,29 @@ export const STATUS_COLORS: Record<string, string> = {
   cleaning: '#3b82f6',
   disabled: '#94a3b8',
 };
+
+export interface Booking {
+  id?: number;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string | null;
+  bookingTime: string; // ISO DateTime string
+  guests: number;
+  status?: string;
+  source?: string;
+  depositPaid?: boolean;
+  branchId: string;
+  notes?: string | null;
+  tableId?: number | null;
+  tableLabel?: string | null;
+  dietaryNotes?: string | null;
+  allergyPeanut?: boolean;
+  allergyGluten?: boolean;
+  allergyOthers?: string | null;
+  orderedItemsJson?: string | null;
+  depositAmount?: number;
+  paymentMethod?: string | null;
+  paymentStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}

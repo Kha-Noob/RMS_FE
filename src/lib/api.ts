@@ -62,7 +62,18 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!res.ok) {
     const text = await res.text().catch(() => 'Request failed');
-    throw new Error(text || `HTTP ${res.status}`);
+    let errorMessage = text || `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.message) {
+        errorMessage = parsed.message;
+      } else if (parsed.error) {
+        errorMessage = parsed.error;
+      }
+    } catch {
+      // Response is not JSON or parsing failed, fallback to raw text/status
+    }
+    throw new Error(errorMessage);
   }
 
   const contentType = res.headers.get('content-type');
