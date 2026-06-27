@@ -652,6 +652,15 @@ export default function ForumFeedPage() {
               </button>
             </div>
 
+            {/* Premium Book a Table CTA button */}
+            <Link 
+              href="/booking" 
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-755 hover:scale-102 active:scale-98 text-white px-4.5 py-2 text-xs font-black shadow-md hover:shadow-lg transition-all duration-200 shrink-0"
+            >
+              <Calendar className="h-3.5 w-3.5 text-white" />
+              <span>{locale === 'vi' ? 'Đặt bàn ngay' : 'Book Table'}</span>
+            </Link>
+
             {/* Nút dẫn vào phần mềm quản lý nhà hàng */}
             <Link 
               href="/dashboard" 
