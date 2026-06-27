@@ -7,6 +7,8 @@ export interface User {
   branchId: string | null;
   tenantId: string | null;
   avatarUrl?: string | null;
+  phone?: string | null;
+  dietaryNotes?: string | null;
 }
 
 export interface Branch {

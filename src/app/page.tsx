@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
@@ -38,6 +39,7 @@ interface Restaurant {
 }
 
 export default function LandingPage() {
+  const router = useRouter();
   const { user, logout } = useAuth();
   const { locale, setLocale } = useLanguage();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -486,6 +488,12 @@ export default function LandingPage() {
             >
               {t.navEvents}
             </Link>
+            <Link 
+              href="/booking"
+              className="rounded-full px-4 py-1.5 text-sm font-bold text-amber-600 hover:bg-white hover:shadow-sm transition-all"
+            >
+              {locale === 'vi' ? 'Đặt bàn ngay' : 'Book Table'}
+            </Link>
             <a 
               href="#about-us-section"
               className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
@@ -881,7 +889,7 @@ export default function LandingPage() {
 
                       {/* Book Now Button */}
                       <button
-                        onClick={() => handleOpenBooking(rest.name)}
+                        onClick={() => router.push('/booking')}
                         className="w-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-1.5 group-hover:shadow-md"
                       >
                         <Calendar className="h-4 w-4" />
