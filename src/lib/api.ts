@@ -45,7 +45,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   };
 
   const creds = getStoredCredentials();
-  if (creds) {
+  if (creds && !endpoint.startsWith('/api/public/')) {
     headers['Authorization'] = `Basic ${creds}`;
   }
 
@@ -53,6 +53,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   if (branchId) {
     headers['X-Branch-Id'] = branchId;
   }
+
+  console.log("[API FETCH] URL:", url);
 
   const res = await fetch(url, {
     ...fetchOptions,
