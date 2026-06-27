@@ -8,6 +8,8 @@ import { toast } from '@/components/Toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import type { FloorPlan, FloorPlanObject, Branch } from '@/types';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import {
   Utensils,
   Calendar,
@@ -351,22 +353,7 @@ export default function BookingWizardPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col justify-between selection:bg-blue-100 selection:text-blue-900">
       
-      {/* 1. Header */}
-      <header className="sticky top-0 z-45 w-full border-b border-blue-100 bg-white/90 backdrop-blur-md shadow-sm px-4 py-3">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-650 shadow-md">
-              <Utensils className="h-4.5 w-4.5 text-white" />
-            </div>
-            <span className="text-lg font-black bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-650 bg-clip-text text-transparent">
-              RMS
-            </span>
-          </Link>
-          <div className="text-xs font-semibold text-slate-500 bg-slate-100 rounded-full px-3.5 py-1">
-            Đặt bàn trực tuyến
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* 2. Progress Tracker */}
       <div className="bg-white border-b border-slate-200 py-4 shadow-inner">
@@ -1225,12 +1212,7 @@ export default function BookingWizardPage() {
 
       </main>
 
-      {/* 4. Footer */}
-      <footer className="bg-[#111827] text-slate-400 border-t border-slate-900 py-6 mt-12 text-center text-xs font-semibold">
-        <div className="max-w-7xl mx-auto px-4">
-          <p>© 2026 RMS Platform. Bảo lưu mọi quyền.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

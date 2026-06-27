@@ -7,24 +7,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
 import { api } from '@/lib/api';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import {
   Utensils,
-  LogOut,
-  ChevronDown,
   Calendar,
-  Award,
-  Phone,
-  Mail,
   User as UserIcon,
-  Shield,
   Upload,
-  Lock,
   KeyRound,
   Sparkles,
   CircleDollarSign,
   Heart,
   Eye,
-  EyeOff
+  EyeOff,
+  Award,
+  Shield,
+  Lock
 } from 'lucide-react';
 
 export default function PublicProfilePage() {
@@ -33,7 +31,6 @@ export default function PublicProfilePage() {
   const router = useRouter();
 
   // --- States ---
-  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
 
@@ -524,148 +521,7 @@ export default function PublicProfilePage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden flex flex-col justify-between">
       
-      {/* 1. STICKY NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 w-full border-b border-blue-100 bg-white/85 backdrop-blur-md shadow-sm">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600 shadow-md group-hover:scale-105 transition-transform duration-300">
-              <Utensils className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              RMS
-            </span>
-          </Link>
-
-          {/* Nav Items */}
-          <nav className="hidden md:flex items-center gap-1.5 bg-blue-50/50 p-1 rounded-full border border-blue-100/50">
-            <Link 
-              href="/"
-              className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
-            >
-              {t.navExplore}
-            </Link>
-            <Link 
-              href="/feed"
-              className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
-            >
-              {t.navFeed}
-            </Link>
-            <Link 
-              href="/events"
-              className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
-            >
-              {t.navEvents}
-            </Link>
-            <Link 
-              href="/#about-us-section"
-              className="rounded-full px-4 py-1.5 text-sm font-medium text-blue-955 hover:bg-white hover:shadow-sm transition-all"
-            >
-              {t.navAbout}
-            </Link>
-          </nav>
-
-          {/* Auth Actions */}
-          <div className="flex items-center gap-3">
-            {/* Language Switcher */}
-            <div className="flex items-center gap-0.5 bg-blue-50/75 p-0.5 rounded-full border border-blue-100 shadow-inner mr-1 shrink-0">
-              <button 
-                onClick={() => {
-                  setLocale('vi');
-                  toast.success('Đã chuyển sang Tiếng Việt');
-                }}
-                className={`rounded-full px-2 py-0.5 text-[9px] font-black transition-all ${locale === 'vi' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                title="Tiếng Việt"
-              >
-                VI
-              </button>
-              <button 
-                onClick={() => {
-                  setLocale('en');
-                  toast.success('Switched to English');
-                }}
-                className={`rounded-full px-2 py-0.5 text-[9px] font-black transition-all ${locale === 'en' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                title="English"
-              >
-                EN
-              </button>
-            </div>
-
-            {/* Nút dẫn vào phần mềm quản lý nhà hàng */}
-            <Link 
-              href="/dashboard" 
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/40 hover:bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-all duration-200 hover:scale-102 hover:shadow"
-            >
-              <Award className="h-3.5 w-3.5 text-blue-500" />
-              <span>{t.navSys}</span>
-            </Link>
-
-            <div className="relative">
-              <button
-                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-full border border-blue-100/75 transition duration-200 cursor-pointer focus:outline-none shadow-sm"
-              >
-                <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
-                  {user.name.charAt(0)}
-                </div>
-                <span className="text-xs font-bold text-blue-900 hidden sm:inline max-w-[120px] truncate select-none">
-                  {user.name}
-                </span>
-                <ChevronDown className={`h-3 w-3 text-blue-600 transition-transform duration-250 ${userDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              
-              {userDropdownOpen && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setUserDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-100 bg-white p-1.5 shadow-lg ring-1 ring-black/5 z-50 animate-fade-in-scale">
-                    <Link 
-                      href="/dashboard"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
-                    >
-                      <Utensils className="h-4 w-4 text-slate-400" />
-                      <span>{locale === 'vi' ? 'Nhà hàng của tôi' : 'My Restaurant'}</span>
-                    </Link>
-                    <Link 
-                      href="/profile"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition bg-slate-50"
-                    >
-                      <UserIcon className="h-4 w-4 text-blue-600" />
-                      <span className="text-blue-600">{locale === 'vi' ? 'Trang cá nhân' : 'My Profile'}</span>
-                    </Link>
-                    <button 
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        toast.info(locale === 'vi' ? 'Tính năng lịch sử đặt bàn đang được phát triển!' : 'Booking history feature is under development!');
-                      }}
-                      className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                    >
-                      <Calendar className="h-4 w-4 text-slate-400" />
-                      <span>{locale === 'vi' ? 'Lịch sử đặt bàn' : 'Booking History'}</span>
-                    </button>
-                    <div className="my-1 border-t border-slate-100" />
-                    <button 
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        logout();
-                      }}
-                      className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span>{locale === 'vi' ? 'Đăng xuất' : 'Log Out'}</span>
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* 2. PROFILE HERO TITLE SECTION */}
       <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/60 via-indigo-50/20 to-[#F8FAFC] pt-12 pb-8">
@@ -1244,76 +1100,7 @@ export default function PublicProfilePage() {
         )}
       </main>
 
-      {/* 4. PLATFORM FOOTER */}
-      <footer id="footer" className="bg-[#111827] text-slate-400 border-t border-slate-900 pt-16 pb-8 mt-12">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          
-          <div className="flex flex-col md:flex-row justify-between gap-8 pb-12 border-b border-slate-800">
-            
-            {/* Col 1: Platform Info */}
-            <div className="max-w-xs space-y-4 text-left">
-              <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-650">
-                  <Utensils className="h-4.5 w-4.5 text-white" />
-                </div>
-                <span className="text-lg font-bold text-white tracking-wider">RMS</span>
-              </div>
-              <p className="text-xs text-slate-450 leading-relaxed">
-                {t.footerDesc}
-              </p>
-            </div>
-
-            {/* Col 2: Explore */}
-            <div className="space-y-3 text-left">
-              <h4 className="text-white text-xs font-bold uppercase tracking-wider">{t.footerExplore}</h4>
-              <ul className="space-y-2 text-xs">
-                <li><Link href="/" className="hover:text-white transition">{t.footerSearch}</Link></li>
-                <li><button onClick={() => toast.info(locale === 'vi' ? 'Tính năng bộ sưu tập sẽ sớm ra mắt!' : 'Food collections feature coming soon!')} className="hover:text-white transition">{t.footerCuisineCol}</button></li>
-                <li><Link href="/feed" className="hover:text-white transition">{t.footerLatestRev}</Link></li>
-                <li><button onClick={() => toast.info(locale === 'vi' ? 'Khuyến mãi sẽ được hiển thị khi BE sẵn sàng!' : 'Offers will be displayed when Backend is ready!')} className="hover:text-white transition">{t.footerWeeklyOffers}</button></li>
-              </ul>
-            </div>
-
-            {/* Col 3: Partnerships */}
-            <div className="space-y-3 text-left">
-              <h4 className="text-white text-xs font-bold uppercase tracking-wider">{t.footerPartner}</h4>
-              <ul className="space-y-2 text-xs">
-                <li><a href="/login" className="hover:text-white transition">{t.footerRegOwner}</a></li>
-                <li><button onClick={() => toast.info(locale === 'vi' ? 'Các gói dịch vụ tiếp thị liên kết!' : 'Affiliate marketing packages!')} className="hover:text-white transition">{t.footerAdPacks}</button></li>
-                <li><Link href="/" className="hover:text-white transition">{t.footerGuide}</Link></li>
-              </ul>
-            </div>
-
-            {/* Col 4: Contact & Socials */}
-            <div className="space-y-3 text-left">
-              <h4 className="text-white text-xs font-bold uppercase tracking-wider">{t.footerContact}</h4>
-              <ul className="space-y-2 text-xs">
-                <li className="flex items-center gap-2">
-                  <Phone className="h-3.5 w-3.5 text-blue-500" />
-                  <span>1900 1234 (24/7)</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Mail className="h-3.5 w-3.5 text-blue-500" />
-                  <span>support@rms.com</span>
-                </li>
-                <li className="pt-2 text-slate-500 text-[10px]">
-                  Hanoi, Vietnam
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Bottom copyright bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between pt-8 text-slate-500 text-[10px]">
-            <p>© {new Date().getFullYear()} RMS. {t.footerAllRights}</p>
-            <div className="flex gap-4 mt-4 sm:mt-0">
-              <a href="#" className="hover:underline hover:text-slate-400">{t.footerTerms}</a>
-              <a href="#" className="hover:underline hover:text-slate-400">{t.footerPrivacy}</a>
-            </div>
-          </div>
-
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
