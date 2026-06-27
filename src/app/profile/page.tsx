@@ -39,8 +39,7 @@ export default function PublicProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPass, setChangingPass] = useState(false);
 
-  // Allow dynamic card previewing of all tiers
-  const [previewTier, setPreviewTier] = useState<string | null>(null);
+
 
   // --- Authentication Redirect Guard ---
   useEffect(() => {
@@ -265,7 +264,7 @@ export default function PublicProfilePage() {
 
   // --- Resolve Card Styles dynamically based on tier ---
   const cardStyle = useMemo(() => {
-    const activeTier = previewTier || user?.tier || 'STANDARD';
+    const activeTier = user?.tier || 'STANDARD';
     const styles = {
       STANDARD: {
         bg: 'bg-gradient-to-br from-slate-650 via-slate-700 to-slate-800',
@@ -317,7 +316,7 @@ export default function PublicProfilePage() {
       }
     };
     return styles[activeTier as keyof typeof styles] || styles.STANDARD;
-  }, [user?.tier, previewTier, t]);
+  }, [user?.tier, t]);
 
   // --- Currency Formatter Helper ---
   const formatCurrency = (amount: number) => {
@@ -666,35 +665,7 @@ export default function PublicProfilePage() {
               <span className="text-slate-500">{t.tierPlatinum} (3,000 pts)</span>
             </div>
 
-            {/* Dynamic Card Design Switcher for User Preview */}
-            <div className="pt-3 border-t border-slate-150/75">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-2">
-                {t.previewTierLabel}
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {['STANDARD', 'BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'].map((tierOption) => (
-                  <button
-                    key={tierOption}
-                    onClick={() => setPreviewTier(tierOption)}
-                    className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wider transition border cursor-pointer ${
-                      (previewTier || user.tier || 'STANDARD') === tierOption
-                        ? 'bg-blue-600 text-white border-blue-650 shadow-sm'
-                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
-                    }`}
-                  >
-                    {tierOption}
-                  </button>
-                ))}
-                {previewTier && previewTier !== user.tier && (
-                  <button
-                    onClick={() => setPreviewTier(null)}
-                    className="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider transition bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 cursor-pointer"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-            </div>
+
           </div>
         </div>
 
