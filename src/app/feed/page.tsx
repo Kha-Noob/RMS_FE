@@ -30,7 +30,8 @@ import {
   Image as ImageIcon,
   Send,
   Flag,
-  Upload
+  Upload,
+  Trash2
 } from 'lucide-react';
 
 interface District {
@@ -650,6 +651,20 @@ export default function ForumFeedPage() {
     }
   };
 
+  const handleDeletePost = async (postId: number) => {
+    if (!confirm(locale === 'vi' ? 'Bạn có chắc chắn muốn xóa bài viết này?' : 'Are you sure you want to delete this post?')) {
+      return;
+    }
+    try {
+      await api.delete(`/api/public/feed/posts/${postId}`, {
+        params: { phone: user?.phone }
+      });
+      toast.success(locale === 'vi' ? 'Đã xóa bài viết thành công.' : 'Post deleted successfully.');
+    } catch (err: any) {
+      toast.error(err.message || (locale === 'vi' ? 'Không thể xóa bài viết.' : 'Failed to delete post.'));
+    }
+  };
+
   const handleOpenBooking = (restaurantName: string) => {
     setBookingRestaurant(restaurantName);
     setBookingForm({
@@ -1075,9 +1090,20 @@ export default function ForumFeedPage() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100/50">
-                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                          <span className="text-xs font-bold text-amber-700">{post.rating}</span>
+                        <div className="flex items-center gap-2">
+                          {user && user.phone === post.authorPhone && (
+                            <button
+                              onClick={() => handleDeletePost(post.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
+                              title={locale === 'vi' ? 'Xóa bài viết' : 'Delete post'}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                          <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100/50">
+                            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                            <span className="text-xs font-bold text-amber-700">{post.rating}</span>
+                          </div>
                         </div>
                       </div>
 
