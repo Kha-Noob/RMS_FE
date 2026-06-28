@@ -1044,7 +1044,7 @@ export default function ForumFeedPage() {
                                 ? url 
                                 : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
                               
-                              const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().contains('video');
+                              const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
 
                               return (
                                 <div key={index} className="relative h-44 rounded-xl overflow-hidden shadow-sm bg-slate-50 border border-slate-100">

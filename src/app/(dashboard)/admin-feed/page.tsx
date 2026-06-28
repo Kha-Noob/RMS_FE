@@ -226,7 +226,7 @@ export default function AdminFeedModerationPage() {
                             const cleanUrl = url.startsWith('http') 
                               ? url 
                               : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
-                            const isVideo = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().contains('video');
+                            const isVideo = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
                             return (
                               <div key={index} className="h-16 w-24 rounded border border-slate-100 overflow-hidden bg-slate-50 relative shrink-0">
                                 {isVideo ? (
