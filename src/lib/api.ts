@@ -45,7 +45,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   };
 
   const creds = getStoredCredentials();
-  if (creds && !endpoint.startsWith('/api/public/')) {
+  if (creds) {
     headers['Authorization'] = `Basic ${creds}`;
   }
 

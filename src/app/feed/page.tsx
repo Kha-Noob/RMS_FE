@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { api } from '@/lib/api';
 import {
   Search,
   MapPin,
@@ -25,10 +26,13 @@ import {
   CheckCircle,
   ChevronDown,
   TrendingUp,
-  User as UserIcon
+  User as UserIcon,
+  Image as ImageIcon,
+  Send,
+  Flag,
+  Upload
 } from 'lucide-react';
 
-// --- Types & Interfaces ---
 interface District {
   name: string;
   postCount: number;
@@ -42,25 +46,6 @@ interface CulinaryEvent {
   location: string;
   tag: string;
   imageUrl: string;
-}
-
-interface ReviewPost {
-  id: number;
-  author: {
-    name: string;
-    avatar: string;
-    level: string;
-  };
-  rating: number;
-  location: string;
-  timestamp: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  likes: number;
-  commentsCount: number;
-  restaurantName: string;
-  tags: string[];
 }
 
 interface TrendingHashtag {
@@ -77,15 +62,40 @@ interface LeaderboardUser {
 }
 
 export default function ForumFeedPage() {
-  const { locale, setLocale } = useLanguage();
-  
-  // --- States ---
+  const { user } = useAuth();
+  const { locale } = useLanguage();
+
+  // --- Real API States ---
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('Tất cả khu vực');
   const [selectedCuisine, setSelectedCuisine] = useState('Tất cả loại hình');
   const [activeReviewTab, setActiveReviewTab] = useState<'latest' | 'popular'>('latest');
   const [activeHashtagFilter, setActiveHashtagFilter] = useState<string | null>(null);
-  const [expandedReviews, setExpandedReviews] = useState<Record<number, boolean>>({});
+
+  // --- Create Post States ---
+  const [content, setContent] = useState('');
+  const [rating, setRating] = useState(5);
+  const [tableCheckIn, setTableCheckIn] = useState('');
+  const [selectedCreateBranchId, setSelectedCreateBranchId] = useState('b1');
+  const [branchesList, setBranchesList] = useState<any[]>([]);
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [taggedProducts, setTaggedProducts] = useState<any[]>([]);
+  const [searchProductQuery, setSearchProductQuery] = useState('');
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+  // --- Comment list by Post ID ---
+  const [commentsByPost, setCommentsByPost] = useState<Record<number, any[]>>({});
+  const [activeCommentPostId, setActiveCommentPostId] = useState<number | null>(null);
+  const [newCommentText, setNewCommentText] = useState('');
+
+  // --- Report Dialog ---
+  const [reportingPostId, setReportingPostId] = useState<number | null>(null);
+  const [reportReason, setReportReason] = useState('');
 
   // --- Booking Modal State ---
   const [bookingRestaurant, setBookingRestaurant] = useState<string | null>(null);
@@ -99,234 +109,7 @@ export default function ForumFeedPage() {
   });
   const [isBookedSuccess, setIsBookedSuccess] = useState(false);
 
-  // --- Like States ---
-  const [likedReviews, setLikedReviews] = useState<Record<number, boolean>>({});
-  const [reviewLikeCounts, setReviewLikeCounts] = useState<Record<number, number>>({});
-
-  const t = useMemo(() => {
-    return locale === 'vi' ? {
-      // Nav
-      navExplore: 'Khám phá',
-      navFeed: 'Diễn đàn Review',
-      navEvents: 'Sự kiện & Ưu đãi',
-      navAbout: 'Về chúng tôi',
-      navSys: 'Hệ thống Quản lý',
-      navSignIn: 'Sign In',
-      navSignUp: 'Sign Up',
-      navDashboard: 'Dashboard',
-      navLogout: 'Đăng xuất',
-      
-      // Feed Headers & Search
-      feedSearchPlaceholder: 'Tìm kiếm bài viết review, món ăn, địa điểm...',
-      feedHeading: 'Bảng tin Review',
-      feedTabLatest: 'Mới nhất',
-      feedTabPopular: 'Yêu thích nhất',
-      toastFeedLatest: 'Đang hiển thị đánh giá mới nhất.',
-      toastFeedPopular: 'Đang hiển thị đánh giá được yêu thích nhất.',
-      toastResetFilters: 'Đặt lại bộ lọc',
-      toastFilterResetMsg: 'Đặt lại bộ lọc X',
-      noFeedResults: 'Không tìm thấy bài viết review nào',
-      noFeedResultsDesc: 'Hãy thử thay đổi từ khóa tìm kiếm hoặc đổi bộ lọc khu vực để xem thêm đánh giá.',
-      
-      // District sidebar
-      sidebarDistTitle: 'Địa điểm nổi bật',
-      toastDistrictFilter: 'Đang lọc bài viết ở',
-      postCountText: 'bài',
-      
-      // Event sidebar
-      sidebarEventTitle: 'Sự kiện ẩm thực',
-      sidebarEventBtnViewAll: 'Xem tất cả sự kiện',
-      
-      // Post template translations
-      postLikes: 'Thích',
-      postComments: 'Bình luận',
-      postShare: 'Chia sẻ',
-      postBookCTA: 'Đặt bàn ngay',
-      toastCommentDisabled: 'Bình luận sẽ được kích hoạt sau khi liên kết BE!',
-      toastShareCopied: 'Đã sao chép liên kết chia sẻ!',
-      toastLikedPost: 'Đã thêm bài viết vào danh sách yêu thích!',
-      
-      // Right sidebar
-      sidebarTrending: 'Xu hướng',
-      toastHashtagFilter: 'Lọc bài viết theo thẻ',
-      sidebarActiveMembers: 'Thành viên tích cực',
-      rankText: 'Hạng',
-      
-      // Dialogs / Booking Modal
-      bookingTitle: 'Phiếu Đặt Bàn',
-      bookingSubtitle: 'Đặt bàn tại',
-      bookingSuccess: 'Đặt bàn thành công!',
-      bookingCodeText: 'Mã đặt bàn của bạn là',
-      bookingConfirmContact: 'Nhân viên nhà hàng sẽ liên hệ lại với bạn trong vòng 10 phút để xác nhận.',
-      bookingLabelName: 'Họ và tên *',
-      bookingLabelPhone: 'Số điện thoại *',
-      bookingLabelDate: 'Chọn ngày *',
-      bookingLabelTime: 'Giờ đặt *',
-      bookingLabelGuests: 'Số lượng khách *',
-      bookingLabelNotes: 'Ghi chú đặc biệt (nếu có)',
-      bookingPlaceholderName: 'VD: Nguyễn Văn A',
-      bookingPlaceholderPhone: 'VD: 0912345678',
-      bookingPlaceholderNotes: 'VD: Muốn ngồi cạnh cửa sổ, kỷ niệm ngày cưới...',
-      bookingBtnCancel: 'Hủy bỏ',
-      bookingBtnConfirm: 'Xác nhận đặt',
-      bookingBtnComplete: 'Hoàn tất',
-      bookingCustomer: 'Khách hàng',
-      bookingPhone: 'Số điện thoại',
-      bookingTime: 'Thời gian',
-      bookingGuests: 'Số khách',
-      toastEnterName: 'Vui lòng nhập họ và tên',
-      toastEnterPhone: 'Vui lòng nhập số điện thoại',
-      toastBookingSuccess: 'Đặt bàn thành công tại',
-      
-      // Footer
-      footerDesc: 'Kết nối những tâm hồn ẩm thực với các nhà hàng sang trọng và uy tín. Tìm kiếm, đánh giá và đặt bàn trực tuyến dễ dàng.',
-      footerExplore: 'Khám phá',
-      footerSearch: 'Tìm kiếm nhà hàng',
-      footerCuisineCol: 'Bộ sưu tập món ăn',
-      footerLatestRev: 'Đánh giá mới nhất',
-      footerWeeklyOffers: 'Ưu đãi tuần này',
-      footerPartner: 'Hợp tác',
-      footerRegOwner: 'Đăng ký chủ nhà hàng',
-      footerAdPacks: 'Gói dịch vụ quảng bá',
-      footerGuide: 'Hướng dẫn đặt bàn',
-      footerContact: 'Liên hệ & Kết nối',
-      footerTerms: 'Điều khoản dịch vụ',
-      footerPrivacy: 'Chính sách bảo mật',
-      footerAllRights: 'Bảo lưu mọi quyền.'
-    } : {
-      // Nav
-      navExplore: 'Explore',
-      navFeed: 'Review Feed',
-      navEvents: 'Events & Offers',
-      navAbout: 'About Us',
-      navSys: 'Management System',
-      navSignIn: 'Sign In',
-      navSignUp: 'Sign Up',
-      navDashboard: 'Dashboard',
-      navLogout: 'Log Out',
-      
-      // Feed Headers & Search
-      feedSearchPlaceholder: 'Search review posts, dishes, locations...',
-      feedHeading: 'Review Feed',
-      feedTabLatest: 'Latest',
-      feedTabPopular: 'Most Liked',
-      toastFeedLatest: 'Displaying latest reviews.',
-      toastFeedPopular: 'Displaying most liked reviews.',
-      toastResetFilters: 'Reset filters',
-      toastFilterResetMsg: 'Reset filters X',
-      noFeedResults: 'No review posts found',
-      noFeedResultsDesc: 'Try adjusting your search query or changing the district filter to see more reviews.',
-      
-      // District sidebar
-      sidebarDistTitle: 'Trending Districts',
-      toastDistrictFilter: 'Filtering posts in',
-      postCountText: 'posts',
-      
-      // Event sidebar
-      sidebarEventTitle: 'Culinary Events',
-      sidebarEventBtnViewAll: 'View all events',
-      
-      // Post template translations
-      postLikes: 'Likes',
-      postComments: 'Comments',
-      postShare: 'Share',
-      postBookCTA: 'Book Table',
-      toastCommentDisabled: 'Comments feature will be enabled once backend is active!',
-      toastShareCopied: 'Share link copied to clipboard!',
-      toastLikedPost: 'Added review to your favorites list!',
-      
-      // Right sidebar
-      sidebarTrending: 'Trending',
-      toastHashtagFilter: 'Filtering posts by tag',
-      sidebarActiveMembers: 'Top Contributors',
-      rankText: 'Rank',
-      
-      // Dialogs / Booking Modal
-      bookingTitle: 'Booking Voucher',
-      bookingSubtitle: 'Book table at',
-      bookingSuccess: 'Booking Successful!',
-      bookingCodeText: 'Your booking code is',
-      bookingConfirmContact: 'Restaurant staff will contact you within 10 minutes to confirm.',
-      bookingLabelName: 'Full name *',
-      bookingLabelPhone: 'Phone number *',
-      bookingLabelDate: 'Select date *',
-      bookingLabelTime: 'Select time *',
-      bookingLabelGuests: 'Guest count *',
-      bookingLabelNotes: 'Special notes (if any)',
-      bookingPlaceholderName: 'E.g., John Doe',
-      bookingPlaceholderPhone: 'E.g., 0912345678',
-      bookingPlaceholderNotes: 'E.g., Window seat, anniversary dinner...',
-      bookingBtnCancel: 'Cancel',
-      bookingBtnConfirm: 'Confirm Booking',
-      bookingBtnComplete: 'Complete',
-      bookingCustomer: 'Customer',
-      bookingPhone: 'Phone',
-      bookingTime: 'Time',
-      bookingGuests: 'Guests',
-      toastEnterName: 'Please enter your full name',
-      toastEnterPhone: 'Please enter your phone number',
-      toastBookingSuccess: 'Booking successful at',
-      
-      // Footer
-      footerDesc: 'Connecting food lovers with prestigious and luxurious restaurants. Search, review, and book tables online with ease.',
-      footerExplore: 'Explore',
-      footerSearch: 'Search Restaurants',
-      footerCuisineCol: 'Food Collections',
-      footerLatestRev: 'Latest Reviews',
-      footerWeeklyOffers: 'Weekly Offers',
-      footerPartner: 'Partnerships',
-      footerRegOwner: 'Register Restaurant Owner',
-      footerAdPacks: 'Promotional Packages',
-      footerGuide: 'Booking Guide',
-      footerContact: 'Contact & Connect',
-      footerTerms: 'Terms of Service',
-      footerPrivacy: 'Privacy Policy',
-      footerAllRights: 'All rights reserved.'
-    };
-  }, [locale]);
-
-  const translateDistrict = (name: string) => {
-    if (locale === 'vi') return name;
-    let translated = name;
-    const dict: Record<string, string> = {
-      'Quận Hoàn Kiếm': 'Hoan Kiem District',
-      'Quận Cầu Giấy': 'Cau Giay District',
-      'Quận Tây Hồ': 'Tay Ho District',
-      'Quận Đống Đa': 'Dong Da District',
-      'Quận Hai Bà Trưng': 'Hai Ba Trung District'
-    };
-    for (const [key, val] of Object.entries(dict)) {
-      if (translated.includes(key)) {
-        translated = translated.replace(key, val);
-      }
-    }
-    return translated.replace('Hà Nội', 'Hanoi');
-  };
-
-  const translateLevel = (level: string) => {
-    if (locale === 'vi') return level;
-    const dict: Record<string, string> = {
-      'Thành viên Vàng': 'Gold Member',
-      'Ẩm thực Gia': 'Food Expert',
-      'Chuyên gia Review': 'Review Expert'
-    };
-    return dict[level] || level;
-  };
-
-  const translateTimestamp = (time: string) => {
-    if (locale === 'vi') return time;
-    return time
-      .replace('giờ trước', 'hours ago')
-      .replace('ngày trước', 'days ago')
-      .replace('vừa xong', 'just now');
-  };
-
-  const translateHashtagCount = (countStr: string) => {
-    if (locale === 'vi') return countStr;
-    return countStr.replace('bài', 'posts');
-  };
-
-  // --- Mock Databases ---
+  // --- Static/Mock Databases for Sidebar ---
   const districts: District[] = [
     { name: 'Quận Hoàn Kiếm', postCount: 18 },
     { name: 'Quận Cầu Giấy', postCount: 14 },
@@ -365,63 +148,6 @@ export default function ForumFeedPage() {
     }
   ];
 
-  const reviewPosts: ReviewPost[] = [
-    {
-      id: 1,
-      author: {
-        name: 'Nguyễn Minh Anh',
-        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150',
-        level: 'Thành viên Vàng'
-      },
-      rating: 4.9,
-      location: 'Quận Tây Hồ, Hà Nội',
-      timestamp: '2 giờ trước',
-      title: 'Trải nghiệm ẩm thực thuần Việt tinh tế tại Tầm Vị',
-      description: 'Không gian ở Tầm Vị thực sự mang lại cảm giác hoài cổ vô cùng ấm áp, gợi nhớ về những ngôi nhà cổ Hà Nội xưa. Các món ăn được bày biện và chế biến vô cùng tỉ mỉ, chuẩn hương vị cơm nhà Bắc Bộ nhưng được nâng tầm lên đẳng cấp Fine Dining. Nhất định các bạn phải thử món thịt kho quẹt đậm đà ăn kèm rau củ luộc và canh cua mồng tơi ngọt lịm mát rượi nhé!',
-      imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=800',
-      likes: 42,
-      commentsCount: 15,
-      restaurantName: 'Tầm Vị Restaurant',
-      tags: ['#MonVietAmCung', '#FineDiningHanoi']
-    },
-    {
-      id: 2,
-      author: {
-        name: 'Trần Thanh Sơn',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
-        level: 'Ẩm thực Gia'
-      },
-      rating: 4.7,
-      location: 'Quận Cầu Giấy, Hà Nội',
-      timestamp: '1 ngày trước',
-      title: 'Skyline Lounge - View ngắm trọn hoàng hôn Hà Nội cực chill',
-      description: 'Nếu bạn đang tìm kiếm một địa điểm hẹn hò lãng mạn lộng gió vào buổi chiều tối thì đây chắc chắn là lựa chọn số một tại Cầu Giấy. Cocktails ở đây pha chế rất sáng tạo, nhạc deep house nhẹ nhàng thư giãn và view ngắm thành phố từ trên tầng cao thực sự đắt giá. Menu đồ ăn nhẹ cũng phong phú, đặc biệt món bò nướng đá nóng ăn rất mềm vị đậm đà.',
-      imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=800',
-      likes: 35,
-      commentsCount: 8,
-      restaurantName: 'Skyline Lounge',
-      tags: ['#SkylineCocktails', '#HenHoLangMan']
-    },
-    {
-      id: 3,
-      author: {
-        name: 'Lê Thuỳ Trang',
-        avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=150',
-        level: 'Chuyên gia Review'
-      },
-      rating: 4.8,
-      location: 'Quận Hoàn Kiếm, Hà Nội',
-      timestamp: '3 ngày trước',
-      title: 'Hương vị biển cả tươi rói giữa lòng phố cổ tại The Én',
-      description: 'The Én mang đến phong cách ẩm thực Á Âu kết hợp hải sản vô cùng mới mẻ. Đĩa tôm hùm đút lò phô mai béo ngậy thơm nức mũi, thịt tôm dai giòn ngọt lịm. Nhân viên siêu thân thiện và nhiệt tình, không gian sang trọng rất thích hợp tiếp khách hoặc họp mặt gia đình cuối tuần.',
-      imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=800',
-      likes: 29,
-      commentsCount: 11,
-      restaurantName: 'The Én Restaurant',
-      tags: ['#FineDiningHanoi', '#MonVietAmCung']
-    }
-  ];
-
   const trendingHashtags: TrendingHashtag[] = [
     { tag: '#MonVietAmCung', count: '124 bài' },
     { tag: '#SkylineCocktails', count: '89 bài' },
@@ -437,51 +163,183 @@ export default function ForumFeedPage() {
     { rank: 4, name: 'Nguyễn Kiều Trang', points: 760, avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100' }
   ];
 
-  // --- Filtering Logic ---
-  const filteredReviewPosts = useMemo(() => {
-    let posts = [...reviewPosts];
+  // --- Translation Helpers ---
+  const t = useMemo(() => {
+    return locale === 'vi' ? {
+      navExplore: 'Khám phá',
+      navFeed: 'Diễn đàn Review',
+      navEvents: 'Sự kiện & Ưu đãi',
+      navAbout: 'Về chúng tôi',
+      navSys: 'Hệ thống Quản lý',
+      navSignIn: 'Sign In',
+      navSignUp: 'Sign Up',
+      navDashboard: 'Dashboard',
+      navLogout: 'Đăng xuất',
+      
+      feedSearchPlaceholder: 'Tìm kiếm bài viết review, món ăn, địa điểm...',
+      feedHeading: 'Bảng tin Review',
+      feedTabLatest: 'Mới nhất',
+      feedTabPopular: 'Yêu thích nhất',
+      toastFeedLatest: 'Đang hiển thị đánh giá mới nhất.',
+      toastFeedPopular: 'Đang hiển thị đánh giá được yêu thích nhất.',
+      toastResetFilters: 'Đặt lại bộ lọc',
+      toastFilterResetMsg: 'Đặt lại bộ lọc X',
+      noFeedResults: 'Không tìm thấy bài viết review nào',
+      noFeedResultsDesc: 'Hãy thử thay đổi từ khóa tìm kiếm hoặc đổi bộ lọc khu vực để xem thêm đánh giá.',
+      
+      sidebarDistTitle: 'Địa điểm nổi bật',
+      toastDistrictFilter: 'Đang lọc bài viết ở',
+      postCountText: 'bài',
+      sidebarEventTitle: 'Sự kiện ẩm thực',
+      sidebarEventBtnViewAll: 'Xem tất cả sự kiện',
+      postLikes: 'Thích',
+      postComments: 'Bình luận',
+      postShare: 'Chia sẻ',
+      postBookCTA: 'Đặt bàn ngay',
+      toastCommentDisabled: 'Bình luận sẽ được kích hoạt sau khi liên kết BE!',
+      toastShareCopied: 'Đã sao chép liên kết chia sẻ!',
+      toastLikedPost: 'Đã thêm bài viết vào danh sách yêu thích!',
+      
+      sidebarTrending: 'Xu hướng',
+      toastHashtagFilter: 'Lọc bài viết theo thẻ',
+      sidebarActiveMembers: 'Thành viên tích cực',
+      rankText: 'Hạng',
+      
+      bookingTitle: 'Phiếu Đặt Bàn',
+      bookingSubtitle: 'Đặt bàn tại',
+      bookingSuccess: 'Đặt bàn thành công!',
+      bookingCodeText: 'Mã đặt bàn của bạn là',
+      bookingConfirmContact: 'Nhân viên nhà hàng sẽ liên hệ lại với bạn trong vòng 10 phút để xác nhận.',
+      bookingLabelName: 'Họ và tên *',
+      bookingLabelPhone: 'Số điện thoại *',
+      bookingLabelDate: 'Chọn ngày *',
+      bookingLabelTime: 'Giờ đặt *',
+      bookingLabelGuests: 'Số lượng khách *',
+      bookingLabelNotes: 'Ghi chú đặc biệt (nếu có)',
+      bookingPlaceholderName: 'VD: Nguyễn Văn A',
+      bookingPlaceholderPhone: 'VD: 0912345678',
+      bookingPlaceholderNotes: 'VD: Muốn ngồi cạnh cửa sổ, kỷ niệm ngày cưới...',
+      bookingBtnCancel: 'Hủy bỏ',
+      bookingBtnConfirm: 'Xác nhận đặt',
+      bookingBtnComplete: 'Hoàn tất',
+      bookingCustomer: 'Khách hàng',
+      bookingPhone: 'Số điện thoại',
+      bookingTime: 'Thời gian',
+      bookingGuests: 'Số khách',
+      toastEnterName: 'Vui lòng nhập họ và tên',
+      toastEnterPhone: 'Vui lòng nhập số điện thoại',
+      toastBookingSuccess: 'Đặt bàn thành công tại',
+      
+      footerDesc: 'Kết nối những tâm hồn ẩm thực với các nhà hàng sang trọng và uy tín. Tìm kiếm, đánh giá và đặt bàn trực tuyến dễ dàng.',
+      footerExplore: 'Khám phá',
+      footerSearch: 'Tìm kiếm nhà hàng',
+      footerCuisineCol: 'Bộ sưu tập món ăn',
+      footerLatestRev: 'Đánh giá mới nhất',
+      footerWeeklyOffers: 'Ưu đãi tuần này',
+      footerPartner: 'Hợp tác',
+      footerRegOwner: 'Đăng ký chủ nhà hàng',
+      footerAdPacks: 'Gói dịch vụ quảng bá',
+      footerGuide: 'Hướng dẫn đặt bàn',
+      footerContact: 'Liên hệ & Kết nối',
+      footerTerms: 'Điều khoản dịch vụ',
+      footerPrivacy: 'Chính sách bảo mật',
+      footerAllRights: 'Bảo lưu mọi quyền.'
+    } : {
+      navExplore: 'Explore',
+      navFeed: 'Review Feed',
+      navEvents: 'Events & Offers',
+      navAbout: 'About Us',
+      navSys: 'Management System',
+      navSignIn: 'Sign In',
+      navSignUp: 'Sign Up',
+      navDashboard: 'Dashboard',
+      navLogout: 'Log Out',
+      
+      feedSearchPlaceholder: 'Search review posts, dishes, locations...',
+      feedHeading: 'Review Feed',
+      feedTabLatest: 'Latest',
+      feedTabPopular: 'Most Liked',
+      toastFeedLatest: 'Displaying latest reviews.',
+      toastFeedPopular: 'Displaying most liked reviews.',
+      toastResetFilters: 'Reset filters',
+      toastFilterResetMsg: 'Reset filters X',
+      noFeedResults: 'No review posts found',
+      noFeedResultsDesc: 'Try adjusting your search query or changing the district filter to see more reviews.',
+      
+      sidebarDistTitle: 'Trending Districts',
+      toastDistrictFilter: 'Filtering posts in',
+      postCountText: 'posts',
+      sidebarEventTitle: 'Culinary Events',
+      sidebarEventBtnViewAll: 'View all events',
+      postLikes: 'Likes',
+      postComments: 'Comments',
+      postShare: 'Share',
+      postBookCTA: 'Book Table',
+      toastCommentDisabled: 'Comments feature will be enabled once backend is active!',
+      toastShareCopied: 'Share link copied to clipboard!',
+      toastLikedPost: 'Added review to your favorites list!',
+      
+      sidebarTrending: 'Trending',
+      toastHashtagFilter: 'Filtering posts by tag',
+      sidebarActiveMembers: 'Top Contributors',
+      rankText: 'Rank',
+      
+      bookingTitle: 'Booking Voucher',
+      bookingSubtitle: 'Book table at',
+      bookingSuccess: 'Booking Successful!',
+      bookingCodeText: 'Your booking code is',
+      bookingConfirmContact: 'Restaurant staff will contact you within 10 minutes to confirm.',
+      bookingLabelName: 'Full name *',
+      bookingLabelPhone: 'Phone number *',
+      bookingLabelDate: 'Select date *',
+      bookingLabelTime: 'Select time *',
+      bookingLabelGuests: 'Number of guests *',
+      bookingLabelNotes: 'Special notes (optional)',
+      bookingPlaceholderName: 'E.g., John Doe',
+      bookingPlaceholderPhone: 'E.g., 0912345678',
+      bookingPlaceholderNotes: 'E.g., Window seat, anniversary...',
+      bookingBtnCancel: 'Cancel',
+      bookingBtnConfirm: 'Confirm booking',
+      bookingBtnComplete: 'Done',
+      bookingCustomer: 'Customer',
+      bookingPhone: 'Phone',
+      bookingTime: 'Time',
+      bookingGuests: 'Guests',
+      toastEnterName: 'Please enter full name',
+      toastEnterPhone: 'Please enter phone number',
+      toastBookingSuccess: 'Booking successful at',
+      
+      footerDesc: 'Connecting food lovers with premium and reputable restaurants. Search, review, and book tables online easily.',
+      footerExplore: 'Explore',
+      footerSearch: 'Search restaurants',
+      footerCuisineCol: 'Cuisine collections',
+      footerLatestRev: 'Latest reviews',
+      footerWeeklyOffers: 'Weekly offers',
+      footerPartner: 'Partnership',
+      footerRegOwner: 'Register restaurant owner',
+      footerAdPacks: 'Promotional packages',
+      footerGuide: 'Booking guide',
+      footerContact: 'Contact & Connect',
+      footerTerms: 'Terms of service',
+      footerPrivacy: 'Privacy policy',
+      footerAllRights: 'All rights reserved.'
+    };
+  }, [locale]);
 
-    // Filter by Search text in post title or content
-    if (searchText.trim()) {
-      const q = searchText.toLowerCase();
-      posts = posts.filter(p => 
-        p.title.toLowerCase().includes(q) || 
-        p.description.toLowerCase().includes(q) ||
-        p.restaurantName.toLowerCase().includes(q)
-      );
-    }
+  const translateDistrict = (name: string) => {
+    if (locale === 'vi') return name;
+    return name
+      .replace('Quận Hoàn Kiếm', 'Hoan Kiem District')
+      .replace('Quận Cầu Giấy', 'Cau Giay District')
+      .replace('Quận Tây Hồ', 'Tay Ho District')
+      .replace('Quận Đống Đa', 'Dong Da District')
+      .replace('Quận Hai Bà Trưng', 'Hai Ba Trung District');
+  };
 
-    // Filter by District
-    if (selectedDistrict !== 'Tất cả khu vực') {
-      posts = posts.filter(p => p.location.includes(selectedDistrict));
-    }
-
-    // Filter by Cuisine/Category Type
-    if (selectedCuisine !== 'Tất cả loại hình') {
-      const typeMap: Record<string, string> = {
-        'Fine Dining': 'Fine Dining',
-        'Món Việt': 'Món Việt',
-        'Lounge & Cocktail': 'Lounge',
-        'Hải sản': 'Hải sản'
-      };
-      const searchTag = typeMap[selectedCuisine];
-      if (searchTag) {
-        posts = posts.filter(p => p.tags.some(t => t.toLowerCase().includes(searchTag.toLowerCase())) || p.restaurantName.toLowerCase().includes(searchTag.toLowerCase()));
-      }
-    }
-
-    // Filter by Hashtag Clicked
-    if (activeHashtagFilter) {
-      posts = posts.filter(p => p.tags.includes(activeHashtagFilter));
-    }
-
-    // Sort by Likes (Popular) vs Latest
-    if (activeReviewTab === 'popular') {
-      posts.sort((a, b) => b.likes - a.likes);
-    }
-
-    return posts;
-  }, [searchText, selectedDistrict, selectedCuisine, activeHashtagFilter, activeReviewTab]);
+  const translateHashtagCount = (countStr: string) => {
+    if (locale === 'vi') return countStr;
+    return countStr.replace('bài', 'posts');
+  };
 
   const translatedEvents = useMemo(() => {
     return culinaryEvents.map(evt => {
@@ -506,57 +364,241 @@ export default function ForumFeedPage() {
     });
   }, [locale]);
 
-  const translatedReviewPosts = useMemo(() => {
-    return filteredReviewPosts.map(post => {
-      if (locale === 'vi') return post;
-      const dict: Record<number, Partial<ReviewPost>> = {
-        1: {
-          title: 'Exquisite Vietnamese Cuisine Experience at Tam Vi',
-          description: 'The atmosphere at Tam Vi truly brings a very warm, nostalgic feeling, reminiscent of old Hanoi houses. The dishes are prepared and presented meticulously, matching Northern family-style cooking but elevated to Fine Dining level. You must try the rich caramelized braised pork belly served with boiled vegetables and sweet, refreshing crab soup!',
-          restaurantName: 'Tam Vi Restaurant'
-        },
-        2: {
-          title: 'Skyline Lounge - Extremely Chill Sunset View Over Hanoi',
-          description: 'If you are looking for a romantic, breezy date spot in the late afternoon, this is definitely the number one choice in Cau Giay. Cocktails here are very creative, with relaxing deep house music and a city view from high up that is truly precious. The light food menu is also rich, especially the stone-grilled beef which is very tender and flavorful.',
-          restaurantName: 'Skyline Lounge'
-        },
-        3: {
-          title: 'Fresh Ocean Flavors in the Heart of the Old Quarter at The En',
-          description: 'The En brings a very fresh style combining Asian-Western cuisine and seafood. The baked lobster with rich and fragrant cheese has firm, sweet lobster meat. Super friendly and enthusiastic staff, luxurious space, very suitable for hosting guests or family gatherings on the weekend.',
-          restaurantName: 'The En Restaurant'
+  // --- API Load Operations ---
+  const loadFeed = async (pageToLoad: number, append = false) => {
+    setLoading(true);
+    try {
+      const res = await api.get<any>('/api/public/feed/posts', {
+        params: { page: pageToLoad, size: 10 }
+      });
+      if (res && res.content) {
+        if (append) {
+          setPosts(prev => [...prev, ...res.content]);
+        } else {
+          setPosts(res.content);
         }
-      };
-      return { ...post, ...dict[post.id] };
-    });
-  }, [filteredReviewPosts, locale]);
-
-  // --- Toggle Show More ---
-  const toggleExpand = (id: number) => {
-    setExpandedReviews(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
-
-  // --- Handle Click Like Review ---
-  const handleLikeReview = (id: number) => {
-    const isLiked = likedReviews[id];
-    setLikedReviews(prev => ({ ...prev, [id]: !isLiked }));
-    setReviewLikeCounts(prev => ({
-      ...prev,
-      [id]: (prev[id] ?? reviewPosts.find(p => p.id === id)?.likes ?? 0) + (isLiked ? -1 : 1)
-    }));
-    if (!isLiked) {
-      toast.success('Đã thêm bài viết vào danh sách yêu thích!');
+        setHasMore(!res.last);
+      }
+    } catch (err) {
+      toast.error(locale === 'vi' ? 'Không thể tải bảng tin review.' : 'Failed to load review feed.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // --- Open Booking Modal ---
+  useEffect(() => {
+    loadFeed(0, false);
+    // Fetch branches list
+    api.get<any[]>('/api/public/branches')
+      .then(setBranchesList)
+      .catch(err => console.error("Error loading branches:", err));
+  }, []);
+
+  useEffect(() => {
+    if (selectedCreateBranchId) {
+      api.get<any[]>(`/api/public/branches/${selectedCreateBranchId}/menu`)
+        .then(setProductsList)
+        .catch(err => console.error("Error loading menu:", err));
+    }
+  }, [selectedCreateBranchId]);
+
+  // --- Filtering Posts locally on top of paginated results ---
+  const filteredPosts = useMemo(() => {
+    let list = [...posts];
+
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      list = list.filter(p => 
+        p.content.toLowerCase().includes(q) ||
+        p.authorName.toLowerCase().includes(q) ||
+        (p.tableCheckIn && p.tableCheckIn.toLowerCase().includes(q))
+      );
+    }
+
+    if (selectedDistrict !== 'Tất cả khu vực') {
+      // Find branch matches district
+      const targetBranch = branchesList.find(b => b.address?.includes(selectedDistrict));
+      if (targetBranch) {
+        list = list.filter(p => p.branchId === targetBranch.branchId);
+      }
+    }
+
+    if (activeHashtagFilter) {
+      // Match content keywords
+      const cleanHash = activeHashtagFilter.toLowerCase();
+      list = list.filter(p => p.content.toLowerCase().includes(cleanHash));
+    }
+
+    if (activeReviewTab === 'popular') {
+      list.sort((a, b) => b.likesCount - a.likesCount);
+    } else {
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    return list;
+  }, [posts, searchText, selectedDistrict, activeHashtagFilter, activeReviewTab, branchesList]);
+
+  // --- Action Handlers ---
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    const isVideo = files[0].type.includes('video');
+    if (isVideo) {
+      if (files.length > 1) {
+        toast.error(locale === 'vi' ? 'Chỉ được chọn tối đa 1 video.' : 'You can only upload 1 video.');
+        return;
+      }
+      if (files[0].size > 20 * 1024 * 1024) {
+        toast.error(locale === 'vi' ? 'Video phải nhỏ hơn 20MB.' : 'Video size must be less than 20MB.');
+        return;
+      }
+    } else {
+      if (files.length > 5) {
+        toast.error(locale === 'vi' ? 'Chỉ được chọn tối đa 5 hình ảnh.' : 'You can only upload up to 5 images.');
+        return;
+      }
+      for (const f of files) {
+        if (f.size > 5 * 1024 * 1024) {
+          toast.error(locale === 'vi' ? 'Mỗi hình ảnh phải nhỏ hơn 5MB.' : 'Each image must be less than 5MB.');
+          return;
+        }
+      }
+    }
+
+    setUploadingFiles(true);
+    const uploadedUrls: string[] = [];
+    try {
+      for (const file of files) {
+        const res = await api.uploadFile<{ url: string }>('/api/public/feed/upload', file);
+        if (res && res.url) {
+          uploadedUrls.push(res.url);
+        }
+      }
+      setMediaUrls(prev => [...prev, ...uploadedUrls]);
+      toast.success(locale === 'vi' ? 'Tải tệp tin thành công!' : 'Files uploaded successfully!');
+    } catch (err) {
+      toast.error(locale === 'vi' ? 'Upload file thất bại.' : 'File upload failed.');
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleCreatePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim()) {
+      toast.error(locale === 'vi' ? 'Vui lòng điền nội dung review.' : 'Please write post content.');
+      return;
+    }
+    if (content.length > 2000) {
+      toast.error(locale === 'vi' ? 'Nội dung tối đa 2000 ký tự.' : 'Content exceeds 2000 characters.');
+      return;
+    }
+
+    try {
+      const payload = {
+        content,
+        rating,
+        tableCheckIn: tableCheckIn || null,
+        branchId: selectedCreateBranchId,
+        mediaUrls: mediaUrls.join(';'),
+        taggedProductIds: taggedProducts.map(p => p.id)
+      };
+
+      const res = await api.post<any>('/api/public/feed/posts', payload);
+      
+      if (res.status === 'PENDING_MODERATION') {
+        toast.warning(locale === 'vi' 
+          ? 'Bài viết chứa từ nhạy cảm và đang được đưa vào hàng đợi kiểm duyệt!'
+          : 'Post contains sensitive words and is pending moderation approval!');
+      } else {
+        toast.success(locale === 'vi'
+          ? 'Đăng bài viết thành công! Bạn nhận được 50 điểm tích lũy.'
+          : 'Review posted successfully! You received 50 points.');
+      }
+
+      setContent('');
+      setRating(5);
+      setTableCheckIn('');
+      setTaggedProducts([]);
+      setMediaUrls([]);
+      setPage(0);
+      loadFeed(0, false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Tạo bài đăng thất bại.');
+    }
+  };
+
+  const handleLikeReview = async (postId: number) => {
+    if (!user) {
+      toast.error(locale === 'vi' ? 'Vui lòng đăng nhập để thích bài viết.' : 'Please sign in to like reviews.');
+      return;
+    }
+    try {
+      const res = await api.post<any>(`/api/public/feed/posts/${postId}/like`);
+      setPosts(prev => prev.map(p => p.id === postId ? { ...p, likesCount: res.likesCount } : p));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Thao tác thất bại.');
+    }
+  };
+
+  const toggleComments = async (postId: number) => {
+    if (activeCommentPostId === postId) {
+      setActiveCommentPostId(null);
+      return;
+    }
+    setActiveCommentPostId(postId);
+    try {
+      const list = await api.get<any[]>(`/api/public/feed/posts/${postId}/comments`);
+      setCommentsByPost(prev => ({ ...prev, [postId]: list }));
+    } catch (err) {
+      console.error("Error loading comments:", err);
+    }
+  };
+
+  const handleSendComment = async (postId: number) => {
+    if (!newCommentText.trim()) return;
+    try {
+      const res = await api.post<any>(`/api/public/feed/posts/${postId}/comment`, {
+        content: newCommentText
+      });
+      setCommentsByPost(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] || []), res]
+      }));
+      setNewCommentText('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Lỗi bình luận.');
+    }
+  };
+
+  const handleReportPost = async () => {
+    if (!reportingPostId) return;
+    if (!reportReason.trim()) {
+      toast.error(locale === 'vi' ? 'Vui lòng nhập lý do báo cáo.' : 'Please fill in report reason.');
+      return;
+    }
+    try {
+      await api.post(`/api/public/feed/posts/${reportingPostId}/report`, null, {
+        params: { reason: reportReason }
+      });
+      toast.success(locale === 'vi' 
+        ? 'Báo cáo thành công. Bài đăng đã ẩn khỏi tường của bạn.' 
+        : 'Reported successfully. Post has been hidden.');
+      setPosts(prev => prev.filter(p => p.id !== reportingPostId));
+      setReportingPostId(null);
+      setReportReason('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Báo cáo thất bại.');
+    }
+  };
+
   const handleOpenBooking = (restaurantName: string) => {
     setBookingRestaurant(restaurantName);
     setBookingForm({
-      name: '',
-      phone: '',
+      name: user ? user.name : '',
+      phone: user ? user.phone || '' : '',
       date: new Date().toISOString().split('T')[0],
       time: '18:30',
       guests: 2,
@@ -565,27 +607,25 @@ export default function ForumFeedPage() {
     setIsBookedSuccess(false);
   };
 
-  // --- Submit Booking ---
   const handleConfirmBooking = (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingForm.name.trim()) {
-      toast.error('Vui lòng nhập họ và tên');
+      toast.error(t.toastEnterName);
       return;
     }
     if (!bookingForm.phone.trim()) {
-      toast.error('Vui lòng nhập số điện thoại');
+      toast.error(t.toastEnterPhone);
       return;
     }
     setIsBookedSuccess(true);
-    toast.success(`Đặt bàn thành công tại ${bookingRestaurant}!`);
+    toast.success(`${t.toastBookingSuccess} ${bookingRestaurant}!`);
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-blue-105 selection:text-blue-900 overflow-x-hidden">
       
       <Header />
 
-      {/* 2. THREE COLUMN COMMUNITY FEED & SOCIAL LAYOUT */}
       <section id="review-feed-section" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 mt-4">
         
         {/* Search bar inside the feed */}
@@ -596,16 +636,15 @@ export default function ForumFeedPage() {
             placeholder={t.feedSearchPlaceholder}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-250 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white text-slate-700 placeholder-slate-400 shadow-sm transition-all"
+            className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white text-slate-700 placeholder-slate-400 shadow-sm transition-all"
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* A. LEFT SIDEBAR (Span 3 on Desktop) */}
+          {/* A. LEFT SIDEBAR (Span 3) */}
           <aside className="lg:col-span-3 space-y-6">
             
-            {/* Widget 1: Trending Districts */}
             <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
               <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
                 <MapPin className="h-4 w-4 text-blue-500" />
@@ -619,7 +658,7 @@ export default function ForumFeedPage() {
                         setSelectedDistrict(d.name);
                         toast.info(`${t.toastDistrictFilter} ${translateDistrict(d.name)}`);
                       }}
-                      className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl transition ${selectedDistrict === d.name ? 'bg-blue-50 text-blue-700 font-bold border border-blue-105' : 'text-slate-600 hover:bg-slate-50'}`}
+                      className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl transition ${selectedDistrict === d.name ? 'bg-blue-50 text-blue-700 font-bold border border-blue-100' : 'text-slate-600 hover:bg-slate-50'}`}
                     >
                       <span className="flex items-center gap-2 text-left">
                         <span className="text-[10px] bg-slate-100 text-slate-500 rounded-md h-5 w-5 flex items-center justify-center font-bold">
@@ -636,7 +675,6 @@ export default function ForumFeedPage() {
               </ul>
             </div>
 
-            {/* Widget 2: Upcoming Culinary Events */}
             <div id="events-widget" className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm scroll-mt-20">
               <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50 justify-between">
                 <div className="flex items-center gap-2">
@@ -679,9 +717,203 @@ export default function ForumFeedPage() {
             </div>
           </aside>
 
-          {/* B. MIDDLE COLUMN (Dynamic Review Feed - Span 6 on Desktop) */}
+          {/* B. MIDDLE COLUMN */}
           <main className="lg:col-span-6 space-y-6">
             
+            {/* Create Post Card */}
+            {user ? (
+              <form onSubmit={handleCreatePost} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-full bg-blue-650 text-white flex items-center justify-center text-sm font-black shadow-inner">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-slate-800">{user.name}</h4>
+                    <p className="text-[9px] text-slate-400 font-medium">{locale === 'vi' ? 'Đăng bài chất lượng để tích lũy 50 điểm thưởng!' : 'Share a quality review to earn 50 points!'}</p>
+                  </div>
+                </div>
+
+                <textarea
+                  rows={3}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={locale === 'vi' ? 'Hãy chia sẻ trải nghiệm ẩm thực của bạn tại đây... (Tối thiểu 50 ký tự kèm hình ảnh để nhận điểm thưởng)' : 'Share your dining experience here... (Min 50 chars with media to earn points)'}
+                  className="w-full p-3.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none"
+                />
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  {/* Branch Selector */}
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Chọn chi nhánh:' : 'Select branch:'}</label>
+                    <select
+                      value={selectedCreateBranchId}
+                      onChange={(e) => setSelectedCreateBranchId(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
+                    >
+                      {branchesList.map(b => (
+                        <option key={b.branchId} value={b.branchId}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Table Check-In */}
+                  <div className="flex-1">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Vị trí bàn ăn:' : 'Table check-in:'}</label>
+                    <input
+                      type="text"
+                      placeholder="E.g. Bàn 12 - Tầng 2"
+                      value={tableCheckIn}
+                      onChange={(e) => setTableCheckIn(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Stars Rating Selector */}
+                  <div className="w-full sm:w-auto">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Đánh giá:' : 'Rating:'}</label>
+                    <div className="flex items-center gap-1.5 h-[34px]">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setRating(star)}
+                          className="focus:outline-none"
+                        >
+                          <Star className={`h-5 w-5 ${star <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tag Menu Product search */}
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Gắn thẻ món ăn từ menu:' : 'Tag menu items:'}</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder={locale === 'vi' ? 'Nhập để tìm món ăn...' : 'Type to search dishes...'}
+                      value={searchProductQuery}
+                      onChange={(e) => setSearchProductQuery(e.target.value)}
+                      className="w-full px-2.5 py-1.5 pl-8 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
+                    />
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                    
+                    {searchProductQuery && (
+                      <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-slate-100 rounded-lg shadow-lg z-20 text-xs">
+                        {productsList
+                          .filter(p => p.name.toLowerCase().includes(searchProductQuery.toLowerCase()))
+                          .map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                if (!taggedProducts.find(x => x.id === p.id)) {
+                                  setTaggedProducts([...taggedProducts, p]);
+                                }
+                                setSearchProductQuery('');
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex justify-between items-center animate-fade-in"
+                            >
+                              <span>{p.name}</span>
+                              <span className="text-[10px] text-slate-400 font-bold">{p.price?.toLocaleString()}đ</span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Display Tagged Badges */}
+                  {taggedProducts.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {taggedProducts.map(p => (
+                        <span key={p.id} className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
+                          🏷️ {p.name}
+                          <button type="button" onClick={() => setTaggedProducts(taggedProducts.filter(x => x.id !== p.id))}>
+                            <X className="h-3 w-3 text-blue-400 hover:text-blue-600" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Media Uploader & Preview */}
+                <div className="flex items-center justify-between border-t border-slate-50 pt-3">
+                  <div className="flex items-center gap-4">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 text-xs font-bold transition">
+                      <ImageIcon className="h-4 w-4 text-slate-400" />
+                      <span>{locale === 'vi' ? 'Thêm ảnh/video' : 'Attach photo/video'}</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,video/mp4"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {uploadingFiles && (
+                      <span className="text-[10px] text-slate-400 animate-pulse">{locale === 'vi' ? 'Đang tải file...' : 'Uploading files...'}</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] text-slate-400">{content.length}/2000</span>
+                    <button
+                      type="submit"
+                      disabled={uploadingFiles}
+                      className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm transition inline-flex items-center gap-1"
+                    >
+                      <Send className="h-3 w-3" />
+                      <span>{locale === 'vi' ? 'Đăng' : 'Post'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Media Preview Thumbnails */}
+                {mediaUrls.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50">
+                    {mediaUrls.map((url, idx) => (
+                      <div key={idx} className="relative h-14 w-20 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shadow-sm shrink-0">
+                        {url.toLowerCase().endsWith('.mp4') ? (
+                          <video src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`} className="w-full h-full object-cover" muted />
+                        ) : (
+                          <img src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`} alt="thumbnail" className="w-full h-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setMediaUrls(mediaUrls.filter(x => x !== url))}
+                          className="absolute top-1 right-1 bg-black/60 hover:bg-black text-white p-0.5 rounded-full transition"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </form>
+            ) : (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 text-center space-y-3">
+                <div className="text-2xl">✨</div>
+                <h3 className="font-extrabold text-slate-800 text-sm">
+                  {locale === 'vi' ? 'Đăng bài viết nhận 50 điểm thưởng!' : 'Write Reviews to Earn 50 Points!'}
+                </h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
+                  {locale === 'vi' 
+                    ? 'Hãy chia sẻ cảm nhận về món ăn và dịch vụ của chúng tôi để nhận điểm tích lũy đổi voucher đặt bàn cực sốc.'
+                    : 'Share your dining feedback to collect reward points and redeem cool table discounts.'}
+                </p>
+                <div className="pt-1.5 flex justify-center gap-3">
+                  <Link href="/login" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-xl text-xs font-bold shadow-sm">
+                    {t.navSignIn}
+                  </Link>
+                  <Link href="/customer-portal" className="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 px-4 py-1.5 rounded-xl text-xs font-bold shadow-sm">
+                    {t.navSignUp}
+                  </Link>
+                </div>
+              </div>
+            )}
+
             {/* Feed Header */}
             <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
@@ -722,7 +954,22 @@ export default function ForumFeedPage() {
             </div>
 
             {/* Posts Feed */}
-            {translatedReviewPosts.length === 0 ? (
+            {loading && posts.length === 0 ? (
+              <div className="space-y-4">
+                {[1, 2].map(n => (
+                  <div key={n} className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 animate-pulse">
+                    <div className="flex gap-3">
+                      <div className="h-10 w-10 bg-slate-100 rounded-full" />
+                      <div className="space-y-2 flex-1 pt-1">
+                        <div className="h-3 w-1/3 bg-slate-100 rounded" />
+                        <div className="h-2 w-1/4 bg-slate-100 rounded" />
+                      </div>
+                    </div>
+                    <div className="h-20 bg-slate-50 rounded-xl" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredPosts.length === 0 ? (
               <div className="bg-white/80 rounded-2xl border border-slate-100 py-12 px-6 text-center space-y-3">
                 <div className="text-3xl">🍲</div>
                 <h3 className="font-bold text-slate-700">{t.noFeedResults}</h3>
@@ -742,10 +989,10 @@ export default function ForumFeedPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {translatedReviewPosts.map((post) => {
-                  const isExpanded = expandedReviews[post.id] || false;
-                  const isLiked = likedReviews[post.id] || false;
-                  const likesCount = reviewLikeCounts[post.id] ?? post.likes;
+                {filteredPosts.map((post) => {
+                  const isCommentsOpen = activeCommentPostId === post.id;
+                  const comments = commentsByPost[post.id] || [];
+                  const bName = branchesList.find(b => b.branchId === post.branchId)?.name || 'Hệ thống nhà hàng';
 
                   return (
                     <article key={post.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col">
@@ -753,20 +1000,22 @@ export default function ForumFeedPage() {
                       {/* Post Header */}
                       <div className="p-5 flex items-center justify-between border-b border-slate-50">
                         <div className="flex items-center gap-3">
-                          <img src={post.author.avatar} alt={post.author.name} className="h-10 w-10 rounded-full object-cover ring-2 ring-blue-105" />
+                          <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center font-bold">
+                            {post.authorName.charAt(0).toUpperCase()}
+                          </div>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <h4 className="font-bold text-sm text-slate-800">{post.author.name}</h4>
+                              <h4 className="font-bold text-sm text-slate-800">{post.authorName}</h4>
                               <span className="text-[9px] bg-blue-50 text-blue-600 font-extrabold px-2 py-0.5 rounded-full border border-blue-100">
-                                {translateLevel(post.author.level)}
+                                {locale === 'vi' ? 'Thành viên' : 'Member'}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                               <span className="flex items-center gap-0.5">
-                                <MapPin className="h-3 w-3" /> {translateDistrict(post.location)}
+                                <MapPin className="h-3 w-3" /> {bName}
                               </span>
                               <span>•</span>
-                              <span>{translateTimestamp(post.timestamp)}</span>
+                              <span>{new Date(post.createdAt).toLocaleDateString()}</span>
                             </div>
                           </div>
                         </div>
@@ -778,100 +1027,163 @@ export default function ForumFeedPage() {
 
                       {/* Post Content */}
                       <div className="p-5 space-y-3 flex-1">
-                        <h3 className="font-extrabold text-base text-slate-800 leading-tight">
-                          {post.title}
-                        </h3>
-                        <p className="text-xs text-slate-600 leading-relaxed">
-                          {isExpanded ? post.description : `${post.description.slice(0, 180)}...`}
+                        {post.tableCheckIn && (
+                          <div className="text-[10px] font-bold text-blue-600 bg-blue-50/50 px-2.5 py-1 rounded-md inline-block">
+                            📍 {locale === 'vi' ? 'Đang ngồi tại:' : 'Sitting at:'} {post.tableCheckIn}
+                          </div>
+                        )}
+                        <p className="text-xs text-slate-650 leading-relaxed break-words whitespace-pre-line">
+                          {post.content}
                         </p>
-                        {post.description.length > 180 && (
-                          <button
-                            onClick={() => toggleExpand(post.id)}
-                            className="text-xs text-blue-600 font-bold hover:underline inline-flex items-center"
-                          >
-                            {isExpanded ? (locale === 'vi' ? 'Thu gọn' : 'Show less') : (locale === 'vi' ? 'Xem thêm' : 'Read more')}
-                          </button>
+
+                        {/* Large Image/Video Display */}
+                        {post.mediaUrls && (
+                          <div className="grid grid-cols-2 gap-2 mt-3">
+                            {post.mediaUrls.split(';').filter(Boolean).map((url: string, index: number) => {
+                              const cleanUrl = url.startsWith('http') 
+                                ? url 
+                                : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
+                              
+                              const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().contains('video');
+
+                              return (
+                                <div key={index} className="relative h-44 rounded-xl overflow-hidden shadow-sm bg-slate-50 border border-slate-100">
+                                  {isVid ? (
+                                    <video src={cleanUrl} className="w-full h-full object-cover" controls />
+                                  ) : (
+                                    <img src={cleanUrl} alt={bName} className="w-full h-full object-cover" />
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
 
-                        {/* Large Image */}
-                        <div className="relative h-60 w-full rounded-xl overflow-hidden mt-3 shadow-sm bg-slate-50">
-                          <img src={post.imageUrl} alt={post.restaurantName} className="w-full h-full object-cover" />
-                          <div className="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-lg text-[10px] font-bold">
-                            📍 {post.restaurantName}
+                        {/* Tagged Products Badges */}
+                        {post.taggedProducts && post.taggedProducts.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pt-2">
+                            {post.taggedProducts.map((prod: any) => (
+                              <Link 
+                                href="/booking"
+                                key={prod.id}
+                                className="text-[10px] font-bold bg-slate-50 text-slate-650 hover:bg-blue-50 hover:text-blue-600 px-2.5 py-0.5 rounded-full border border-slate-100 transition-colors inline-flex items-center gap-1"
+                              >
+                                🍽️ {prod.name}
+                              </Link>
+                            ))}
                           </div>
-                        </div>
-
-                        {/* Hashtag List */}
-                        <div className="flex flex-wrap gap-1.5 pt-2">
-                          {post.tags.map((t, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                setActiveHashtagFilter(t);
-                                toast.info(`${locale === 'vi' ? 'Đang lọc các bài viết gắn thẻ' : 'Filtering posts with tag'} ${t}`);
-                              }}
-                              className={`text-[10px] px-2.5 py-0.5 rounded-full transition ${activeHashtagFilter === t ? 'bg-blue-500 text-white font-bold' : 'bg-slate-100 text-slate-500 hover:bg-blue-50 hover:text-blue-600'}`}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
+                        )}
                       </div>
 
                       {/* Post Footer Actions */}
-                      <div className="px-5 py-4 border-t border-slate-50 bg-slate-50/50 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          {/* Like Button */}
-                          <button 
-                            onClick={() => handleLikeReview(post.id)}
-                            className={`flex items-center gap-1.5 text-xs transition ${isLiked ? 'text-rose-500 font-bold' : 'text-slate-500 hover:text-rose-500'}`}
-                          >
-                            <ThumbsUp className={`h-4 w-4 ${isLiked ? 'fill-rose-500' : ''}`} />
-                            <span>{likesCount} {locale === 'vi' ? 'Thích' : 'Likes'}</span>
-                          </button>
+                      <div className="px-5 py-4 border-t border-slate-50 bg-slate-50/50 flex flex-col space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            {/* Like Button */}
+                            <button 
+                              onClick={() => handleLikeReview(post.id)}
+                              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-rose-500 transition focus:outline-none"
+                            >
+                              <ThumbsUp className="h-4 w-4" />
+                              <span>{post.likesCount} {locale === 'vi' ? 'Thích' : 'Likes'}</span>
+                            </button>
 
-                          {/* Comment Button */}
-                          <button 
-                            onClick={() => toast.info(t.toastCommentDisabled)}
-                            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 transition"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                            <span>{post.commentsCount} {locale === 'vi' ? 'Bình luận' : 'Comments'}</span>
-                          </button>
+                            {/* Comment Button */}
+                            <button 
+                              onClick={() => toggleComments(post.id)}
+                              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 transition focus:outline-none"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              <span>{locale === 'vi' ? 'Bình luận' : 'Comments'}</span>
+                            </button>
 
-                          {/* Share Button */}
-                          <button 
-                            onClick={() => {
-                              navigator.clipboard.writeText(window.location.href);
-                              toast.success(t.toastShareCopied);
-                            }}
-                            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 transition"
+                            {/* Report Button */}
+                            <button
+                              onClick={() => setReportingPostId(post.id)}
+                              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-amber-500 transition focus:outline-none"
+                            >
+                              <Flag className="h-3.5 w-3.5" />
+                              <span>{locale === 'vi' ? 'Báo cáo' : 'Report'}</span>
+                            </button>
+                          </div>
+
+                          {/* Booking CTA */}
+                          <button
+                            onClick={() => handleOpenBooking(bName)}
+                            className="bg-blue-55 hover:bg-blue-105 text-blue-700 border border-blue-200 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
                           >
-                            <Share2 className="h-4 w-4" />
-                            <span>{locale === 'vi' ? 'Chia sẻ' : 'Share'}</span>
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{t.postBookCTA}</span>
                           </button>
                         </div>
 
-                        {/* Booking CTA */}
-                        <button
-                          onClick={() => handleOpenBooking(post.restaurantName)}
-                          className="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-                        >
-                          <Calendar className="h-3.5 w-3.5" />
-                          <span>{t.postBookCTA}</span>
-                        </button>
+                        {/* Inline Comments Section */}
+                        {isCommentsOpen && (
+                          <div className="pt-3 border-t border-slate-200/60 space-y-3">
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                              {comments.length === 0 ? (
+                                <p className="text-[10px] text-slate-450 italic py-1">{locale === 'vi' ? 'Chưa có bình luận nào cho bài viết này.' : 'No comments yet.'}</p>
+                              ) : (
+                                comments.map((c: any) => (
+                                  <div key={c.id} className="text-xs bg-white p-2.5 rounded-xl border border-slate-100 flex gap-2">
+                                    <div className="font-extrabold text-slate-700 shrink-0">{c.authorName}:</div>
+                                    <div className="text-slate-650 flex-1 break-words">{c.content}</div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+
+                            {/* Write comment field */}
+                            {user ? (
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  placeholder={locale === 'vi' ? 'Viết bình luận...' : 'Write a comment...'}
+                                  value={newCommentText}
+                                  onChange={(e) => setNewCommentText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSendComment(post.id);
+                                  }}
+                                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700"
+                                />
+                                <button
+                                  onClick={() => handleSendComment(post.id)}
+                                  className="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs hover:bg-blue-750 transition flex items-center justify-center shrink-0"
+                                >
+                                  <Send className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-slate-400 italic">{locale === 'vi' ? 'Đăng nhập để bình luận.' : 'Log in to comment.'}</p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </article>
                   );
                 })}
+
+                {hasMore && (
+                  <div className="pt-4 text-center">
+                    <button
+                      onClick={() => {
+                        const nextPage = page + 1;
+                        setPage(nextPage);
+                        loadFeed(nextPage, true);
+                      }}
+                      className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-bold px-6 py-2 rounded-xl text-xs shadow-sm transition"
+                    >
+                      {locale === 'vi' ? 'Xem thêm bài đăng' : 'Load more reviews'}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </main>
 
-          {/* C. RIGHT SIDEBAR (Span 3 on Desktop) */}
+          {/* C. RIGHT SIDEBAR */}
           <aside className="lg:col-span-3 space-y-6">
             
-            {/* Widget 1: Trending Hashtags */}
             <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
               <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
                 <TrendingUp className="h-4 w-4 text-blue-500" />
@@ -897,7 +1209,6 @@ export default function ForumFeedPage() {
               </ul>
             </div>
 
-            {/* Widget 2: Leaderboard (Top Contributors) */}
             <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
               <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
                 <Award className="h-4 w-4 text-blue-500" />
@@ -932,12 +1243,39 @@ export default function ForumFeedPage() {
         </div>
       </section>
 
-      {/* 3. INTERACTIVE BOOKING MODAL */}
+      {/* UGC REPORT MODAL */}
+      {reportingPostId && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 p-6 space-y-4">
+            <h3 className="font-black text-slate-800 text-base">⚠️ {locale === 'vi' ? 'Báo cáo vi phạm' : 'Report Violation'}</h3>
+            <p className="text-xs text-slate-500">
+              {locale === 'vi'
+                ? 'Hãy cung cấp lý do báo cáo bài đăng này. Nếu bài đăng nhận đủ 3 lượt báo cáo từ các thành viên khác nhau, bài đăng sẽ tự động ẩn tạm thời để chờ quản trị viên xử lý.'
+                : 'Please specify the reason for reporting this post. Once a post reaches 3 unique reports, it is hidden from the public feed until moderation review.'}
+            </p>
+            <textarea
+              rows={3}
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              placeholder={locale === 'vi' ? 'Nhập lý do báo cáo (ví dụ: spam, ngôn từ không phù hợp...)' : 'Enter report reason...'}
+              className="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-1 focus:ring-blue-500 focus:outline-none text-slate-700"
+            />
+            <div className="flex justify-end gap-2 text-xs font-bold pt-2">
+              <button onClick={() => setReportingPostId(null)} className="px-4 py-2 text-slate-400 hover:bg-slate-100 rounded-xl">
+                {locale === 'vi' ? 'Hủy' : 'Cancel'}
+              </button>
+              <button onClick={handleReportPost} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-md">
+                {locale === 'vi' ? 'Gửi báo cáo' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOOKING MODAL */}
       {bookingRestaurant && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden relative animate-fade-in-scale">
-            
-            {/* Header */}
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden relative">
             <div className="bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 p-5 text-white">
               <button 
                 onClick={() => setBookingRestaurant(null)}
@@ -951,7 +1289,6 @@ export default function ForumFeedPage() {
               <h3 className="text-lg font-black mt-1">{t.bookingSubtitle} {bookingRestaurant}</h3>
             </div>
 
-            {/* Modal Body */}
             {isBookedSuccess ? (
               <div className="p-6 text-center space-y-4">
                 <div className="mx-auto h-12 w-12 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center text-emerald-500">
@@ -978,7 +1315,6 @@ export default function ForumFeedPage() {
               </div>
             ) : (
               <form onSubmit={handleConfirmBooking} className="p-6 space-y-4">
-                {/* Full Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelName}</label>
                   <input
@@ -987,11 +1323,10 @@ export default function ForumFeedPage() {
                     value={bookingForm.name}
                     onChange={(e) => setBookingForm({...bookingForm, name: e.target.value})}
                     placeholder={t.bookingPlaceholderName}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-slate-700"
                   />
                 </div>
 
-                {/* Phone */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelPhone}</label>
                   <input
@@ -1000,11 +1335,10 @@ export default function ForumFeedPage() {
                     value={bookingForm.phone}
                     onChange={(e) => setBookingForm({...bookingForm, phone: e.target.value})}
                     placeholder={t.bookingPlaceholderPhone}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-slate-700"
                   />
                 </div>
 
-                {/* Date & Time */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelDate}</label>
@@ -1013,7 +1347,7 @@ export default function ForumFeedPage() {
                       required
                       value={bookingForm.date}
                       onChange={(e) => setBookingForm({...bookingForm, date: e.target.value})}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-slate-700"
                     />
                   </div>
                   <div>
@@ -1021,7 +1355,7 @@ export default function ForumFeedPage() {
                     <select
                       value={bookingForm.time}
                       onChange={(e) => setBookingForm({...bookingForm, time: e.target.value})}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-slate-750"
                     >
                       <option>11:00</option>
                       <option>11:30</option>
@@ -1038,7 +1372,6 @@ export default function ForumFeedPage() {
                   </div>
                 </div>
 
-                {/* Guest Count */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelGuests}</label>
                   <input
@@ -1048,11 +1381,10 @@ export default function ForumFeedPage() {
                     required
                     value={bookingForm.guests}
                     onChange={(e) => setBookingForm({...bookingForm, guests: parseInt(e.target.value) || 2})}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white text-slate-700"
                   />
                 </div>
 
-                {/* Notes */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelNotes}</label>
                   <textarea
@@ -1060,7 +1392,7 @@ export default function ForumFeedPage() {
                     value={bookingForm.notes}
                     onChange={(e) => setBookingForm({...bookingForm, notes: e.target.value})}
                     placeholder={t.bookingPlaceholderNotes}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none bg-white text-slate-700"
                   />
                 </div>
 
