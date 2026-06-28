@@ -133,15 +133,13 @@ export default function Header() {
           </Link>
 
           {/* User management switch options */}
-          {user && !user.roles.includes('CUSTOMER') && (
-            <Link 
-              href="/dashboard" 
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/40 hover:bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-all duration-200 hover:scale-102 hover:shadow"
-            >
-              <Award className="h-3.5 w-3.5 text-blue-500" />
-              <span>{t.navSys}</span>
-            </Link>
-          )}
+          <Link 
+            href="/dashboard" 
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/40 hover:bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-all duration-200 hover:scale-102 hover:shadow"
+          >
+            <Award className="h-3.5 w-3.5 text-blue-500" />
+            <span>{t.navSys}</span>
+          </Link>
 
           {user ? (
             <div className="relative">
@@ -173,16 +171,14 @@ export default function Header() {
                       <UserIcon className="h-4 w-4 text-slate-400" />
                       <span>{t.myProfile}</span>
                     </Link>
-                    {user && !user.roles.includes('CUSTOMER') && (
-                      <Link 
-                        href="/dashboard"
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
-                      >
-                        <Utensils className="h-4 w-4 text-slate-400" />
-                        <span>{t.myRestaurant}</span>
-                      </Link>
-                    )}
+                    <Link 
+                      href="/dashboard"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      <Utensils className="h-4 w-4 text-slate-400" />
+                      <span>{t.myRestaurant}</span>
+                    </Link>
                     <Link
                       href="/profile"
                       onClick={() => setUserDropdownOpen(false)}

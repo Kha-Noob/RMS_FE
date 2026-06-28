@@ -142,9 +142,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return mockUser;
     } else if (email === 'customer@rms.com' && password === '123456') {
       const mockUser: User = {
-        id: 2,
+        id: 99,
         email: email,
-        name: 'Khách hàng Thân thiết',
+        name: 'Customer Test',
         roles: ['CUSTOMER'],
         isActive: true,
         branchId: 'b1',

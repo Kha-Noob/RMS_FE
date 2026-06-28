@@ -14,7 +14,7 @@ function getDefaultLandingPage(roles: string[]): string {
   if (roles.includes('PROCUREMENT')) return '/procurement';
   if (roles.includes('CASHIER')) return '/pos';
   if (roles.includes('EMPLOYEE')) return '/schedule';
-  return '/profile';
+  return '/';
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -30,7 +30,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isAllowed = useMemo(() => {
     if (!user) return false;
-    if (user.roles.includes('CUSTOMER')) return false;
+    
+    // Specifically block CUSTOMER role or users without management roles from entering the app
+    const managementRoles = ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN', 'CHEF', 'HR', 'PROCUREMENT', 'WAREHOUSE', 'EMPLOYEE'];
+    const hasManagementRole = user.roles.some(r => managementRoles.includes(r));
+    if (!hasManagementRole || user.roles.includes('CUSTOMER')) {
+      return false;
+    }
     
     // Find the item matching the pathname prefix
     const item = menuItems.find(m => pathname.startsWith(m.href));
