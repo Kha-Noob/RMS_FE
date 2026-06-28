@@ -40,7 +40,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(fetchOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(fetchOptions.headers as Record<string, string> || {}),
   };
 
@@ -54,7 +54,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     headers['X-Branch-Id'] = branchId;
   }
 
-  console.log("[API FETCH] URL:", url);
+  console.log("[API FETCH] URL:", url, "Body constructor:", fetchOptions.body ? fetchOptions.body.constructor.name : 'none');
+  console.log("[API FETCH] Headers:", headers);
 
   const res = await fetch(url, {
     ...fetchOptions,
