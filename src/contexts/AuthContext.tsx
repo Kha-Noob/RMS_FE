@@ -140,6 +140,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setActiveBranchId('b1');
       setActiveBranchName('Chi nhánh Hoàn Kiếm');
       return mockUser;
+    } else if (email === 'customer@rms.com' && password === '123456') {
+      const mockUser: User = {
+        id: 2,
+        email: email,
+        name: 'Khách hàng Thân thiết',
+        roles: ['CUSTOMER'],
+        isActive: true,
+        branchId: 'b1',
+        tenantId: 't1'
+      };
+      setUser(mockUser);
+      setBranches([]);
+      setActiveBranchId(null);
+      setActiveBranchName(null);
+      return mockUser;
     } else {
       try {
         await api.post('/api/auth/login', { email, password });

@@ -30,6 +30,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isAllowed = useMemo(() => {
     if (!user) return false;
+    if (user.roles.includes('CUSTOMER')) return false;
     
     // Find the item matching the pathname prefix
     const item = menuItems.find(m => pathname.startsWith(m.href));
