@@ -48,20 +48,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>({
-    id: 1,
-    email: 'admin@rms.com',
-    name: 'Admin RMS',
-    roles: ['ADMIN'],
-    isActive: true,
-    branchId: 'b1',
-    tenantId: 't1'
-  });
-  const [branches, setBranches] = useState<Branch[]>([
-    { branchId: 'b1', name: 'Chi nhánh Hoàn Kiếm', address: '12 Tràng Tiền', phone: '0123456789', isActive: true }
-  ]);
-  const [activeBranchId, setActiveBranchId] = useState<string | null>('b1');
-  const [activeBranchName, setActiveBranchName] = useState<string | null>('Chi nhánh Hoàn Kiếm');
+  const [user, setUser] = useState<User | null>(null);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
+  const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadBranchesAndSetDefault = useCallback(async (currentUser: User) => {
@@ -179,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearCredentials();
     setStoredBranchId(null);
     setUser(null);
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   const switchBranch = useCallback(async (branchId: string) => {
