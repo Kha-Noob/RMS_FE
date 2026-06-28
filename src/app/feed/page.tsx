@@ -97,6 +97,7 @@ export default function ForumFeedPage() {
   // --- Report Dialog ---
   const [reportingPostId, setReportingPostId] = useState<number | null>(null);
   const [reportReason, setReportReason] = useState('');
+  const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
 
   // --- Booking Modal State ---
   const [bookingRestaurant, setBookingRestaurant] = useState<string | null>(null);
@@ -652,14 +653,12 @@ export default function ForumFeedPage() {
   };
 
   const handleDeletePost = async (postId: number) => {
-    if (!confirm(locale === 'vi' ? 'Bạn có chắc chắn muốn xóa bài viết này?' : 'Are you sure you want to delete this post?')) {
-      return;
-    }
     try {
       await api.delete(`/api/public/feed/posts/${postId}`, {
         params: { phone: user?.phone }
       });
       toast.success(locale === 'vi' ? 'Đã xóa bài viết thành công.' : 'Post deleted successfully.');
+      setDeletingPostId(null);
     } catch (err: any) {
       toast.error(err.message || (locale === 'vi' ? 'Không thể xóa bài viết.' : 'Failed to delete post.'));
     }
@@ -1093,7 +1092,7 @@ export default function ForumFeedPage() {
                         <div className="flex items-center gap-2">
                           {user && user.phone === post.authorPhone && (
                             <button
-                              onClick={() => handleDeletePost(post.id)}
+                              onClick={() => setDeletingPostId(post.id)}
                               className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
                               title={locale === 'vi' ? 'Xóa bài viết' : 'Delete post'}
                             >
@@ -1348,6 +1347,41 @@ export default function ForumFeedPage() {
               </button>
               <button onClick={handleReportPost} className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl shadow-md">
                 {locale === 'vi' ? 'Gửi báo cáo' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM DELETE CONFIRMATION MODAL */}
+      {deletingPostId && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 p-6 space-y-4 text-center">
+            <div className="mx-auto w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 text-xl border border-rose-100">
+              🗑️
+            </div>
+            <div className="space-y-1.5">
+              <h3 className="font-extrabold text-slate-800 text-base">
+                {locale === 'vi' ? 'Xác nhận xóa bài viết' : 'Delete Post'}
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                {locale === 'vi'
+                  ? 'Bạn có chắc chắn muốn xóa bài viết này không? Hành động này sẽ ẩn bài viết khỏi bảng tin công khai.'
+                  : 'Are you sure you want to delete this post? This action will hide it from the public feed.'}
+              </p>
+            </div>
+            <div className="flex justify-center gap-2 text-xs font-bold pt-2">
+              <button 
+                onClick={() => setDeletingPostId(null)} 
+                className="px-4 py-2 bg-slate-50 hover:bg-slate-100 text-slate-550 border border-slate-200 rounded-xl transition"
+              >
+                {locale === 'vi' ? 'Hủy bỏ' : 'Cancel'}
+              </button>
+              <button 
+                onClick={() => handleDeletePost(deletingPostId)} 
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-sm transition"
+              >
+                {locale === 'vi' ? 'Đồng ý xóa' : 'Delete'}
               </button>
             </div>
           </div>
