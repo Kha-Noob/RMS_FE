@@ -7,7 +7,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { api } from '@/lib/api';
+import { api, connectWebSocket } from '@/lib/api';
 import {
   Search,
   MapPin,
@@ -392,7 +392,63 @@ export default function ForumFeedPage() {
     api.get<any[]>('/api/public/branches')
       .then(setBranchesList)
       .catch(err => console.error("Error loading branches:", err));
-  }, []);
+
+    // Connect to Feed WebSocket
+    let ws: WebSocket | null = null;
+    try {
+      ws = connectWebSocket('/ws/feed');
+      ws.onmessage = (event) => {
+        const msg = event.data;
+        console.log("[Feed WS Message]:", msg);
+        if (!msg) return;
+
+        if (msg.startsWith('LIKE_UPDATE:')) {
+          const [_, postIdStr, likesCountStr] = msg.split(':');
+          const pId = parseInt(postIdStr, 10);
+          const likesCount = parseInt(likesCountStr, 10);
+          if (!isNaN(pId) && !isNaN(likesCount)) {
+            setPosts(prev => prev.map(post => post.id === pId ? { ...post, likesCount } : post));
+          }
+        } 
+        else if (msg.startsWith('COMMENT_UPDATE:')) {
+          const [_, postIdStr] = msg.split(':');
+          const pId = parseInt(postIdStr, 10);
+          if (!isNaN(pId)) {
+            // Update comments if drawer is active
+            if (activeCommentPostId === pId) {
+              api.get<any[]>(`/api/public/feed/posts/${pId}/comments`)
+                .then(list => setCommentsByPost(prev => ({ ...prev, [pId]: list })))
+                .catch(err => console.error("Error reloading comments via WS:", err));
+            }
+          }
+        } 
+        else if (msg.startsWith('POST_REMOVED:')) {
+          const [_, postIdStr] = msg.split(':');
+          const pId = parseInt(postIdStr, 10);
+          if (!isNaN(pId)) {
+            setPosts(prev => prev.filter(post => post.id !== pId));
+          }
+        } 
+        else if (msg === 'NEW_POST') {
+          toast.success(locale === 'vi' 
+            ? 'Có bài viết mới trên diễn đàn! Hãy cuộn lên đầu.' 
+            : 'New post added to feed! Scroll up.');
+          loadFeed(0, false);
+        }
+      };
+      ws.onerror = (err) => {
+        console.error("[Feed WS Error]:", err);
+      };
+    } catch (wsErr) {
+      console.error("Failed to connect Feed WS:", wsErr);
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [activeCommentPostId, locale]);
 
   useEffect(() => {
     if (selectedCreateBranchId) {
