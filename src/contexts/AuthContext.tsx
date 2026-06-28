@@ -27,12 +27,22 @@ interface AuthContextType {
   activeBranchName: string | null;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  isManager: boolean;
+  isCashier: boolean;
+  isKitchen: boolean;
+  isHR: boolean;
+  isProcurement: boolean;
+  isWarehouse: boolean;
+  isEmployee: boolean;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
+  getDefaultLandingPage: (roles: string[]) => string;
   canSwitchBranch: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   switchBranch: (branchId: string) => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<User | undefined>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,9 +101,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await api.get<User>('/api/auth/me');
       setUser(me);
       await loadBranchesAndSetDefault(me);
-    } catch {
+      return me;
+    } catch (err) {
       // Mock login bypass - prevent clearing mock session when backend is down
       // setUser(null);
+      return undefined;
     }
   }, [loadBranchesAndSetDefault]);
 
@@ -112,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     storeCredentials(email, password);
     // Mock login bypass for testing:
     if (email === 'admin@rms.com' && password === '123456') {
-      const mockUser = {
+      const mockUser: User = {
         id: 1,
         email: email,
         name: 'Admin RMS',
@@ -127,10 +139,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ]);
       setActiveBranchId('b1');
       setActiveBranchName('Chi nhánh Hoàn Kiếm');
+      return mockUser;
     } else {
       try {
         await api.post('/api/auth/login', { email, password });
-        await refreshUser();
+        const me = await refreshUser();
+        if (!me) {
+          throw new Error('Failed to retrieve user profile');
+        }
+        return me;
       } catch (err) {
         throw new Error(err instanceof Error ? err.message : 'Invalid credentials or Server down');
       }
@@ -166,12 +183,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSuperAdmin = user?.roles.includes('ADMIN') && !user?.branchId || false;
   const isAdmin = user?.roles.includes('ADMIN') || false;
+  const isManager = user?.roles.includes('MANAGER') || false;
+  const isCashier = user?.roles.includes('CASHIER') || false;
+  const isKitchen = user?.roles.includes('KITCHEN') || user?.roles.includes('CHEF') || false;
+  const isHR = user?.roles.includes('HR') || false;
+  const isProcurement = user?.roles.includes('PROCUREMENT') || false;
+  const isWarehouse = user?.roles.includes('WAREHOUSE') || false;
+  const isEmployee = user?.roles.includes('EMPLOYEE') || false;
+
+  const hasRole = useCallback((role: string) => user?.roles.includes(role) || false, [user]);
+  const hasAnyRole = useCallback((rolesToCheck: string[]) => user?.roles.some(r => rolesToCheck.includes(r)) || false, [user]);
+
+  const getDefaultLandingPage = useCallback((roles: string[]) => {
+    if (roles.includes('ADMIN') || roles.includes('MANAGER')) return '/dashboard';
+    if (roles.includes('HR')) return '/hr-management';
+    if (roles.includes('KITCHEN') || roles.includes('CHEF')) return '/kds';
+    if (roles.includes('WAREHOUSE')) return '/inventory';
+    if (roles.includes('PROCUREMENT')) return '/procurement';
+    if (roles.includes('CASHIER')) return '/pos';
+    if (roles.includes('EMPLOYEE')) return '/schedule';
+    return '/profile';
+  }, []);
+
   const canSwitchBranch = isSuperAdmin;
 
   return (
     <AuthContext.Provider value={{
       user, branches, activeBranchId, activeBranchName,
-      isSuperAdmin, isAdmin, canSwitchBranch,
+      isSuperAdmin, isAdmin, isManager, isCashier, isKitchen, isHR, isProcurement, isWarehouse, isEmployee,
+      hasRole, hasAnyRole, getDefaultLandingPage, canSwitchBranch,
       loading, login, logout, switchBranch, refreshUser,
     }}>
       {children}

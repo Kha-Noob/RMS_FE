@@ -10,7 +10,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, getDefaultLandingPage } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,9 +19,10 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const loggedUser = await login(email, password);
       toast.success('Logged in successfully');
-      router.push('/dashboard');
+      const defaultPage = getDefaultLandingPage(loggedUser?.roles || []);
+      router.push(defaultPage);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Login failed');
     } finally {
