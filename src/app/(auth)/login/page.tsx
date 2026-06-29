@@ -4,13 +4,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, getDefaultLandingPage } = useAuth();
+  const { login } = useAuth();
+  const { locale } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,10 +22,22 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const loggedUser = await login(email, password);
-      toast.success('Logged in successfully');
+      toast.success(locale === 'vi' ? 'Đăng nhập thành công!' : 'Logged in successfully');
       router.push('/');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Login failed');
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      let userFriendlyMsg = rawMsg;
+      if (
+        rawMsg.toLowerCase().includes('bad credentials') || 
+        rawMsg.toLowerCase().includes('unauthorized') || 
+        rawMsg.toLowerCase().includes('user not found') ||
+        rawMsg.toLowerCase().includes('invalid credentials')
+      ) {
+        userFriendlyMsg = locale === 'vi' 
+          ? 'Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.' 
+          : 'Incorrect email or password. Please check and try again.';
+      }
+      toast.error(userFriendlyMsg);
     } finally {
       setLoading(false);
     }
