@@ -42,8 +42,101 @@ interface EventDto {
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   commissionRate: number;
   isUsingSystemWeb: boolean;
+  bookingDeadline?: string | null;
   createdBy: string;
 }
+
+function EventBillingInfo({ eventId, locale }: { eventId: number; locale: string }) {
+  const [billing, setBilling] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get(`/api/events/${eventId}/billing`)
+      .then(res => {
+        setBilling(res);
+      })
+      .catch(err => {
+        console.error('Failed to load billing', err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [eventId]);
+
+  if (loading) {
+    return <div className="text-[10px] text-slate-400 py-1">{locale === 'vi' ? 'Đang tải hóa đơn...' : 'Loading invoice...'}</div>;
+  }
+
+  if (!billing) return null;
+
+  return (
+    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 text-left text-xs">
+      <div className="flex justify-between items-center pb-1 border-b border-dashed border-slate-200">
+        <span className="font-extrabold text-slate-700">
+          {locale === 'vi' ? 'Hóa đơn & Phí hoa hồng' : 'Commission Invoice'}
+        </span>
+        <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+          billing.isExpired 
+            ? 'bg-rose-50 text-rose-600 border border-rose-100'
+            : 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+        }`}>
+          {billing.isExpired ? (locale === 'vi' ? 'Hết hạn' : 'Settled') : (locale === 'vi' ? 'Đang mở' : 'Active')}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-y-0.5 text-[10px] font-medium text-slate-500">
+        <div>{locale === 'vi' ? 'Vé đã bán:' : 'Tickets Sold:'}</div>
+        <div className="text-right font-bold text-slate-800">{billing.totalTickets} {locale === 'vi' ? 'vé' : 'tickets'}</div>
+
+        <div>{locale === 'vi' ? 'Giá vé:' : 'Ticket Price:'}</div>
+        <div className="text-right font-bold text-slate-800">
+          {billing.ticketPrice > 0 ? billing.ticketPrice.toLocaleString('vi-VN') + ' đ' : (locale === 'vi' ? 'Miễn phí' : 'Free')}
+        </div>
+
+        <div>{locale === 'vi' ? 'Doanh thu:' : 'Total Revenue:'}</div>
+        <div className="text-right font-bold text-slate-800">{billing.totalRevenue.toLocaleString('vi-VN')} đ</div>
+
+        <div className="text-indigo-650 font-bold">{locale === 'vi' ? 'Phí hoa hồng:' : 'Commission Fee:'}</div>
+        <div className="text-right font-black text-indigo-700 bg-indigo-50 px-1 rounded shrink-0">
+          {billing.commissionAmount.toLocaleString('vi-VN')} đ ({billing.commissionRate}%)
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const POPULAR_BANKS = [
+  { code: 'vietcombank', name: 'Vietcombank', fullName: 'Ngân hàng Ngoại Thương Việt Nam (Vietcombank)', logo: 'https://api.vietqr.io/images/VCB.png' },
+  { code: 'techcombank', name: 'Techcombank', fullName: 'Ngân hàng Kỹ Thương Việt Nam (Techcombank)', logo: 'https://api.vietqr.io/images/TCB.png' },
+  { code: 'vietinbank', name: 'Vietinbank', fullName: 'Ngân hàng Công Thương Việt Nam (Vietinbank)', logo: 'https://api.vietqr.io/images/CTG.png' },
+  { code: 'bidv', name: 'BIDV', fullName: 'Ngân hàng Đầu tư và Phát triển Việt Nam (BIDV)', logo: 'https://api.vietqr.io/images/BIDV.png' },
+  { code: 'agribank', name: 'Agribank', fullName: 'Ngân hàng Nông nghiệp & Phát triển Nông thôn (Agribank)', logo: 'https://api.vietqr.io/images/VARB.png' },
+  { code: 'mb', name: 'MBBank', fullName: 'Ngân hàng Quân Đội (MBBank)', logo: 'https://api.vietqr.io/images/MB.png' },
+  { code: 'acb', name: 'ACB', fullName: 'Ngân hàng Á Châu (ACB)', logo: 'https://api.vietqr.io/images/ACB.png' },
+  { code: 'tpbank', name: 'TPBank', fullName: 'Ngân hàng Tiên Phong (TPBank)', logo: 'https://api.vietqr.io/images/TPB.png' },
+  { code: 'vpbank', name: 'VPBank', fullName: 'Ngân hàng Thịnh Vượng (VPBank)', logo: 'https://api.vietqr.io/images/VPB.png' },
+  { code: 'sacombank', name: 'Sacombank', fullName: 'Ngân hàng Sài Gòn Thương Tín (Sacombank)', logo: 'https://api.vietqr.io/images/STB.png' },
+  { code: 'hdbank', name: 'HDBank', fullName: 'Ngân hàng Phát triển TP.HCM (HDBank)', logo: 'https://api.vietqr.io/images/HDB.png' },
+  { code: 'shb', name: 'SHB', fullName: 'Ngân hàng Sài Gòn - Hà Nội (SHB)', logo: 'https://api.vietqr.io/images/SHB.png' },
+  { code: 'vib', name: 'VIB', fullName: 'Ngân hàng Quốc tế (VIB)', logo: 'https://api.vietqr.io/images/VIB.png' },
+];
+
+const removeVietnameseTones = (str: string) => {
+  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+  str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+  str = str.replace(/đ/g, "d");
+  str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
+  str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
+  str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
+  str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
+  str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
+  str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
+  str = str.replace(/Đ/g, "D");
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+};
 
 export default function MyRestaurantPage() {
   const { user } = useAuth();
@@ -69,7 +162,73 @@ export default function MyRestaurantPage() {
   // States
   const [events, setEvents] = useState<EventDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'form' | 'approvals'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'form' | 'approvals' | 'bank'>('list');
+
+  // Bank configuration states
+  const [bankData, setBankData] = useState({
+    bankName: '',
+    bankAccountNo: '',
+    bankAccountName: '',
+    bankBranch: ''
+  });
+  const [loadingBank, setLoadingBank] = useState(false);
+  const [savingBank, setSavingBank] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchBankQuery, setSearchBankQuery] = useState('');
+
+  // Handle click outside of bank name dropdown
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const el = document.getElementById('bank-name-dropdown-container');
+      if (el && !el.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  // Load bank settings
+  const loadBankSetting = () => {
+    setLoadingBank(true);
+    api.get('/api/cooperator/tenant/bank')
+      .then((res: any) => {
+        setBankData({
+          bankName: res.bankName || '',
+          bankAccountNo: res.bankAccountNo || '',
+          bankAccountName: res.bankAccountName || '',
+          bankBranch: res.bankBranch || ''
+        });
+      })
+      .catch(err => {
+        console.error('Failed to load bank settings', err);
+      })
+      .finally(() => {
+        setLoadingBank(false);
+      });
+  };
+
+  useEffect(() => {
+    if (user && activeTab === 'bank') {
+      loadBankSetting();
+    }
+  }, [user, activeTab]);
+
+  const handleBankSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingBank(true);
+    api.put('/api/cooperator/tenant/bank', bankData)
+      .then(() => {
+        toast.success(locale === 'vi' ? 'Cập nhật cấu hình tài khoản ngân hàng thành công!' : 'Bank account updated successfully!');
+      })
+      .catch(err => {
+        console.error('Failed to save bank settings', err);
+        toast.error(locale === 'vi' ? 'Cập nhật thất bại!' : 'Failed to update bank account!');
+      })
+      .finally(() => {
+        setSavingBank(false);
+      });
+  };
   
   // Form State
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -87,6 +246,7 @@ export default function MyRestaurantPage() {
     highlights: '', // input as semicolon-separated
     branchId: '01-2thang9',
     eventDates: '', // input as comma-separated
+    bookingDeadline: '',
     isUsingSystemWeb: user?.isUsingSystemWeb || user?.roles.includes('ADMIN') || false
   });
 
@@ -171,6 +331,7 @@ export default function MyRestaurantPage() {
       highlights: '',
       branchId: '01-2thang9',
       eventDates: '',
+      bookingDeadline: '',
       isUsingSystemWeb: user?.isUsingSystemWeb || user?.roles.includes('ADMIN') || false
     });
   };
@@ -192,6 +353,7 @@ export default function MyRestaurantPage() {
       highlights: Array.isArray(event.highlights) ? event.highlights.join(';') : '',
       branchId: event.branchId || '01-2thang9',
       eventDates: Array.isArray(event.eventDates) ? event.eventDates.join(',') : '',
+      bookingDeadline: event.bookingDeadline ? event.bookingDeadline.substring(0, 16) : '',
       isUsingSystemWeb: event.isUsingSystemWeb
     });
     setActiveTab('form');
@@ -301,6 +463,14 @@ export default function MyRestaurantPage() {
                 )}
               </button>
             )}
+            {isCooperator && (
+              <button
+                onClick={() => setActiveTab('bank')}
+                className={`px-4 py-2 rounded-lg text-xs font-black transition ${activeTab === 'bank' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                {locale === 'vi' ? '🏦 Tài khoản ngân hàng' : '🏦 Bank Account'}
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-150 shadow-sm text-xs font-semibold text-slate-650">
@@ -397,22 +567,8 @@ export default function MyRestaurantPage() {
                         </div>
                       </div>
 
-                      {/* Commission Rates & Policy Info */}
-                      <div className="bg-slate-50 p-3 rounded-xl flex items-center justify-between text-xs border border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <Percent className="h-4 w-4 text-indigo-500" />
-                          <div>
-                            <span className="block text-[9px] text-slate-400 font-bold uppercase">{locale === 'vi' ? 'Phí hoa hồng' : 'Commission Fee'}</span>
-                            <span className="font-bold text-slate-800">{evt.commissionRate}%</span>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="block text-[9px] text-slate-400 font-bold uppercase">{locale === 'vi' ? 'Hợp tác Web' : 'Linked Web'}</span>
-                          <span className={`inline-flex items-center text-[10px] font-extrabold ${evt.isUsingSystemWeb ? 'text-emerald-600' : 'text-slate-500'}`}>
-                            {evt.isUsingSystemWeb ? (locale === 'vi' ? 'Có' : 'Yes') : (locale === 'vi' ? 'Không' : 'No')}
-                          </span>
-                        </div>
-                      </div>
+                      {/* Commission Invoice Info */}
+                      <EventBillingInfo eventId={evt.id} locale={locale} />
 
                       {/* CRUD Buttons */}
                       <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-55 mt-auto">
@@ -623,6 +779,20 @@ export default function MyRestaurantPage() {
                 />
               </div>
 
+              {/* Booking Deadline */}
+              <div className="space-y-1">
+                <label className="block font-bold text-slate-500">
+                  {locale === 'vi' ? 'Hạn đăng ký vé sự kiện *' : 'Ticket Booking Deadline *'}
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={formData.bookingDeadline}
+                  onChange={(e) => setFormData({...formData, bookingDeadline: e.target.value})}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none bg-slate-50/50"
+                />
+              </div>
+
               {/* Image URL & Highlights */}
               <div className="space-y-1">
                 <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Ảnh đại diện sự kiện (Link ảnh Unsplash)' : 'Event Banner Image URL'}</label>
@@ -782,6 +952,152 @@ export default function MyRestaurantPage() {
                   </table>
                 </div>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab 4: Bank Account Settings (Cooperator only) */}
+        {activeTab === 'bank' && isCooperator && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm max-w-xl mx-auto space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-lg font-black text-slate-800">
+                {locale === 'vi' ? '🏦 Cấu hình tài khoản ngân hàng nhận tiền' : '🏦 Configure Payee Bank Account'}
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                {locale === 'vi' 
+                  ? 'Tài khoản này được dùng để nhận tiền chuyển khoản đặt cọc sự kiện và thanh toán hóa đơn từ khách hàng.'
+                  : 'This account is used to receive event booking deposits and digital bill payments from customers.'}
+              </p>
+            </div>
+
+            {loadingBank ? (
+              <div className="py-12 text-center text-slate-400 text-xs animate-pulse">
+                {locale === 'vi' ? 'Đang tải cấu hình ngân hàng...' : 'Loading bank configuration...'}
+              </div>
+            ) : (
+              <form onSubmit={handleBankSubmit} className="space-y-4">
+                {/* Custom Search Select Dropdown for Bank Name (US#1) */}
+                <div className="space-y-1 relative" id="bank-name-dropdown-container">
+                  <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Tên ngân hàng *' : 'Bank Name *'}</label>
+                  
+                  <div 
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none bg-slate-50/50 flex items-center justify-between cursor-pointer hover:bg-slate-100/50 transition h-[42px]"
+                  >
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const matchedBank = POPULAR_BANKS.find(b => b.name.toLowerCase() === bankData.bankName.toLowerCase() || b.fullName.toLowerCase() === bankData.bankName.toLowerCase());
+                        if (matchedBank) {
+                          return (
+                            <>
+                              <img src={matchedBank.logo} alt={matchedBank.name} className="w-6 h-6 object-contain" />
+                              <span className="font-semibold text-slate-800 text-xs">{matchedBank.fullName}</span>
+                            </>
+                          );
+                        }
+                        return (
+                          <span className="text-slate-400 text-xs">
+                            {bankData.bankName || (locale === 'vi' ? 'Chọn ngân hàng hoặc gõ để tìm...' : 'Select a bank...')}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <span className="text-slate-400 text-xs">▼</span>
+                  </div>
+
+                  {dropdownOpen && (
+                    <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 p-2 space-y-2 animate-fade-in max-h-64 overflow-y-auto">
+                      <input
+                        type="text"
+                        placeholder={locale === 'vi' ? 'Tìm kiếm ngân hàng...' : 'Search bank...'}
+                        value={searchBankQuery}
+                        onChange={(e) => setSearchBankQuery(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full p-2 border border-slate-250 rounded-lg text-xs focus:outline-none bg-white text-slate-800"
+                      />
+                      <div className="divide-y divide-slate-100 overflow-y-auto max-h-44">
+                        {POPULAR_BANKS.filter(b => 
+                          b.name.toLowerCase().includes(searchBankQuery.toLowerCase()) || 
+                          b.fullName.toLowerCase().includes(searchBankQuery.toLowerCase())
+                        ).map(b => (
+                          <div
+                            key={b.code}
+                            onClick={() => {
+                              setBankData({...bankData, bankName: b.name.toUpperCase()});
+                              setDropdownOpen(false);
+                              setSearchBankQuery('');
+                            }}
+                            className="flex items-center gap-3 p-2 hover:bg-slate-50 cursor-pointer transition text-xs font-semibold text-slate-700"
+                          >
+                            <img src={b.logo} alt={b.name} className="w-8 h-8 object-contain shrink-0 rounded bg-white p-0.5 border border-slate-100" />
+                            <div className="text-left">
+                              <p className="font-extrabold text-slate-800">{b.name}</p>
+                              <p className="text-[10px] text-slate-400">{b.fullName}</p>
+                            </div>
+                          </div>
+                        ))}
+                        {/* Custom option */}
+                        <div className="p-2 pt-3 border-t border-slate-100">
+                          <p className="text-[10px] text-slate-400 mb-1.5">{locale === 'vi' ? 'Hoặc nhập tên ngân hàng khác:' : 'Or enter custom bank name:'}</p>
+                          <input
+                            type="text"
+                            placeholder="VD: MARITIME BANK, KIENLONGBANK..."
+                            value={bankData.bankName}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setBankData({...bankData, bankName: e.target.value.toUpperCase()})}
+                            className="w-full p-2 border border-slate-200 rounded-lg text-xs focus:outline-none bg-slate-50/50 text-slate-850 font-bold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Số tài khoản ngân hàng *' : 'Account Number *'}</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: 1012938475"
+                    value={bankData.bankAccountNo}
+                    onChange={(e) => setBankData({...bankData, bankAccountNo: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()})}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none bg-slate-50/50 text-slate-800 font-semibold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Tên chủ tài khoản (Viết hoa không dấu) *' : 'Account Holder Name *'}</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: NGUYEN VAN A"
+                    value={bankData.bankAccountName}
+                    onChange={(e) => setBankData({...bankData, bankAccountName: removeVietnameseTones(e.target.value).toUpperCase()})}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none bg-slate-50/50 text-slate-800 font-extrabold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Chi nhánh ngân hàng' : 'Bank Branch'}</label>
+                  <input
+                    type="text"
+                    placeholder="VD: CHI NHANH BA DINH, HA NOI"
+                    value={bankData.bankBranch}
+                    onChange={(e) => setBankData({...bankData, bankBranch: e.target.value.toUpperCase()})}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none bg-slate-50/50 text-slate-800 font-semibold"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="submit"
+                    disabled={savingBank}
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-xl shadow-sm transition disabled:opacity-50"
+                  >
+                    {savingBank ? (locale === 'vi' ? 'Đang lưu...' : 'Saving...') : (locale === 'vi' ? 'Lưu cấu hình' : 'Save Configuration')}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         )}

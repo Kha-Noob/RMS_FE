@@ -53,6 +53,27 @@ interface MenuItem {
   }>;
 }
 
+const getVietQrBankId = (bankName: string) => {
+  const name = bankName.toLowerCase().trim();
+  if (name.includes('vietcombank') || name.includes('vcb')) return 'vietcombank';
+  if (name.includes('techcombank') || name.includes('tcb')) return 'techcombank';
+  if (name.includes('vietinbank') || name.includes('ctg')) return 'vietinbank';
+  if (name.includes('bidv')) return 'bidv';
+  if (name.includes('agribank')) return 'agribank';
+  if (name.includes('mbbank') || name.includes('mb bank') || name.includes('mb')) return 'mb';
+  if (name.includes('acb')) return 'acb';
+  if (name.includes('tpbank') || name.includes('tp bank')) return 'tpbank';
+  if (name.includes('vpbank') || name.includes('vp bank')) return 'vpbank';
+  if (name.includes('sacombank')) return 'sacombank';
+  if (name.includes('hdbank')) return 'hdbank';
+  if (name.includes('shb')) return 'shb';
+  if (name.includes('vib')) return 'vib';
+  if (name.includes('eximbank')) return 'eximbank';
+  if (name.includes('ocb')) return 'ocb';
+  if (name.includes('scb')) return 'scb';
+  return name.replace(/\s+/g, '');
+};
+
 export default function BookingWizardPage() {
   const { user } = useAuth();
   const { locale } = useLanguage();
@@ -346,9 +367,13 @@ export default function BookingWizardPage() {
     return grandTotal > 0 || (selectedTableObj && (selectedTableObj.floorPlan?.name?.toLowerCase()?.includes('vip') || selectedTableObj.floorPlan?.id === 6));
   }, [grandTotal, selectedTableObj]);
 
-  const selectedBranchName = useMemo(() => {
-    return branches.find(b => b.branchId === selectedBranchId)?.name || 'Chi nhánh';
+  const selectedBranchObj = useMemo(() => {
+    return branches.find(b => b.branchId === selectedBranchId) || null;
   }, [branches, selectedBranchId]);
+
+  const selectedBranchName = useMemo(() => {
+    return selectedBranchObj?.name || 'Chi nhánh';
+  }, [selectedBranchObj]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col justify-between selection:bg-blue-100 selection:text-blue-900">
@@ -1105,6 +1130,51 @@ export default function BookingWizardPage() {
                       <span className="text-[10px] font-bold">Ví Momo/ZaloPay</span>
                     </button>
                   </div>
+
+                  {/* Bank Transfer Details (US#1) */}
+                  {paymentMethod === 'QR_PAY' && selectedBranchObj && selectedBranchObj.bankAccountNo && (
+                    <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100/50 space-y-2 text-xs font-semibold animate-fade-in text-slate-750 mt-2">
+                      <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider flex items-center gap-1">
+                        <span>🏦</span> Thông tin tài khoản nhận đặt cọc
+                      </p>
+                      <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[11px]">
+                        <span className="text-slate-450 font-bold">Ngân hàng:</span>
+                        <span className="font-extrabold text-slate-800">{selectedBranchObj.bankName}</span>
+                        
+                        <span className="text-slate-450 font-bold">Số tài khoản:</span>
+                        <span className="font-black text-indigo-700 select-all">{selectedBranchObj.bankAccountNo}</span>
+                        
+                        <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
+                        <span className="font-extrabold text-slate-800 uppercase">{selectedBranchObj.bankAccountName}</span>
+                        
+                        {selectedBranchObj.bankBranch && (
+                          <>
+                            <span className="text-slate-450 font-bold">Chi nhánh:</span>
+                            <span className="font-bold text-slate-700">{selectedBranchObj.bankBranch}</span>
+                          </>
+                        )}
+                      </div>
+                      {/* VietQR Code Display */}
+                      <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
+                        <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider flex items-center gap-1">
+                          <span>📲</span> {locale === 'vi' ? 'Quét mã VietQR để thanh toán đặt cọc' : 'Scan VietQR to Pay Deposit'}
+                        </p>
+                        <img 
+                          src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=100000&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
+                          alt="VietQR Payment Code"
+                          className="w-40 h-40 object-contain rounded-lg border border-slate-100 shadow-sm"
+                        />
+                        <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
+                          {locale === 'vi' 
+                            ? '* Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét' 
+                            : '* Please keep amount and transfer note unchanged'}
+                        </p>
+                      </div>
+                      <p className="text-[9px] text-slate-400 font-medium pt-1.5 border-t border-dashed border-slate-200">
+                        Vui lòng chuyển khoản đúng số tiền 100.000 ₫ và ghi rõ nội dung chuyển khoản là tên và số điện thoại của bạn.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
