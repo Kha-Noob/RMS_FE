@@ -28,6 +28,12 @@ export default function AdminTenantsPage() {
   const [editingTenant, setEditingTenant] = useState<TenantDto | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Cooperation Requests admin states
+  const [activeTab, setActiveTab] = useState<'tenants' | 'cooperation'>('tenants');
+  const [coopRequests, setCoopRequests] = useState<any[]>([]);
+  const [loadingCoop, setLoadingCoop] = useState(false);
+  const [processingCoop, setProcessingCoop] = useState<number | null>(null);
+
   // Form State
   const [form, setForm] = useState({
     name: '',
@@ -68,6 +74,55 @@ export default function AdminTenantsPage() {
       fetchTenants();
     }
   }, [user, fetchTenants]);
+
+  const fetchCoopRequests = useCallback(async () => {
+    try {
+      setLoadingCoop(true);
+      const data = await api.get<any[]>('/api/admin/cooperation');
+      setCoopRequests(data);
+    } catch {
+      toast.error(locale === 'vi' ? 'Không thể tải danh sách đơn hợp tác' : 'Failed to load cooperation requests');
+    } finally {
+      setLoadingCoop(false);
+    }
+  }, [locale]);
+
+  useEffect(() => {
+    if (user && user.roles.includes('ADMIN') && activeTab === 'cooperation') {
+      fetchCoopRequests();
+    }
+  }, [user, activeTab, fetchCoopRequests]);
+
+  const handleApproveCoop = async (id: number) => {
+    if (!window.confirm(locale === 'vi' ? 'Bạn có chắc chắn muốn phê duyệt đơn này không? Tài khoản sẽ được chuyển vai trò sang COOPERATOR và cấp Tenant.' : 'Are you sure you want to approve this request? The user role will be updated to COOPERATOR.')) return;
+    try {
+      setProcessingCoop(id);
+      await api.post(`/api/admin/cooperation/${id}/approve`);
+      toast.success(locale === 'vi' ? 'Phê duyệt hợp tác thành công!' : 'Approved successfully!');
+      fetchCoopRequests();
+      fetchTenants();
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || (locale === 'vi' ? 'Thao tác thất bại!' : 'Operation failed!');
+      toast.error(errMsg);
+    } finally {
+      setProcessingCoop(null);
+    }
+  };
+
+  const handleRejectCoop = async (id: number) => {
+    if (!window.confirm(locale === 'vi' ? 'Bạn có chắc chắn muốn từ chối đơn này không?' : 'Are you sure you want to reject this request?')) return;
+    try {
+      setProcessingCoop(id);
+      await api.post(`/api/admin/cooperation/${id}/reject`);
+      toast.success(locale === 'vi' ? 'Đã từ chối đơn hợp tác!' : 'Rejected successfully!');
+      fetchCoopRequests();
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || (locale === 'vi' ? 'Thao tác thất bại!' : 'Operation failed!');
+      toast.error(errMsg);
+    } finally {
+      setProcessingCoop(null);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,11 +190,37 @@ export default function AdminTenantsPage() {
             {locale === 'vi' ? 'Quản lý danh sách các chuỗi nhà hàng đang thuê sử dụng hệ thống RMS.' : 'Manage restaurant chains renting and using the RMS.'}
           </p>
         </div>
+        {activeTab === 'tenants' && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-[#25439b] hover:bg-[#1c3580] text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all duration-200"
+          >
+            {locale === 'vi' ? '+ Cấp Chuỗi Mới' : '+ Provision New Tenant'}
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setShowModal(true)}
-          className="bg-[#25439b] hover:bg-[#1c3580] text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all duration-200"
+          onClick={() => setActiveTab('tenants')}
+          className={`py-2.5 px-4 font-bold text-xs border-b-2 transition-all ${
+            activeTab === 'tenants'
+              ? 'border-[#25439b] text-[#25439b]'
+              : 'border-transparent text-slate-400 hover:text-slate-655'
+          }`}
         >
-          {locale === 'vi' ? '+ Cấp Chuỗi Mới' : '+ Provision New Tenant'}
+          {locale === 'vi' ? 'Danh sách chuỗi đang hoạt động' : 'Active Tenants List'}
+        </button>
+        <button
+          onClick={() => setActiveTab('cooperation')}
+          className={`py-2.5 px-4 font-bold text-xs border-b-2 transition-all ${
+            activeTab === 'cooperation'
+              ? 'border-[#25439b] text-[#25439b]'
+              : 'border-transparent text-slate-400 hover:text-slate-655'
+          }`}
+        >
+          {locale === 'vi' ? 'Yêu cầu đăng ký hợp tác' : 'Cooperation Applications'}
         </button>
       </div>
 
@@ -150,69 +231,167 @@ export default function AdminTenantsPage() {
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-slate-600">
-              <thead className="bg-slate-50/70 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
-                <tr>
-                  <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Tên chuỗi' : 'Chain Name'}</th>
-                  <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Mã Tenant' : 'Tenant ID'}</th>
-                  <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Tên miền' : 'Domain'}</th>
-                  <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Chủ chuỗi (Email)' : 'Owner (Email)'}</th>
-                  <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Liên kết Web RMS' : 'Linked Web RMS'}</th>
-                  <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Trạng thái' : 'Status'}</th>
-                  <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Hành động' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tenants.length === 0 ? (
+            {activeTab === 'tenants' ? (
+              <table className="w-full text-xs text-slate-600">
+                <thead className="bg-slate-50/70 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-400">
-                      {locale === 'vi' ? 'Chưa có chuỗi nào được cấp quyền' : 'No tenants provisioned yet'}
-                    </td>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Tên chuỗi' : 'Chain Name'}</th>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Mã Tenant' : 'Tenant ID'}</th>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Tên miền' : 'Domain'}</th>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Chủ chuỗi (Email)' : 'Owner (Email)'}</th>
+                    <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Liên kết Web RMS' : 'Linked Web RMS'}</th>
+                    <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Trạng thái' : 'Status'}</th>
+                    <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Hành động' : 'Actions'}</th>
                   </tr>
-                ) : (
-                  tenants.map((t) => (
-                    <tr key={t.tenantId} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-4 px-6 font-semibold text-slate-800">{t.name}</td>
-                      <td className="py-4 px-6 text-slate-400 font-mono">{t.tenantId}</td>
-                      <td className="py-4 px-6">{t.domain || '—'}</td>
-                      <td className="py-4 px-6">
-                        <div className="font-semibold text-slate-700">{t.ownerName || '—'}</div>
-                        <div className="text-slate-400 font-mono text-[10px]">{t.ownerEmail || '—'}</div>
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border ${
-                          t.isUsingSystemWeb 
-                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                            : 'bg-slate-55 text-slate-500 border-slate-100'
-                        }`}>
-                          {t.isUsingSystemWeb ? (locale === 'vi' ? 'Có (Phí 5%)' : 'Yes (5% Fee)') : (locale === 'vi' ? 'Không (Phí 10%)' : 'No (10% Fee)')}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        <button
-                          onClick={() => toggleStatus(t)}
-                          className={`px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide border transition-all ${
-                            t.isActive
-                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'
-                              : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
-                          }`}
-                        >
-                          {t.isActive ? (locale === 'vi' ? 'Hoạt động' : 'Active') : (locale === 'vi' ? 'Khóa' : 'Inactive')}
-                        </button>
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        <button
-                          onClick={() => setEditingTenant(t)}
-                          className="text-[#25439b] hover:text-[#1c3580] font-semibold text-xs transition-colors"
-                        >
-                          {locale === 'vi' ? 'Chỉnh sửa' : 'Edit'}
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {tenants.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        {locale === 'vi' ? 'Chưa có chuỗi nào được cấp quyền' : 'No tenants provisioned yet'}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    tenants.map((t) => (
+                      <tr key={t.tenantId} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-4 px-6 font-semibold text-slate-800">{t.name}</td>
+                        <td className="py-4 px-6 text-slate-400 font-mono">{t.tenantId}</td>
+                        <td className="py-4 px-6">{t.domain || '—'}</td>
+                        <td className="py-4 px-6">
+                          <div className="font-semibold text-slate-700">{t.ownerName || '—'}</div>
+                          <div className="text-slate-400 font-mono text-[10px]">{t.ownerEmail || '—'}</div>
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border ${
+                            t.isUsingSystemWeb 
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : 'bg-slate-55 text-slate-500 border-slate-100'
+                          }`}>
+                            {t.isUsingSystemWeb ? (locale === 'vi' ? 'Có (Phí 5%)' : 'Yes (5% Fee)') : (locale === 'vi' ? 'Không (Phí 10%)' : 'No (10% Fee)')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          <button
+                            onClick={() => toggleStatus(t)}
+                            className={`px-2.5 py-1 rounded-full font-bold text-[10px] uppercase tracking-wide border transition-all ${
+                              t.isActive
+                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'
+                                : 'bg-red-50 text-red-600 border-red-100 hover:bg-red-100'
+                            }`}
+                          >
+                            {t.isActive ? (locale === 'vi' ? 'Hoạt động' : 'Active') : (locale === 'vi' ? 'Khóa' : 'Inactive')}
+                          </button>
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          <button
+                            onClick={() => setEditingTenant(t)}
+                            className="text-[#25439b] hover:text-[#1c3580] font-semibold text-xs transition-colors"
+                          >
+                            {locale === 'vi' ? 'Chỉnh sửa' : 'Edit'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-xs text-slate-600">
+                <thead className="bg-slate-50/70 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Nhà hàng / Chuỗi' : 'Business / Chain'}</th>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Người yêu cầu' : 'Requester'}</th>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Số điện thoại' : 'Phone'}</th>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Phân loại' : 'Plan'}</th>
+                    <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Chi phí' : 'Amount'}</th>
+                    <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Trạng thái' : 'Status'}</th>
+                    <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Hành động' : 'Actions'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingCoop ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center">
+                        <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin mx-auto" />
+                      </td>
+                    </tr>
+                  ) : coopRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400">
+                        {locale === 'vi' ? 'Chưa có yêu cầu hợp tác nào' : 'No cooperation requests yet'}
+                      </td>
+                    </tr>
+                  ) : (
+                    coopRequests.map((req) => (
+                      <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-4 px-6">
+                          <div className="font-semibold text-slate-800">{req.businessName}</div>
+                          {req.domain && <div className="text-[10px] text-slate-400 font-mono">{req.domain}</div>}
+                        </td>
+                        <td className="py-4 px-6">
+                          <div className="font-semibold text-slate-700">{req.requesterName}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{req.requesterEmail}</div>
+                        </td>
+                        <td className="py-4 px-6 font-mono">{req.contactPhone}</td>
+                        <td className="py-4 px-6">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border ${
+                            req.requestType === 'EVENT_ONLY'
+                              ? 'bg-blue-50 text-blue-600 border-blue-100'
+                              : 'bg-indigo-50 text-indigo-600 border-indigo-100'
+                          }`}>
+                            {req.requestType === 'EVENT_ONLY' 
+                              ? (locale === 'vi' ? 'Chỉ Event (Phí 5tr)' : 'Event Only') 
+                              : req.requestType === 'APP_SUBSCRIPTION' 
+                              ? (locale === 'vi' ? 'Thuê App (2tr/tháng)' : 'Monthly Lease') 
+                              : (locale === 'vi' ? 'Mua App (50tr)' : 'Lifetime App')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 font-semibold text-slate-700">
+                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(req.paymentAmount)}
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border uppercase ${
+                            req.status === 'APPROVED'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : req.status === 'REJECTED'
+                              ? 'bg-rose-50 text-rose-600 border-rose-100'
+                              : 'bg-amber-50 text-amber-600 border-amber-100'
+                          }`}>
+                            {req.status === 'APPROVED'
+                              ? (locale === 'vi' ? 'Đã duyệt' : 'Approved')
+                              : req.status === 'REJECTED'
+                              ? (locale === 'vi' ? 'Từ chối' : 'Rejected')
+                              : (locale === 'vi' ? 'Chờ duyệt' : 'Pending')}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          {req.status === 'PENDING' ? (
+                            <div className="flex justify-center gap-2">
+                              <button
+                                onClick={() => handleApproveCoop(req.id)}
+                                disabled={processingCoop === req.id}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1 rounded text-[10px] font-bold disabled:opacity-50 cursor-pointer"
+                              >
+                                {processingCoop === req.id ? '...' : (locale === 'vi' ? 'Duyệt' : 'Approve')}
+                              </button>
+                              <button
+                                onClick={() => handleRejectCoop(req.id)}
+                                disabled={processingCoop === req.id}
+                                className="bg-rose-600 hover:bg-rose-700 text-white px-2 py-1 rounded text-[10px] font-bold disabled:opacity-50 cursor-pointer"
+                              >
+                                {processingCoop === req.id ? '...' : (locale === 'vi' ? 'Từ chối' : 'Reject')}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 font-medium">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

@@ -51,6 +51,17 @@ export default function PublicProfilePage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Business Cooperation Form States
+  const [businessName, setBusinessName] = useState('');
+  const [coopDomain, setCoopDomain] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [requestType, setRequestType] = useState('EVENT_ONLY');
+  const [coopRequests, setCoopRequests] = useState<any[]>([]);
+  const [submittingCoop, setSubmittingCoop] = useState(false);
+  const [loadingCoop, setLoadingCoop] = useState(false);
+
+
+
   // --- Authentication Redirect Guard ---
   useEffect(() => {
     if (!loading && !user) {
@@ -96,6 +107,63 @@ export default function PublicProfilePage() {
   useEffect(() => {
     fetchBookings();
   }, [fetchBookings]);
+
+  // Fetch and submit cooperation requests
+  const fetchCoopRequests = useCallback(async () => {
+    if (!user) return;
+    if (!user.roles.includes('CUSTOMER')) return;
+    try {
+      setLoadingCoop(true);
+      const data = await api.get<any[]>('/api/cooperation/my-requests');
+      setCoopRequests(data);
+    } catch {
+      setCoopRequests([]);
+    } finally {
+      setLoadingCoop(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchCoopRequests();
+  }, [fetchCoopRequests]);
+
+  // Auto populate contact phone from user
+  useEffect(() => {
+    if (user && user.phone) {
+      setContactPhone(user.phone);
+    }
+  }, [user]);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessName.trim() || !contactPhone.trim()) {
+      toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc.');
+      return;
+    }
+    try {
+      setSubmittingCoop(true);
+      const data = await api.post<any>('/api/cooperation/payos/create-link', {
+        businessName,
+        domain: coopDomain,
+        contactPhone,
+        requestType
+      });
+      if (data && data.checkoutUrl) {
+        toast.success('Đang chuyển hướng sang cổng thanh toán PayOS...');
+        window.open(data.checkoutUrl, '_blank');
+        setBusinessName('');
+        setCoopDomain('');
+        fetchCoopRequests();
+      } else {
+        toast.error('Không nhận được liên kết thanh toán từ PayOS.');
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || 'Tạo liên kết thanh toán thất bại.';
+      toast.error(errMsg);
+    } finally {
+      setSubmittingCoop(false);
+    }
+  };
 
   const handleCancelBooking = async (bookingId: number) => {
     if (!window.confirm('Bạn có chắc chắn muốn hủy đặt bàn này không?')) return;
@@ -1010,7 +1078,7 @@ export default function PublicProfilePage() {
               <button 
                 type="submit" 
                 disabled={changingPass} 
-                className="bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white rounded-xl py-2.5 px-5 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer flex items-center gap-1.5"
+                className="bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-755 text-white rounded-xl py-2.5 px-5 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer flex items-center gap-1.5"
               >
                 <KeyRound className="h-4 w-4" />
                 <span>{changingPass ? t.btnChangingPass : t.btnChangePass}</span>
@@ -1018,6 +1086,163 @@ export default function PublicProfilePage() {
             </div>
           </form>
         </div>
+
+        {/* Card 6: Đăng ký hợp tác kinh doanh & Sử dụng phần mềm (Chỉ hiện cho CUSTOMER) */}
+        {user?.roles.includes('CUSTOMER') && (
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm text-left">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              <h2 className="text-base font-extrabold text-slate-800">
+                {locale === 'vi' ? 'Đăng ký Hợp tác & Sử dụng ứng dụng' : 'Business Cooperation & Software Rental'}
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Form đăng ký */}
+              <div className="lg:col-span-2 space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {locale === 'vi' 
+                    ? 'RMS cung cấp giải pháp chuyển đổi số toàn diện cho chuỗi nhà hàng hoặc hỗ trợ truyền thông sự kiện ẩm thực của bạn trên nền tảng. Vui lòng gửi yêu cầu để Ban Quản trị hệ thống phê duyệt.'
+                    : 'RMS provides digital solutions for restaurant chains and hosts culinary events. Please submit a request for Admin approval.'}
+                </p>
+
+                <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-700">{locale === 'vi' ? 'Tên nhà hàng/chuỗi muốn đăng ký tạo mới *' : 'New Business / Chain Name *'}</label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                      value={businessName}
+                      onChange={e => setBusinessName(e.target.value)}
+                      placeholder="Ví dụ: Golden Gate Group"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-slate-700">{locale === 'vi' ? 'Số điện thoại liên hệ *' : 'Contact Phone *'}</label>
+                      <input
+                        type="tel"
+                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                        value={contactPhone}
+                        onChange={e => setContactPhone(e.target.value)}
+                        placeholder="Ví dụ: 0912345678"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-slate-700">{locale === 'vi' ? 'Tên miền mong muốn (nếu có)' : 'Desired Domain (optional)'}</label>
+                      <input
+                        type="text"
+                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                        value={coopDomain}
+                        onChange={e => setCoopDomain(e.target.value)}
+                        placeholder="Ví dụ: goldengate.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block font-bold text-slate-700 mb-1">{locale === 'vi' ? 'Chọn gói dịch vụ hợp tác' : 'Choose Cooperation Plan'}</label>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {[
+                        { id: 'EVENT_ONLY', titleVi: 'Chỉ hợp tác đăng Event & Ưu đãi', descVi: 'Phí khởi tạo ban đầu: 5.000.000đ. Nhận dòng tiền bán vé sự kiện trên nền tảng, chiết khấu hoa hồng 10%. Không sử dụng phần mềm quản lý nội bộ chuỗi.', titleEn: 'Cooperate on Events only', descEn: 'One-time setup fee: 5,000,000đ. Sell tickets, 10% commission. No system dashboard access.' },
+                        { id: 'APP_SUBSCRIPTION', titleVi: 'Thuê phần mềm quản trị chuỗi (Thuê theo tháng)', descVi: 'Phí thuê: 2.000.000đ / tháng. Sử dụng trọn bộ hệ thống quản trị RMS, POS chi nhánh, KDS, Kho, sơ đồ bàn, chấm công. Chiết khấu hoa hồng sự kiện 5%.', titleEn: 'App Subscription (Monthly)', descEn: 'Fee: 2,000,000đ / month. Access entire RMS management, POS, KDS, Inventory. 5% event ticket commission.' },
+                        { id: 'APP_LIFETIME', titleVi: 'Mua đứt phần mềm quản trị chuỗi (Vĩnh viễn)', descVi: 'Phí mua đứt trọn gói: 50.000.000đ. Sở hữu vĩnh viễn hệ thống phần mềm quản lý chuỗi nhà hàng và POS mà không phát sinh thêm chi phí duy trì. Chiết khấu hoa hồng sự kiện 5%.', titleEn: 'App Purchase (Lifetime)', descEn: 'One-time fee: 50,000,000đ. Lifetime access to RMS management and branch POS. 5% event ticket commission.' }
+                      ].map((plan) => (
+                        <label
+                          key={plan.id}
+                          className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                            requestType === plan.id
+                              ? 'bg-blue-50/50 border-blue-400 shadow-sm'
+                              : 'bg-white border-slate-200 hover:bg-slate-50/50'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="requestType"
+                            value={plan.id}
+                            checked={requestType === plan.id}
+                            onChange={() => setRequestType(plan.id)}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                              {locale === 'vi' ? plan.titleVi : plan.titleEn}
+                            </span>
+                            <span className="block text-[11px] text-slate-400 mt-1 leading-normal">
+                              {locale === 'vi' ? plan.descVi : plan.descEn}
+                            </span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={submittingCoop}
+                      className="bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl py-2.5 px-6 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {submittingCoop 
+                        ? (locale === 'vi' ? 'Đang chuyển hướng...' : 'Redirecting...')
+                        : (locale === 'vi' ? 'Tiếp tục thanh toán' : 'Proceed to Payment')}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Lịch sử yêu cầu đã gửi */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  {locale === 'vi' ? 'Yêu cầu đã gửi' : 'Applications Submitted'}
+                </h3>
+
+                {loadingCoop ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+                  </div>
+                ) : coopRequests.length === 0 ? (
+                  <p className="text-[11px] text-slate-400">
+                    {locale === 'vi' ? 'Bạn chưa gửi yêu cầu hợp tác nào.' : 'No applications found.'}
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {coopRequests.map((req) => (
+                      <div key={req.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-[11px]">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-800">{req.businessName}</span>
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border uppercase ${
+                            req.status === 'APPROVED'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : req.status === 'REJECTED'
+                              ? 'bg-rose-50 text-rose-600 border-rose-100'
+                              : 'bg-amber-50 text-amber-600 border-amber-100'
+                          }`}>
+                            {req.status === 'APPROVED'
+                              ? (locale === 'vi' ? 'Đã duyệt' : 'Approved')
+                              : req.status === 'REJECTED'
+                              ? (locale === 'vi' ? 'Từ chối' : 'Rejected')
+                              : (locale === 'vi' ? 'Chờ duyệt' : 'Pending')}
+                          </span>
+                        </div>
+                        <div className="text-slate-400 space-y-0.5">
+                          <div>Phân loại: <strong className="text-slate-600">{req.requestType === 'EVENT_ONLY' ? (locale === 'vi' ? 'Chỉ Event (Phí 5tr)' : 'Event Only') : req.requestType === 'APP_SUBSCRIPTION' ? (locale === 'vi' ? 'Thuê App (Phí 2tr/tháng)' : 'Monthly Lease') : (locale === 'vi' ? 'Mua App (Phí 50tr)' : 'Lifetime App')}</strong></div>
+                          <div>SĐT: <span className="text-slate-600">{req.contactPhone}</span></div>
+                          {req.domain && <div>Domain: <span className="text-slate-605">{req.domain}</span></div>}
+                          <div>Chi phí: <span className="text-slate-600">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(req.paymentAmount)}</span></div>
+                          <div>Ngày gửi: <span className="text-slate-500">{new Date(req.createdAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US')}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Booking Modal (US#7) */}
         {editingBooking && (
@@ -1098,6 +1323,8 @@ export default function PublicProfilePage() {
             </div>
           </div>
         )}
+
+
       </main>
 
       <Footer />
