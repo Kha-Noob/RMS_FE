@@ -24,7 +24,9 @@ import {
   Ticket,
   Users,
   ChevronDown,
-  User as UserIcon
+  User as UserIcon,
+  QrCode,
+  Globe
 } from 'lucide-react';
 
 // --- Types & Interfaces ---
@@ -43,7 +45,33 @@ interface CulinaryEvent {
   highlights: string[];
   branchId?: string;
   eventDates?: string[];
+  bookingDeadline?: string | null;
+  bankName?: string;
+  bankAccountNo?: string;
+  bankAccountName?: string;
+  bankBranch?: string;
 }
+
+const getVietQrBankId = (bankName: string) => {
+  const name = bankName.toLowerCase().trim();
+  if (name.includes('vietcombank') || name.includes('vcb')) return 'vietcombank';
+  if (name.includes('techcombank') || name.includes('tcb')) return 'techcombank';
+  if (name.includes('vietinbank') || name.includes('ctg')) return 'vietinbank';
+  if (name.includes('bidv')) return 'bidv';
+  if (name.includes('agribank')) return 'agribank';
+  if (name.includes('mbbank') || name.includes('mb bank') || name.includes('mb')) return 'mb';
+  if (name.includes('acb')) return 'acb';
+  if (name.includes('tpbank') || name.includes('tp bank')) return 'tpbank';
+  if (name.includes('vpbank') || name.includes('vp bank')) return 'vpbank';
+  if (name.includes('sacombank')) return 'sacombank';
+  if (name.includes('hdbank')) return 'hdbank';
+  if (name.includes('shb')) return 'shb';
+  if (name.includes('vib')) return 'vib';
+  if (name.includes('eximbank')) return 'eximbank';
+  if (name.includes('ocb')) return 'ocb';
+  if (name.includes('scb')) return 'scb';
+  return name.replace(/\s+/g, '');
+};
 
 export default function EventsPage() {
   const { locale, setLocale } = useLanguage();
@@ -279,7 +307,12 @@ export default function EventsPage() {
           description: e.description,
           highlights: Array.isArray(e.highlights) ? e.highlights : [],
           branchId: e.branchId,
-          eventDates: Array.isArray(e.eventDates) ? e.eventDates : []
+          eventDates: Array.isArray(e.eventDates) ? e.eventDates : [],
+          bookingDeadline: e.bookingDeadline,
+          bankName: e.bankName,
+          bankAccountNo: e.bankAccountNo,
+          bankAccountName: e.bankAccountName,
+          bankBranch: e.bankBranch
         }));
         setCulinaryEvents(mapped);
         loadEventCapacities(mapped);
@@ -455,6 +488,7 @@ export default function EventsPage() {
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [dateCapacities, setDateCapacities] = useState<Record<string, number>>({});
   const [bookingEvent, setBookingEvent] = useState<CulinaryEvent | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'QR_PAY' | 'CARD' | 'WALLET'>('QR_PAY');
 
   const parseEventStartTime = (timeStr: string) => {
     if (!timeStr) return '18:30';
@@ -465,6 +499,10 @@ export default function EventsPage() {
   };
 
   const handleOpenBooking = (evt: CulinaryEvent) => {
+    if (evt.bookingDeadline && new Date().getTime() > new Date(evt.bookingDeadline).getTime()) {
+      toast.error(locale === 'vi' ? 'Sự kiện này đã hết thời hạn đăng ký!' : 'Booking period for this event has expired!');
+      return;
+    }
     setSelectedEvent(null); // Close detail modal first if open
     setBookingEvent(evt);
     setBookingRestaurant(evt.restaurantName);
@@ -553,16 +591,24 @@ export default function EventsPage() {
     }
 
     try {
+      const isPaid = bookingEvent && bookingEvent.price && !bookingEvent.price.includes('Miễn phí') && !bookingEvent.price.toLowerCase().includes('free');
+      const singlePrice = isPaid ? (parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) : 0;
+
       // Post all bookings in parallel
       const promises = selectedDates.map(d => {
         const payload = {
+          eventId: bookingEvent?.id || null,
           customerName: bookingForm.name,
           customerPhone: bookingForm.phone,
           bookingTime: `${d}T${bookingForm.time}:00`,
           guests: bookingForm.guests,
           branchId: bookingForm.branchId,
           notes: bookingForm.notes,
-          tableId: null
+          tableId: null,
+          paymentMethod: isPaid ? paymentMethod : null,
+          paymentStatus: 'PAID',
+          depositPaid: isPaid ? true : false,
+          depositAmount: isPaid ? (singlePrice * bookingForm.guests) : 0.0
         };
         return api.post<any>('/api/public/bookings', payload);
       });
@@ -798,7 +844,7 @@ export default function EventsPage() {
       {/* 5. INTERACTIVE BOOKING MODAL */}
       {bookingRestaurant && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden relative animate-fade-in-scale">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden relative animate-fade-in-scale max-h-[90vh] flex flex-col">
             
             {/* Header */}
             <div className="bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 p-5 text-white">
@@ -816,7 +862,7 @@ export default function EventsPage() {
 
             {/* Modal Body */}
             {isBookedSuccess ? (
-              <div className="p-6 text-center space-y-4">
+              <div className="p-6 text-center space-y-4 overflow-y-auto flex-1">
                 <div className="mx-auto h-12 w-12 rounded-full bg-emerald-50 border-4 border-emerald-100 flex items-center justify-center text-emerald-500">
                   <CheckCircle className="h-6 w-6" />
                 </div>
@@ -841,7 +887,7 @@ export default function EventsPage() {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleConfirmBooking} className="p-6 space-y-4">
+              <form onSubmit={handleConfirmBooking} className="p-6 space-y-4 overflow-y-auto flex-1">
                 {/* Full Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelName}</label>
@@ -942,6 +988,96 @@ export default function EventsPage() {
                   />
                 </div>
 
+                {/* Upfront Payment Section if event is paid */}
+                {bookingEvent && bookingEvent.price && !bookingEvent.price.includes('Miễn phí') && !bookingEvent.price.toLowerCase().includes('free') && (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-slate-700">{locale === 'vi' ? 'Tổng tiền thanh toán trước *:' : 'Total Ticket Price Owed Upfront *:'}</span>
+                      <span className="font-black text-blue-650 text-xs">
+                        {(() => {
+                          const singlePriceStr = bookingEvent.price.replace(/[^0-9]/g, '');
+                          const singlePrice = parseInt(singlePriceStr) || 0;
+                          const total = singlePrice * bookingForm.guests * selectedDates.length;
+                          return total.toLocaleString('vi-VN') + ' đ';
+                        })()}
+                      </span>
+                    </div>
+                    <p className="text-[9px] text-slate-400 leading-tight">
+                      {locale === 'vi' 
+                        ? '* Vé tham gia sự kiện ẩm thực/workshop cần được thanh toán trước 100% để đảm bảo nhà hàng giữ chỗ và chuẩn bị chu đáo.' 
+                        : '* Tickets for culinary events/workshops must be paid 100% upfront to confirm your reservation and guarantee seating.'}
+                    </p>
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-bold text-slate-500">{locale === 'vi' ? 'Phương thức thanh toán' : 'Payment Method'}</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value as any)}
+                        className="w-full px-2.5 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none bg-white font-semibold text-slate-700"
+                      >
+                        <option value="QR_PAY">{locale === 'vi' ? 'Quét mã QR Pay (VNPAY / BankTransfer)' : 'Scan QR Pay'}</option>
+                        <option value="CARD">{locale === 'vi' ? 'Thẻ ATM / Visa / Mastercard' : 'Credit / Debit Card'}</option>
+                        <option value="WALLET">{locale === 'vi' ? 'Ví điện tử (Momo / ZaloPay)' : 'E-Wallet'}</option>
+                      </select>
+                    </div>
+                    {/* Bank Transfer Details (US#1) */}
+                    {paymentMethod === 'QR_PAY' && bookingEvent && bookingEvent.bankAccountNo ? (
+                      <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100/50 space-y-2 text-xs font-semibold animate-fade-in text-slate-750">
+                        <p className="text-[10px] text-indigo-500 font-black uppercase tracking-wider flex items-center gap-1">
+                          <span>🏦</span> {locale === 'vi' ? 'Thông tin chuyển khoản thanh toán' : 'Transfer Details'}
+                        </p>
+                        <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[11px]">
+                          <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Ngân hàng:' : 'Bank Name:'}</span>
+                          <span className="font-extrabold text-slate-800">{bookingEvent.bankName}</span>
+                          
+                          <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Số tài khoản:' : 'Account No:'}</span>
+                          <span className="font-black text-indigo-700 select-all">{bookingEvent.bankAccountNo}</span>
+                          
+                          <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Chủ tài khoản:' : 'Holder Name:'}</span>
+                          <span className="font-extrabold text-slate-800 uppercase">{bookingEvent.bankAccountName}</span>
+                          
+                          {bookingEvent.bankBranch && (
+                            <>
+                              <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Chi nhánh:' : 'Branch:'}</span>
+                              <span className="font-bold text-slate-700">{bookingEvent.bankBranch}</span>
+                            </>
+                          )}
+                        </div>
+                        {/* VietQR Code Display */}
+                        <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
+                          <p className="text-[9px] text-slate-500 font-black uppercase tracking-wider flex items-center gap-1">
+                            <span>📲</span> {locale === 'vi' ? 'Quét mã VietQR để thanh toán tự động' : 'Scan VietQR to Pay'}
+                          </p>
+                          <img 
+                            src={`https://img.vietqr.io/image/${getVietQrBankId(bookingEvent.bankName || '')}-${bookingEvent.bankAccountNo}-compact.png?amount=${(parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) * bookingForm.guests * selectedDates.length}&addInfo=${encodeURIComponent(`VE ${bookingForm.name.toUpperCase()} ${bookingForm.phone}`)}&accountName=${encodeURIComponent(bookingEvent.bankAccountName || '')}`}
+                            alt="VietQR Payment Code"
+                            className="w-40 h-40 object-contain rounded-lg border border-slate-100 shadow-sm"
+                          />
+                          <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
+                            {locale === 'vi' 
+                              ? '* Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét' 
+                              : '* Please keep amount and transfer note unchanged'}
+                          </p>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-medium pt-1.5 border-t border-dashed border-slate-200">
+                          {locale === 'vi' 
+                            ? 'Vui lòng ghi rõ nội dung chuyển khoản: Tên của bạn + Số điện thoại đăng ký vé.' 
+                            : 'Please specify in transfer note: Your Name + Registered Phone Number.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="border-t border-dashed border-slate-200 pt-2 flex items-center gap-3">
+                        <div className="h-10 w-10 border border-slate-200 rounded p-1 bg-white flex items-center justify-center shrink-0">
+                          <QrCode className="h-full w-full text-slate-700" />
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-medium">
+                          <p className="font-bold text-slate-700">{locale === 'vi' ? 'CỔNG THANH TOÁN RMS PAY' : 'RMS SECURE PAY'}</p>
+                          <p>{locale === 'vi' ? 'Quét mã để chuyển khoản thanh toán và nhận vé ngay.' : 'Scan QR Code to pay and secure your tickets.'}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="pt-2 flex justify-end gap-2.5">
                   <button
                     type="button"
@@ -954,7 +1090,9 @@ export default function EventsPage() {
                     type="submit"
                     className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:brightness-105 text-white text-xs font-bold shadow-md"
                   >
-                    {t.bookingBtnConfirm}
+                    {bookingEvent && bookingEvent.price && !bookingEvent.price.includes('Miễn phí') && !bookingEvent.price.toLowerCase().includes('free')
+                      ? (locale === 'vi' ? 'Thanh toán & Xác nhận' : 'Pay & Confirm')
+                      : t.bookingBtnConfirm}
                   </button>
                 </div>
               </form>

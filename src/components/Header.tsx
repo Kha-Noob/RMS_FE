@@ -14,7 +14,8 @@ import {
   LogOut,
   User as UserIcon,
   Building,
-  Layers
+  Layers,
+  Percent
 } from 'lucide-react';
 
 export default function Header() {
@@ -143,7 +144,7 @@ export default function Header() {
           </Link>
 
           {/* User management switch options */}
-          {isStaff && (
+          {(isStaff || (isCooperator && user?.isUsingSystemWeb)) && (
             <Link 
               href="/dashboard" 
               className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/40 hover:bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 shadow-sm transition-all duration-200 hover:scale-102 hover:shadow"
@@ -184,14 +185,24 @@ export default function Header() {
                       <span>{t.myProfile}</span>
                     </Link>
                     {isAdmin && (
-                      <Link 
-                        href="/admin-tenants"
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
-                      >
-                        <Building className="h-4 w-4 text-slate-400" />
-                        <span>{t.tenantMgmt}</span>
-                      </Link>
+                      <>
+                        <Link 
+                          href="/admin-tenants"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                        >
+                          <Building className="h-4 w-4 text-slate-400" />
+                          <span>{t.tenantMgmt}</span>
+                        </Link>
+                        <Link 
+                          href="/admin-commissions"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                        >
+                          <Percent className="h-4 w-4 text-slate-400" />
+                          <span>{locale === 'vi' ? 'Báo cáo hoa hồng' : 'Commission Report'}</span>
+                        </Link>
+                      </>
                     )}
                     {isCooperator && (
                       <Link 

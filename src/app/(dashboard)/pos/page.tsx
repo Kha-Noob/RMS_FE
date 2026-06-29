@@ -40,6 +40,27 @@ const statusDotColor: Record<TableStatus, string> = {
   RESERVED: 'bg-yellow-500',
 };
 
+const getVietQrBankId = (bankName: string) => {
+  const name = bankName.toLowerCase().trim();
+  if (name.includes('vietcombank') || name.includes('vcb')) return 'vietcombank';
+  if (name.includes('techcombank') || name.includes('tcb')) return 'techcombank';
+  if (name.includes('vietinbank') || name.includes('ctg')) return 'vietinbank';
+  if (name.includes('bidv')) return 'bidv';
+  if (name.includes('agribank')) return 'agribank';
+  if (name.includes('mbbank') || name.includes('mb bank') || name.includes('mb')) return 'mb';
+  if (name.includes('acb')) return 'acb';
+  if (name.includes('tpbank') || name.includes('tp bank')) return 'tpbank';
+  if (name.includes('vpbank') || name.includes('vp bank')) return 'vpbank';
+  if (name.includes('sacombank')) return 'sacombank';
+  if (name.includes('hdbank')) return 'hdbank';
+  if (name.includes('shb')) return 'shb';
+  if (name.includes('vib')) return 'vib';
+  if (name.includes('eximbank')) return 'eximbank';
+  if (name.includes('ocb')) return 'ocb';
+  if (name.includes('scb')) return 'scb';
+  return name.replace(/\s+/g, '');
+};
+
 export default function POSPage() {
   const { activeBranchId } = useAuth();
 
@@ -59,6 +80,7 @@ export default function POSPage() {
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'VNPAY'>('CASH');
+  const [bankInfo, setBankInfo] = useState<any>(null);
   const [processing, setProcessing] = useState(false);
 
   const [managerOpen, setManagerOpen] = useState(false);
@@ -102,6 +124,19 @@ export default function POSPage() {
 
     try {
       const branchId = activeBranchId;
+      api.get<any>('/api/pos/bank-setting')
+        .then(res => {
+          if (mountedRef.current && thisLoad === loadIdRef.current) {
+            setBankInfo(res);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load bank setting", err);
+          if (mountedRef.current && thisLoad === loadIdRef.current) {
+            setBankInfo(null);
+          }
+        });
+
       const results = await Promise.allSettled([
         api.get<TableEntity[]>('/api/pos/tables', { params: { branchId } }),
         api.get<Room[]>('/api/pos/rooms', { params: { branchId } }),
@@ -929,6 +964,47 @@ export default function POSPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Bank Transfer Details (US#1) */}
+              {paymentMethod === 'BANK_TRANSFER' && bankInfo && bankInfo.accountNumber && (
+                <div className="bg-indigo-50/50 rounded-xl p-3.5 border border-indigo-100/50 space-y-2 text-xs font-semibold animate-fade-in text-slate-700">
+                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider flex items-center gap-1">
+                    <span>🏦</span> Tài khoản nhận chuyển khoản
+                  </p>
+                  <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[11px]">
+                    <span className="text-slate-450 font-bold">Ngân hàng:</span>
+                    <span className="font-extrabold text-slate-800">{bankInfo.bankName}</span>
+                    
+                    <span className="text-slate-450 font-bold">Số tài khoản:</span>
+                    <span className="font-black text-indigo-700 select-all">{bankInfo.accountNumber}</span>
+                    
+                    <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
+                    <span className="font-extrabold text-slate-800 uppercase">{bankInfo.accountHolder}</span>
+                    
+                    {bankInfo.bankCode && (
+                      <>
+                        <span className="text-slate-450 font-bold">Mã ngân hàng:</span>
+                        <span className="font-bold text-slate-700">{bankInfo.bankCode}</span>
+                      </>
+                    )}
+                  </div>
+                  {/* VietQR Code Display */}
+                  <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
+                    <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider flex items-center gap-1">
+                      <span>📲</span> Quét mã VietQR để thanh toán hóa đơn
+                    </p>
+                    <img 
+                      src={`https://img.vietqr.io/image/${getVietQrBankId(bankInfo.bankName || '')}-${bankInfo.accountNumber}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMS BILL ${session?.id}`)}&accountName=${encodeURIComponent(bankInfo.accountHolder || '')}`}
+                      alt="VietQR Payment Code"
+                      className="w-40 h-40 object-contain rounded-lg border border-slate-100 shadow-sm"
+                    />
+                    <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
+                      * Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={handleCheckout}
                 disabled={processing}

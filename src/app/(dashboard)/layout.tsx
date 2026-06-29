@@ -6,8 +6,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import { menuItems } from '@/config/menu';
 
-function getDefaultLandingPage(roles: string[]): string {
-  if (roles.includes('ADMIN') || roles.includes('MANAGER')) return '/dashboard';
+function getDefaultLandingPage(roles: string[], isUsingSystemWeb?: boolean): string {
+  if (roles.includes('ADMIN') || roles.includes('MANAGER') || (roles.includes('COOPERATOR') && isUsingSystemWeb)) return '/dashboard';
+  if (roles.includes('COOPERATOR')) return '/my-restaurant';
   if (roles.includes('HR')) return '/hr-management';
   if (roles.includes('KITCHEN') || roles.includes('CHEF')) return '/kds';
   if (roles.includes('WAREHOUSE')) return '/inventory';
@@ -32,9 +33,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!user) return false;
     
     // Specifically block CUSTOMER role or users without management roles from entering the app
-    const managementRoles = ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN', 'CHEF', 'HR', 'PROCUREMENT', 'WAREHOUSE', 'EMPLOYEE'];
+    const managementRoles = ['ADMIN', 'COOPERATOR', 'MANAGER', 'CASHIER', 'KITCHEN', 'CHEF', 'HR', 'PROCUREMENT', 'WAREHOUSE', 'EMPLOYEE'];
     const hasManagementRole = user.roles.some(r => managementRoles.includes(r));
     if (!hasManagementRole || user.roles.includes('CUSTOMER')) {
+      return false;
+    }
+
+    // Cooperator without system web cannot access operational screens
+    if (user.roles.includes('COOPERATOR') && !user.isUsingSystemWeb) {
       return false;
     }
     
@@ -59,7 +65,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   if (!isAllowed) {
-    const defaultPage = getDefaultLandingPage(user.roles);
+    const defaultPage = getDefaultLandingPage(user.roles, user.isUsingSystemWeb);
     return (
       <div className="min-h-screen bg-[#f8f9fc]">
         <Sidebar />

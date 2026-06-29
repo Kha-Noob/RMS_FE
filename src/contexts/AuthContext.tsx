@@ -34,6 +34,7 @@ interface AuthContextType {
   isProcurement: boolean;
   isWarehouse: boolean;
   isEmployee: boolean;
+  isCooperator: boolean;
   hasRole: (role: string) => boolean;
   hasAnyRole: (roles: string[]) => boolean;
   getDefaultLandingPage: (roles: string[]) => string;
@@ -195,12 +196,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isProcurement = user?.roles.includes('PROCUREMENT') || false;
   const isWarehouse = user?.roles.includes('WAREHOUSE') || false;
   const isEmployee = user?.roles.includes('EMPLOYEE') || false;
+  const isCooperator = user?.roles.includes('COOPERATOR') || false;
 
   const hasRole = useCallback((role: string) => user?.roles.includes(role) || false, [user]);
   const hasAnyRole = useCallback((rolesToCheck: string[]) => user?.roles.some(r => rolesToCheck.includes(r)) || false, [user]);
 
   const getDefaultLandingPage = useCallback((roles: string[]) => {
-    if (roles.includes('ADMIN') || roles.includes('MANAGER')) return '/dashboard';
+    if (roles.includes('ADMIN') || roles.includes('MANAGER') || roles.includes('COOPERATOR')) return '/dashboard';
     if (roles.includes('HR')) return '/hr-management';
     if (roles.includes('KITCHEN') || roles.includes('CHEF')) return '/kds';
     if (roles.includes('WAREHOUSE')) return '/inventory';
@@ -210,12 +212,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return '/profile';
   }, []);
 
-  const canSwitchBranch = isSuperAdmin;
+  const canSwitchBranch = isSuperAdmin || isCooperator;
 
   return (
     <AuthContext.Provider value={{
       user, branches, activeBranchId, activeBranchName,
-      isSuperAdmin, isAdmin, isManager, isCashier, isKitchen, isHR, isProcurement, isWarehouse, isEmployee,
+      isSuperAdmin, isAdmin, isManager, isCashier, isKitchen, isHR, isProcurement, isWarehouse, isEmployee, isCooperator,
       hasRole, hasAnyRole, getDefaultLandingPage, canSwitchBranch,
       loading, login, logout, switchBranch, refreshUser,
     }}>

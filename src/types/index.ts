@@ -26,6 +26,10 @@ export interface Branch {
   address: string;
   phone: string;
   isActive: boolean;
+  bankName?: string;
+  bankAccountNo?: string;
+  bankAccountName?: string;
+  bankBranch?: string;
 }
 
 export interface Employee {
@@ -285,6 +289,7 @@ export const STATUS_COLORS: Record<string, string> = {
 
 export interface Booking {
   id?: number;
+  eventId?: number | null;
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
