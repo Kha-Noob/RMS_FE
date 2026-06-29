@@ -72,10 +72,10 @@ export default function ForumFeedPage() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [selectedDistrict, setSelectedDistrict] = useState('Tất cả khu vực');
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [selectedCuisine, setSelectedCuisine] = useState('Tất cả loại hình');
   const [activeReviewTab, setActiveReviewTab] = useState<'latest' | 'popular'>('latest');
-  const [activeHashtagFilter, setActiveHashtagFilter] = useState<string | null>(null);
+  const [activeHashtagFilters, setActiveHashtagFilters] = useState<string[]>([]);
 
   // --- Create Post States ---
   const [content, setContent] = useState('');
@@ -521,17 +521,17 @@ export default function ForumFeedPage() {
       );
     }
 
-    if (selectedDistrict !== 'Tất cả khu vực') {
-      // Find branch matches district
-      const targetBranch = branchesList.find(b => b.address?.includes(selectedDistrict));
-      if (targetBranch) {
-        list = list.filter(p => p.branchId === targetBranch.branchId);
-      }
+    if (selectedDistricts.length > 0) {
+      const targetBranchIds = branchesList
+        .filter(b => selectedDistricts.some(d => b.address?.includes(d)))
+        .map(b => b.branchId);
+      list = list.filter(p => targetBranchIds.includes(p.branchId));
     }
 
-    if (activeHashtagFilter) {
-      const cleanHash = activeHashtagFilter.toLowerCase();
-      list = list.filter(p => p.content.toLowerCase().includes(cleanHash));
+    if (activeHashtagFilters.length > 0) {
+      list = list.filter(p => 
+        activeHashtagFilters.some(hash => p.content.toLowerCase().includes(hash.toLowerCase()))
+      );
     }
 
     if (activeStarFilter !== 'Tất cả') {
@@ -550,7 +550,7 @@ export default function ForumFeedPage() {
     }
 
     return list;
-  }, [posts, searchText, selectedDistrict, activeHashtagFilter, activeReviewTab, branchesList, activeStarFilter]);
+  }, [posts, searchText, selectedDistricts, activeHashtagFilters, activeReviewTab, branchesList, activeStarFilter]);
 
   // --- Action Handlers ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -781,10 +781,15 @@ export default function ForumFeedPage() {
                   <li key={index}>
                     <button
                       onClick={() => {
-                        setSelectedDistrict(d.name);
-                        toast.info(`${t.toastDistrictFilter} ${translateDistrict(d.name)}`);
+                        if (selectedDistricts.includes(d.name)) {
+                          setSelectedDistricts(selectedDistricts.filter(x => x !== d.name));
+                          toast.info(locale === 'vi' ? `Hủy lọc: ${translateDistrict(d.name)}` : `Removed filter: ${translateDistrict(d.name)}`);
+                        } else {
+                          setSelectedDistricts([...selectedDistricts, d.name]);
+                          toast.info(`${t.toastDistrictFilter} ${translateDistrict(d.name)}`);
+                        }
                       }}
-                      className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl transition ${selectedDistrict === d.name ? 'bg-blue-50 text-blue-700 font-bold border border-blue-100' : 'text-slate-600 hover:bg-slate-50'}`}
+                      className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl transition ${selectedDistricts.includes(d.name) ? 'bg-blue-50 text-blue-700 font-bold border border-blue-100' : 'text-slate-600 hover:bg-slate-50'}`}
                     >
                       <span className="flex items-center gap-2 text-left">
                         <span className="text-[10px] bg-slate-100 text-slate-500 rounded-md h-5 w-5 flex items-center justify-center font-bold">
@@ -1045,11 +1050,12 @@ export default function ForumFeedPage() {
               <div className="flex items-center gap-2">
                 <span className="text-lg">💬</span>
                 <h2 className="font-extrabold text-slate-800 text-base">{t.feedHeading}</h2>
-                {(activeHashtagFilter || selectedDistrict !== 'Tất cả khu vực') && (
+                 {(activeHashtagFilters.length > 0 || selectedDistricts.length > 0) && (
                   <button 
                     onClick={() => {
-                      setActiveHashtagFilter(null);
-                      setSelectedDistrict('Tất cả khu vực');
+                      setActiveHashtagFilters([]);
+                      setSelectedDistricts([]);
+                      toast.info(locale === 'vi' ? 'Đã thiết lập lại bộ lọc' : 'Filters reset successfully');
                     }}
                     className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 hover:bg-blue-100 transition"
                   >
@@ -1127,8 +1133,8 @@ export default function ForumFeedPage() {
                 <button 
                   onClick={() => {
                     setSearchText('');
-                    setSelectedDistrict('Tất cả khu vực');
-                    setActiveHashtagFilter(null);
+                    setSelectedDistricts([]);
+                    setActiveHashtagFilters([]);
                   }}
                   className="text-xs text-blue-600 font-bold hover:underline"
                 >
@@ -1385,13 +1391,18 @@ export default function ForumFeedPage() {
                   <li key={idx}>
                     <button
                       onClick={() => {
-                        setActiveHashtagFilter(hash.tag);
-                        toast.info(`${t.toastHashtagFilter} ${hash.tag}`);
+                        if (activeHashtagFilters.includes(hash.tag)) {
+                          setActiveHashtagFilters(activeHashtagFilters.filter(x => x !== hash.tag));
+                          toast.info(locale === 'vi' ? `Hủy lọc: ${hash.tag}` : `Removed filter: ${hash.tag}`);
+                        } else {
+                          setActiveHashtagFilters([...activeHashtagFilters, hash.tag]);
+                          toast.info(`${t.toastHashtagFilter} ${hash.tag}`);
+                        }
                       }}
-                      className={`w-full text-left text-xs px-2.5 py-1.5 rounded-xl transition-all flex items-center justify-between ${activeHashtagFilter === hash.tag ? 'bg-blue-500 text-white font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600'}`}
+                      className={`w-full text-left text-xs px-2.5 py-1.5 rounded-xl transition-all flex items-center justify-between ${activeHashtagFilters.includes(hash.tag) ? 'bg-blue-500 text-white font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600'}`}
                     >
                       <span>{hash.tag}</span>
-                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${activeHashtagFilter === hash.tag ? 'bg-blue-650 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${activeHashtagFilters.includes(hash.tag) ? 'bg-blue-650 text-white' : 'bg-slate-100 text-slate-400'}`}>
                         {translateHashtagCount(hash.count)}
                       </span>
                     </button>
