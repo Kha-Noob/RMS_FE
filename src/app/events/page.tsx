@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
+import { api } from '@/lib/api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import {
@@ -40,6 +41,8 @@ interface CulinaryEvent {
   capacity: string;
   description: string;
   highlights: string[];
+  branchId?: string;
+  eventDates?: string[];
 }
 
 export default function EventsPage() {
@@ -216,6 +219,46 @@ export default function EventsPage() {
   // --- States ---
   const [selectedTag, setSelectedTag] = useState<string>('Tất cả');
   const [selectedEvent, setSelectedEvent] = useState<CulinaryEvent | null>(null);
+  const [eventSlotsInfo, setEventSlotsInfo] = useState<Record<number, { booked: number; max: number }>>({});
+
+  const parseMaxCapacity = (capStr: string) => {
+    if (!capStr || capStr.toLowerCase().includes('không giới hạn') || capStr.toLowerCase().includes('unlimited')) {
+      return 99999;
+    }
+    const match = capStr.match(/\d+/);
+    return match ? parseInt(match[0]) : 99999;
+  };
+
+  const loadEventCapacities = () => {
+    const infoMap: Record<number, { booked: number; max: number }> = {};
+    Promise.all(
+      culinaryEvents.map(async (evt) => {
+        const dates = evt.eventDates || [];
+        if (dates.length === 0) return;
+        
+        const maxCap = parseMaxCapacity(evt.capacity);
+        if (maxCap >= 99999) {
+          infoMap[evt.id] = { booked: 0, max: 99999 };
+          return;
+        }
+
+        let totalBooked = 0;
+        for (const d of dates) {
+          try {
+            const res = await api.get<{ bookedGuests: number }>('/api/public/bookings-capacity/event', {
+              params: { branchId: evt.branchId || '01-2thang9', eventTitle: evt.title, date: d }
+            });
+            totalBooked += res.bookedGuests;
+          } catch (err) {
+            // ignore
+          }
+        }
+        infoMap[evt.id] = { booked: totalBooked, max: maxCap * dates.length };
+      })
+    ).then(() => {
+      setEventSlotsInfo({...infoMap});
+    });
+  };
 
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -229,6 +272,7 @@ export default function EventsPage() {
         }
       }
     }
+    loadEventCapacities();
   }, []);
 
   // --- Booking Modal State ---
@@ -239,7 +283,8 @@ export default function EventsPage() {
     date: '',
     time: '18:30',
     guests: 2,
-    notes: ''
+    notes: '',
+    branchId: ''
   });
   const [isBookedSuccess, setIsBookedSuccess] = useState(false);
 
@@ -257,7 +302,9 @@ export default function EventsPage() {
       price: 'Miễn phí vào cửa',
       capacity: 'Không giới hạn',
       description: 'Lễ hội quy tụ hơn 50 gian hàng ẩm thực đường phố đặc sắc từ khắp các vùng miền Việt Nam và các nước châu Á. Du khách sẽ được thưởng thức các món ăn truyền thống được chế biến bởi các đầu bếp hàng đầu, tham gia các trò chơi dân gian ẩm thực và thưởng thức đêm nhạc Acoustic đường phố náo nhiệt.',
-      highlights: ['Hơn 50 gian hàng ẩm thực đặc sắc', 'Biểu diễn nhạc sống Acoustic mỗi tối', 'Trải nghiệm tự tay làm bánh dân gian']
+      highlights: ['Hơn 50 gian hàng ẩm thực đặc sắc', 'Biểu diễn nhạc sống Acoustic mỗi tối', 'Trải nghiệm tự tay làm bánh dân gian'],
+      branchId: '01-2thang9',
+      eventDates: ['2026-06-28', '2026-06-29', '2026-06-30']
     },
     {
       id: 2,
@@ -271,7 +318,9 @@ export default function EventsPage() {
       price: '850.000đ / khách',
       capacity: '40 khách',
       description: 'Hòa mình vào không gian lộng gió trên cao, thưởng thức ly rượu vang thượng hạng được tuyển chọn từ các vùng nho nổi tiếng nước Pháp và Ý, kết hợp hài hòa với thực đơn Canapes hải sản tinh tế. Đêm tiệc được đệm nhạc Acoustic guitar mộc mạc và du dương đón hoàng hôn thành phố.',
-      highlights: ['Thử nếm 5 dòng rượu vang thượng hạng', 'Thực đơn Canapes hải sản cao cấp', 'View ngắm trọn hoàng hôn từ tầng cao']
+      highlights: ['Thử nếm 5 dòng rượu vang thượng hạng', 'Thực đơn Canapes hải sản cao cấp', 'View ngắm trọn hoàng hôn từ tầng cao'],
+      branchId: '11-NguyenHuuTho',
+      eventDates: ['2026-07-04']
     },
     {
       id: 3,
@@ -285,7 +334,9 @@ export default function EventsPage() {
       price: '1.200.000đ / khách',
       capacity: '15 học viên',
       description: 'Khóa học thực hành trực tiếp cùng Bếp trưởng người Nhật với hơn 15 năm kinh nghiệm. Bạn sẽ được hướng dẫn từ khâu chọn cá hồi tươi sống, kỹ thuật nấu và trộn cơm giấm Shari chuẩn vị, đến nghệ thuật cuốn maki, nigiri đẹp mắt. Cuối buổi học là thời gian thưởng thức thành quả cùng trà xanh thượng hạng.',
-      highlights: ['Hướng dẫn trực tiếp bởi bếp trưởng Nhật Bản', 'Nguyên liệu cá hồi/sò điệp nhập khẩu tươi ngon', 'Chứng nhận hoàn thành Masterclass từ The Én']
+      highlights: ['Hướng dẫn trực tiếp bởi bếp trưởng Nhật Bản', 'Nguyên liệu cá hồi/sò điệp nhập khẩu tươi ngon', 'Chứng nhận hoàn thành Masterclass từ The Én'],
+      branchId: '21-HaiPhong',
+      eventDates: ['2026-07-12']
     },
     {
       id: 4,
@@ -299,7 +350,9 @@ export default function EventsPage() {
       price: '150.000đ / vé (gồm 1 đồ uống)',
       capacity: '300 khách',
       description: 'Lễ hội thưởng thức hơn 20 loại bia thủ công đặc sắc từ các xưởng nấu bia danh tiếng Việt Nam kết hợp với đại tiệc nướng sườn tảng khổng lồ, bò Mỹ hun khói bằng gỗ sồi thơm nức. Không gian lễ hội trẻ trung sôi động với ban nhạc Rock nhẹ ngoài trời.',
-      highlights: ['Hơn 20 vị bia thủ công độc đáo', 'BBQ hun khói khổng lồ chuẩn vị Mỹ', 'Đêm nhạc Rock & Gameshow vui nhộn']
+      highlights: ['Hơn 20 vị bia thủ công độc đáo', 'BBQ hun khói khổng lồ chuẩn vị Mỹ', 'Đêm nhạc Rock & Gameshow vui nhộn'],
+      branchId: '01-2thang9',
+      eventDates: ['2026-07-18', '2026-07-19']
     },
     {
       id: 5,
@@ -313,7 +366,9 @@ export default function EventsPage() {
       price: '3.500.000đ / khách',
       capacity: '20 khách',
       description: 'Một hành trình ẩm thực xa hoa tôn vinh "kim cương trắng" của giới ẩm thực - Truffle Alba nhập khẩu trực tiếp từ Ý. Bếp trưởng thiết kế thực đơn 6 món Fine Dining kết hợp tài tình truffle bào mỏng trên nền mì tươi làm tay, súp kem măng tây và thăn bò Wagyu nướng sốt truffle.',
-      highlights: ['Truffle trắng Alba tươi nhập khẩu trực tiếp', 'Thực đơn 6 món Fine Dining kết hợp rượu vang Ý', 'Không gian phòng VIP sang trọng, riêng tư']
+      highlights: ['Truffle trắng Alba tươi nhập khẩu trực tiếp', 'Thực đơn 6 món Fine Dining kết hợp rượu vang Ý', 'Không gian phòng VIP sang trọng, riêng tư'],
+      branchId: '11-NguyenHuuTho',
+      eventDates: ['2026-07-25']
     },
     {
       id: 6,
@@ -327,7 +382,9 @@ export default function EventsPage() {
       price: '500.000đ / khách',
       capacity: '25 học viên',
       description: 'Tìm hiểu lịch sử và nghệ thuật đằng sau các ly cocktail cổ điển trường tồn với thời gian như Old Fashioned, Negroni, Whiskey Sour. Bạn được hướng dẫn kỹ năng lắc shaker, khuấy barspoon chuẩn xác và tự tay pha chế 3 ly cocktail của riêng mình dưới sự chỉ dẫn của các Bartender hàng đầu.',
-      highlights: ['Học lý thuyết và thực hành pha chế 3 ly cocktail', 'Bộ dụng cụ pha chế chuyên nghiệp trang bị riêng', 'Quà tặng công thức pha chế độc quyền từ Bar trưởng']
+      highlights: ['Học lý thuyết và thực hành pha chế 3 ly cocktail', 'Bộ dụng cụ pha chế chuyên nghiệp trang bị riêng', 'Quà tặng công thức pha chế độc quyền từ Bar trưởng'],
+      branchId: '21-HaiPhong',
+      eventDates: ['2026-08-02']
     }
   ];
 
@@ -465,22 +522,78 @@ export default function EventsPage() {
   }, [selectedEvent, locale]);
 
   // --- Open Booking Modal ---
-  const handleOpenBooking = (restaurantName: string, eventTitle?: string) => {
+  const [bookingCode, setBookingCode] = useState<string>('');
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [dateCapacities, setDateCapacities] = useState<Record<string, number>>({});
+  const [bookingEvent, setBookingEvent] = useState<CulinaryEvent | null>(null);
+
+  const parseEventStartTime = (timeStr: string) => {
+    if (!timeStr) return '18:30';
+    const parts = timeStr.split('-');
+    const start = parts[0].trim();
+    const match = start.match(/\d{2}:\d{2}/);
+    return match ? match[0] : '18:30';
+  };
+
+  const handleOpenBooking = (evt: CulinaryEvent) => {
     setSelectedEvent(null); // Close detail modal first if open
-    setBookingRestaurant(restaurantName);
+    setBookingEvent(evt);
+    setBookingRestaurant(evt.restaurantName);
+    const parsedTime = evt.time ? parseEventStartTime(evt.time) : '18:30';
+    
+    // Default to today if event has no dates listed
+    const dates = evt.eventDates && evt.eventDates.length > 0 ? evt.eventDates : [new Date().toISOString().split('T')[0]];
+    setAvailableDates(dates);
+    setSelectedDates([dates[0]]); // default select first date
+
+    // Fetch capacity info for all dates
+    const bId = evt.branchId || '01-2thang9';
+    const title = evt.title;
+    const capMap: Record<string, number> = {};
+
+    Promise.all(
+      dates.map(d => 
+        api.get<{ bookedGuests: number }>('/api/public/bookings-capacity/event', {
+          params: { branchId: bId, eventTitle: title, date: d }
+        })
+        .then(res => {
+          capMap[d] = res.bookedGuests;
+        })
+        .catch(() => {
+          capMap[d] = 0;
+        })
+      )
+    ).then(() => {
+      setDateCapacities({...capMap});
+    });
+
     setBookingForm({
       name: '',
       phone: '',
-      date: new Date().toISOString().split('T')[0],
-      time: '18:30',
+      date: dates[0],
+      time: parsedTime,
       guests: 2,
-      notes: eventTitle ? `${locale === 'vi' ? 'Đăng ký tham gia sự kiện' : 'Registering for event'}: ${eventTitle}` : ''
+      notes: evt.title ? `${locale === 'vi' ? 'Đăng ký tham gia sự kiện' : 'Registering for event'}: ${evt.title}` : '',
+      branchId: bId
     });
     setIsBookedSuccess(false);
   };
 
+  const handleToggleDate = (date: string) => {
+    if (selectedDates.includes(date)) {
+      if (selectedDates.length > 1) {
+        setSelectedDates(selectedDates.filter(d => d !== date));
+      } else {
+        toast.warning(locale === 'vi' ? 'Vui lòng chọn ít nhất một ngày!' : 'Please select at least one date!');
+      }
+    } else {
+      setSelectedDates([...selectedDates, date]);
+    }
+  };
+
   // --- Submit Booking ---
-  const handleConfirmBooking = (e: React.FormEvent) => {
+  const handleConfirmBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!bookingForm.name.trim()) {
       toast.error(t.toastEnterName);
@@ -490,8 +603,51 @@ export default function EventsPage() {
       toast.error(t.toastEnterPhone);
       return;
     }
-    setIsBookedSuccess(true);
-    toast.success(`${t.toastBookingSuccess} ${bookingRestaurant}!`);
+
+    if (selectedDates.length === 0) {
+      toast.error(locale === 'vi' ? 'Vui lòng chọn ít nhất một ngày diễn ra!' : 'Please select at least one date!');
+      return;
+    }
+
+    const minFutureTime = new Date(Date.now() + 15 * 60 * 1000); // 15 mins in future
+
+    // Validate future restriction for all selected dates
+    for (const d of selectedDates) {
+      const bookingTime = `${d}T${bookingForm.time}:00`;
+      const selectedDateTime = new Date(bookingTime);
+      if (selectedDateTime.getTime() < minFutureTime.getTime()) {
+        const displayD = d.split('-').reverse().join('/');
+        toast.error(locale === 'vi' 
+          ? `Thời gian của ngày ${displayD} phải ở tương lai (tối thiểu trước 15 phút)!` 
+          : `Booking time for ${displayD} must be in the future (at least 15 minutes ahead)!`);
+        return;
+      }
+    }
+
+    try {
+      // Post all bookings in parallel
+      const promises = selectedDates.map(d => {
+        const payload = {
+          customerName: bookingForm.name,
+          customerPhone: bookingForm.phone,
+          bookingTime: `${d}T${bookingForm.time}:00`,
+          guests: bookingForm.guests,
+          branchId: bookingForm.branchId,
+          notes: bookingForm.notes,
+          tableId: null
+        };
+        return api.post<any>('/api/public/bookings', payload);
+      });
+
+      const results = await Promise.all(promises);
+      const codes = results.map(res => res.id ? `#${res.id}` : '').filter(Boolean).join(', ');
+      setBookingCode(codes || 'EVT-' + Math.floor(1000 + Math.random() * 9000));
+      setIsBookedSuccess(true);
+      toast.success(`${t.toastBookingSuccess} ${bookingRestaurant}!`);
+      loadEventCapacities();
+    } catch (err: any) {
+      toast.error(err.message || (locale === 'vi' ? 'Đặt vé thất bại, vui lòng thử lại.' : 'Booking failed, please try again.'));
+    }
   };
 
   return (
@@ -576,7 +732,17 @@ export default function EventsPage() {
                     </p>
                     <p className="flex items-center gap-1.5">
                       <Users className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                      <span>{t.eventScale} {evt.capacity}</span>
+                      <span>
+                        {(() => {
+                          const info = eventSlotsInfo[evt.id];
+                          if (!info) return `${t.eventScale} ${evt.capacity}`;
+                          if (info.max >= 99999) return locale === 'vi' ? 'Sức chứa: Không giới hạn' : 'Capacity: Unlimited';
+                          const remaining = Math.max(0, info.max - info.booked);
+                          return locale === 'vi' 
+                            ? `Còn lại: ${remaining}/${info.max} chỗ` 
+                            : `Remaining: ${remaining}/${info.max} slots`;
+                        })()}
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -589,7 +755,7 @@ export default function EventsPage() {
                     {t.eventBtnDetails}
                   </button>
                   <button
-                    onClick={() => handleOpenBooking(evt.restaurantName, evt.title)}
+                    onClick={() => handleOpenBooking(evt)}
                     className="w-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white text-xs font-bold py-2.5 rounded-xl shadow-sm transition"
                   >
                     {t.eventBtnBook}
@@ -690,7 +856,7 @@ export default function EventsPage() {
                 {t.eventBtnClose}
               </button>
               <button
-                onClick={() => handleOpenBooking(activeEventDetail.restaurantName, activeEventDetail.title)}
+                onClick={() => handleOpenBooking(activeEventDetail)}
                 className="w-2/3 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-650 hover:brightness-105 text-white font-bold text-xs shadow-md transition"
               >
                 {t.eventBtnBookTicket}
@@ -729,13 +895,13 @@ export default function EventsPage() {
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-slate-800">{t.bookingSuccess}</h4>
                   <p className="text-xs text-slate-500 px-4">
-                    {t.bookingCodeText} <strong className="text-blue-600">#EVT-{Math.floor(1000 + Math.random() * 9000)}</strong>. {t.bookingConfirmContact}
+                    {t.bookingCodeText} <strong className="text-blue-600">#{bookingCode}</strong>. {t.bookingConfirmContact}
                   </p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl text-left text-xs space-y-2 border border-slate-100">
                   <p><strong>{t.bookingCustomer}:</strong> {bookingForm.name}</p>
                   <p><strong>{t.bookingPhone}:</strong> {bookingForm.phone}</p>
-                  <p><strong>{t.bookingTime}:</strong> {bookingForm.time} - {bookingForm.date}</p>
+                  <p><strong>{t.bookingTime}:</strong> {bookingForm.time} - {selectedDates.map(d => d.split('-').reverse().join('/')).join(', ')}</p>
                   <p><strong>{t.bookingGuests}:</strong> {bookingForm.guests} {locale === 'vi' ? 'người' : 'guests'}</p>
                   {bookingForm.notes && <p><strong>{t.bookingNotes}:</strong> {bookingForm.notes}</p>}
                 </div>
@@ -774,37 +940,51 @@ export default function EventsPage() {
                   />
                 </div>
 
-                {/* Date & Time */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Date & Time selection */}
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelDate}</label>
-                    <input
-                      type="date"
-                      required
-                      value={bookingForm.date}
-                      onChange={(e) => setBookingForm({...bookingForm, date: e.target.value})}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    />
+                    <label className="block text-xs font-bold text-slate-700 mb-2">
+                      {locale === 'vi' ? 'Chọn ngày tham gia *' : 'Select dates *'}
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableDates.map(date => {
+                        const isSelected = selectedDates.includes(date);
+                        const displayDate = date.split('-').reverse().join('/');
+                        
+                        const maxCap = bookingEvent ? parseMaxCapacity(bookingEvent.capacity) : 9999;
+                        const booked = dateCapacities[date] || 0;
+                        const remaining = Math.max(0, maxCap - booked);
+
+                        return (
+                          <button
+                            key={date}
+                            type="button"
+                            onClick={() => handleToggleDate(date)}
+                            disabled={remaining <= 0}
+                            className={`text-xs font-bold px-3.5 py-2 rounded-xl border transition-all flex flex-col items-center ${
+                              remaining <= 0
+                                ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                                : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span>{displayDate}</span>
+                            <span className={`text-[9px] mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
+                              {remaining <= 0 
+                                ? (locale === 'vi' ? 'Hết chỗ' : 'Sold out')
+                                : `${locale === 'vi' ? 'Còn' : 'Left'}: ${remaining}`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">{t.bookingLabelTime}</label>
-                    <select
-                      value={bookingForm.time}
-                      onChange={(e) => setBookingForm({...bookingForm, time: e.target.value})}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                    >
-                      <option>11:00</option>
-                      <option>11:30</option>
-                      <option>12:00</option>
-                      <option>12:30</option>
-                      <option>13:00</option>
-                      <option>18:00</option>
-                      <option>18:30</option>
-                      <option>19:00</option>
-                      <option>19:30</option>
-                      <option>20:00</option>
-                      <option>20:30</option>
-                    </select>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{locale === 'vi' ? 'Giờ diễn ra' : 'Event time'}</label>
+                    <div className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 font-bold text-slate-600 h-[34px] flex items-center">
+                      {bookingForm.time}
+                    </div>
                   </div>
                 </div>
 
