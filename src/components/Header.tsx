@@ -204,7 +204,7 @@ export default function Header() {
                         </Link>
                       </>
                     )}
-                    {isCooperator && (
+                    {isCooperator && user?.isUsingSystemWeb && (
                       <Link 
                         href="/branch-management"
                         onClick={() => setUserDropdownOpen(false)}

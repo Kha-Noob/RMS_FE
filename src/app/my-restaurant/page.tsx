@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -162,7 +162,7 @@ export default function MyRestaurantPage() {
   // States
   const [events, setEvents] = useState<EventDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'list' | 'form' | 'approvals' | 'bank'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'form' | 'approvals' | 'bank' | 'bookings'>('list');
 
   // Bank configuration states
   const [bankData, setBankData] = useState({
@@ -175,6 +175,14 @@ export default function MyRestaurantPage() {
   const [savingBank, setSavingBank] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchBankQuery, setSearchBankQuery] = useState('');
+
+  // Event Bookings states
+  const [eventBookings, setEventBookings] = useState<any[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [selectedEventIdForDetails, setSelectedEventIdForDetails] = useState<number | null>(null);
+  const [bookingDetails, setBookingDetails] = useState<any[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Handle click outside of bank name dropdown
   useEffect(() => {
@@ -229,6 +237,45 @@ export default function MyRestaurantPage() {
         setSavingBank(false);
       });
   };
+
+  const loadEventBookings = useCallback(() => {
+    setLoadingBookings(true);
+    api.get('/api/events/cooperator/bookings-summary')
+      .then((res: any) => {
+        setEventBookings(res || []);
+      })
+      .catch(err => {
+        console.error('Failed to load event bookings summary', err);
+        toast.error(locale === 'vi' ? 'Không thể tải lịch sử đặt vé.' : 'Failed to load booking summary.');
+      })
+      .finally(() => {
+        setLoadingBookings(false);
+      });
+  }, [locale]);
+
+  const loadBookingDetails = (eventId: number) => {
+    setLoadingDetails(true);
+    setSelectedEventIdForDetails(eventId);
+    setShowDetailsModal(true);
+    api.get(`/api/events/cooperator/bookings/${eventId}/details`)
+      .then((res: any) => {
+        setBookingDetails(res || []);
+      })
+      .catch(err => {
+        console.error('Failed to load booking details', err);
+        toast.error(locale === 'vi' ? 'Không thể tải chi tiết danh sách vé.' : 'Failed to load booking details.');
+        setShowDetailsModal(false);
+      })
+      .finally(() => {
+        setLoadingDetails(false);
+      });
+  };
+
+  useEffect(() => {
+    if (user && activeTab === 'bookings') {
+      loadEventBookings();
+    }
+  }, [user, activeTab, loadEventBookings]);
   
   // Form State
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -469,6 +516,14 @@ export default function MyRestaurantPage() {
                 className={`px-4 py-2 rounded-lg text-xs font-black transition ${activeTab === 'bank' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
               >
                 {locale === 'vi' ? '🏦 Tài khoản ngân hàng' : '🏦 Bank Account'}
+              </button>
+            )}
+            {isCooperator && (
+              <button
+                onClick={() => setActiveTab('bookings')}
+                className={`px-4 py-2 rounded-lg text-xs font-black transition ${activeTab === 'bookings' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                {locale === 'vi' ? '🎫 Lịch sử đặt vé' : '🎫 Booking History'}
               </button>
             )}
           </div>
@@ -1102,6 +1157,190 @@ export default function MyRestaurantPage() {
           </div>
         )}
 
+        {/* Tab 5: Booking History (Cooperator only) */}
+        {activeTab === 'bookings' && isCooperator && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-lg font-black text-slate-800">
+                {locale === 'vi' ? '🎫 Lịch sử đặt vé sự kiện của chuỗi' : '🎫 Event Ticket Booking History'}
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                {locale === 'vi' 
+                  ? 'Xem tổng quan số lượng khách hàng đặt vé và doanh thu trên từng sự kiện.'
+                  : 'Overview of booked tickets and revenue for each event.'}
+              </p>
+            </div>
+
+            {loadingBookings ? (
+              <div className="py-12 text-center text-slate-400 text-xs animate-pulse">
+                {locale === 'vi' ? 'Đang tải lịch sử đặt vé...' : 'Loading booking history...'}
+              </div>
+            ) : eventBookings.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs font-semibold">
+                {locale === 'vi' ? 'Chưa có sự kiện nào được đăng ký.' : 'No registered events found.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                <table className="w-full text-left text-xs font-semibold text-slate-600 border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100">
+                      <th className="p-4">{locale === 'vi' ? 'Tên sự kiện' : 'Event Title'}</th>
+                      <th className="p-4">{locale === 'vi' ? 'Ngày diễn ra' : 'Date'}</th>
+                      <th className="p-4">{locale === 'vi' ? 'Giờ' : 'Time'}</th>
+                      <th className="p-4">{locale === 'vi' ? 'Giá vé' : 'Price'}</th>
+                      <th className="p-4 text-center">{locale === 'vi' ? 'Vé đã đặt' : 'Booked Tickets'}</th>
+                      <th className="p-4 text-right">{locale === 'vi' ? 'Tiền thu được' : 'Amount Collected'}</th>
+                      <th className="p-4 text-center">{locale === 'vi' ? 'Hành động' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {eventBookings.map((eb) => (
+                      <tr key={eb.eventId} className="hover:bg-slate-50/50 transition">
+                        <td className="p-4 font-bold text-slate-800">{eb.title}</td>
+                        <td className="p-4 text-slate-500">{eb.date}</td>
+                        <td className="p-4 text-slate-500">{eb.time}</td>
+                        <td className="p-4 text-blue-600 font-extrabold">{eb.price}</td>
+                        <td className="p-4 text-center">
+                          <span className="bg-blue-50 text-blue-700 font-extrabold px-2.5 py-1 rounded-full text-[11px]">
+                            {eb.bookedCount}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right font-extrabold text-emerald-600">
+                          {eb.totalPaid.toLocaleString()}đ
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => loadBookingDetails(eb.eventId)}
+                            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-extrabold rounded-lg text-[10px] transition shadow-sm"
+                          >
+                            {locale === 'vi' ? 'Xem danh sách đặt vé' : 'View Bookings'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Modal: Booking Details (Invoices) */}
+        {showDetailsModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white w-full max-w-5xl rounded-3xl shadow-xl overflow-hidden animate-scale-in flex flex-col my-8 max-h-[85vh]">
+              <div className="bg-slate-900 text-white p-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-black">
+                    {locale === 'vi' ? '🎫 Chi tiết danh sách khách hàng đặt vé' : '🎫 Detailed Customer Bookings List'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {locale === 'vi' 
+                      ? 'Danh sách hoá đơn ghi nhận thông tin đặt chỗ và lịch sử thanh toán.'
+                      : 'Invoice list recording reservation details and payment history.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="text-slate-400 hover:text-white transition text-lg font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto flex-1">
+                {loadingDetails ? (
+                  <div className="py-12 text-center text-slate-400 text-xs animate-pulse">
+                    {locale === 'vi' ? 'Đang tải danh sách vé...' : 'Loading ticket list...'}
+                  </div>
+                ) : bookingDetails.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs font-semibold">
+                    {locale === 'vi' ? 'Chưa có lượt khách hàng nào đặt vé cho sự kiện này.' : 'No bookings registered for this event yet.'}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                    <table className="w-full text-left text-xs font-semibold text-slate-650 border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100">
+                          <th className="p-3">{locale === 'vi' ? 'Khách hàng' : 'Customer'}</th>
+                          <th className="p-3">{locale === 'vi' ? 'Gmail / SĐT' : 'Email / Phone'}</th>
+                          <th className="p-3">{locale === 'vi' ? 'Thời gian đặt' : 'Booking Time'}</th>
+                          <th className="p-3 text-center">{locale === 'vi' ? 'Số lượng' : 'Quantity'}</th>
+                          <th className="p-3 text-right">{locale === 'vi' ? 'Số tiền' : 'Amount'}</th>
+                          <th className="p-3 text-center">{locale === 'vi' ? 'Thanh toán' : 'Payment'}</th>
+                          <th className="p-3 text-center">{locale === 'vi' ? 'Trạng thái đơn' : 'Booking Status'}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {bookingDetails.map((b) => (
+                          <tr key={b.id} className="hover:bg-slate-50/30 transition">
+                            <td className="p-3">
+                              <span className="block font-bold text-slate-800">{b.customerName}</span>
+                              <span className="text-[9px] text-slate-400 font-bold uppercase">Mã: #{b.id}</span>
+                            </td>
+                            <td className="p-3">
+                              <span className="block text-slate-600 font-medium">{b.customerEmail || 'N/A'}</span>
+                              <span className="block text-[11px] text-slate-400 font-bold">{b.customerPhone}</span>
+                            </td>
+                            <td className="p-3 text-slate-500">
+                              {new Date(b.bookingTime).toLocaleString('vi-VN', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </td>
+                            <td className="p-3 text-center font-extrabold text-slate-800">
+                              {b.guests}
+                            </td>
+                            <td className="p-3 text-right font-extrabold text-slate-800">
+                              {b.depositAmount ? `${b.depositAmount.toLocaleString()}đ` : '0đ'}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                b.paymentStatus === 'PAID' 
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-100'
+                              }`}>
+                                {b.paymentStatus === 'PAID' ? (locale === 'vi' ? 'Đã thu' : 'Paid') : (locale === 'vi' ? 'Chưa thu' : 'Pending')}
+                              </span>
+                              {b.paymentMethod && (
+                                <span className="block text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                                  {b.paymentMethod}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                b.status === 'CONFIRMED' || b.status === 'CHECKED_IN'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : b.status === 'CANCELLED'
+                                  ? 'bg-rose-50 text-rose-700'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}>
+                                {b.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-extrabold rounded-xl text-xs transition shadow-sm"
+                >
+                  {locale === 'vi' ? 'Đóng' : 'Close'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
       <Footer />

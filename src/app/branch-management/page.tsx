@@ -40,7 +40,9 @@ export default function BranchManagementPage() {
       router.push('/login');
       return;
     }
-    const hasAccess = user.roles.some(r => ['ADMIN', 'COOPERATOR'].includes(r));
+    // Block cooperator2 (who is not using system web) from accessing Branch Management
+    const isCooperator2 = user.roles.includes('COOPERATOR') && !user.isUsingSystemWeb;
+    const hasAccess = user.roles.some(r => ['ADMIN', 'COOPERATOR'].includes(r)) && !isCooperator2;
     if (!hasAccess) {
       toast.error(locale === 'vi' ? 'Bạn không có quyền truy cập trang này!' : 'Access Denied!');
       router.push('/');
