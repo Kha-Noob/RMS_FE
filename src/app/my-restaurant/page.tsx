@@ -129,6 +129,7 @@ export default function MyRestaurantPage() {
 
     const payload = {
       ...formData,
+      branchId: formData.isUsingSystemWeb ? formData.branchId : '',
       highlights: formData.highlights, // backend splits this
       eventDates: formData.eventDates
     };
@@ -515,18 +516,30 @@ export default function MyRestaurantPage() {
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Chi nhánh hợp tác *' : 'Affiliated Branch *'}</label>
-                  <select
-                    value={formData.branchId}
-                    onChange={(e) => setFormData({...formData, branchId: e.target.value})}
-                    className="w-full p-2.5 border border-slate-200 bg-slate-50/50 rounded-xl focus:outline-none"
-                  >
-                    {branches.map(b => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
-                  </select>
-                </div>
+                {formData.isUsingSystemWeb ? (
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Chi nhánh hợp tác *' : 'Affiliated Branch *'}</label>
+                    <select
+                      value={formData.branchId}
+                      onChange={(e) => setFormData({...formData, branchId: e.target.value})}
+                      className="w-full p-2.5 border border-slate-200 bg-slate-50/50 rounded-xl focus:outline-none"
+                    >
+                      {branches.map(b => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <label className="block font-bold text-slate-500">{locale === 'vi' ? 'Chi nhánh hợp tác' : 'Affiliated Branch'}</label>
+                    <input
+                      type="text"
+                      disabled
+                      value={locale === 'vi' ? 'Không (Chiến dịch quảng cáo ngoài)' : 'None (External advertising campaign)'}
+                      className="w-full p-2.5 border border-slate-200 bg-slate-100 rounded-xl text-slate-400 cursor-not-allowed"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Time and location */}
