@@ -87,7 +87,7 @@ export default function MyRestaurantPage() {
     highlights: '', // input as semicolon-separated
     branchId: '01-2thang9',
     eventDates: '', // input as comma-separated
-    isUsingSystemWeb: true
+    isUsingSystemWeb: user?.roles.includes('ADMIN') || false
   });
 
   const branches = [
@@ -171,7 +171,7 @@ export default function MyRestaurantPage() {
       highlights: '',
       branchId: '01-2thang9',
       eventDates: '',
-      isUsingSystemWeb: true
+      isUsingSystemWeb: user?.roles.includes('ADMIN') || false
     });
   };
 
