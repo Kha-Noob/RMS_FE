@@ -21,6 +21,8 @@ export default function Header() {
   const { locale, setLocale } = useLanguage();
 
   const isStaff = user?.roles.some(r => ['ADMIN', 'MANAGER', 'CASHIER', 'KITCHEN', 'CHEF', 'HR', 'PROCUREMENT', 'WAREHOUSE', 'EMPLOYEE'].includes(r)) || false;
+  const isAdmin = user?.roles.includes('ADMIN') || false;
+  const isCooperator = user?.roles.includes('COOPERATOR') || false;
 
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
@@ -175,7 +177,16 @@ export default function Header() {
                       <UserIcon className="h-4 w-4 text-slate-400" />
                       <span>{t.myProfile}</span>
                     </Link>
-                    {isStaff && (
+                    {(isAdmin || isCooperator) ? (
+                      <Link 
+                        href="/my-restaurant"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Utensils className="h-4 w-4 text-slate-400" />
+                        <span>{t.myRestaurant}</span>
+                      </Link>
+                    ) : isStaff ? (
                       <Link 
                         href="/dashboard"
                         onClick={() => setUserDropdownOpen(false)}
@@ -184,7 +195,7 @@ export default function Header() {
                         <Utensils className="h-4 w-4 text-slate-400" />
                         <span>{t.myRestaurant}</span>
                       </Link>
-                    )}
+                    ) : null}
                     <Link
                       href="/profile"
                       onClick={() => setUserDropdownOpen(false)}

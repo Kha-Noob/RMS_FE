@@ -220,6 +220,7 @@ export default function EventsPage() {
   const [selectedTag, setSelectedTag] = useState<string>('Tất cả');
   const [selectedEvent, setSelectedEvent] = useState<CulinaryEvent | null>(null);
   const [eventSlotsInfo, setEventSlotsInfo] = useState<Record<number, { booked: number; max: number }>>({});
+  const [culinaryEvents, setCulinaryEvents] = useState<CulinaryEvent[]>([]);
 
   const parseMaxCapacity = (capStr: string) => {
     if (!capStr || capStr.toLowerCase().includes('không giới hạn') || capStr.toLowerCase().includes('unlimited')) {
@@ -229,10 +230,11 @@ export default function EventsPage() {
     return match ? parseInt(match[0]) : 99999;
   };
 
-  const loadEventCapacities = () => {
+  const loadEventCapacities = (eventsList?: CulinaryEvent[]) => {
+    const list = eventsList || culinaryEvents;
     const infoMap: Record<number, { booked: number; max: number }> = {};
     Promise.all(
-      culinaryEvents.map(async (evt) => {
+      list.map(async (evt) => {
         const dates = evt.eventDates || [];
         if (dates.length === 0) return;
         
@@ -261,18 +263,42 @@ export default function EventsPage() {
   };
 
   React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const eventIdStr = params.get('id');
-      if (eventIdStr) {
-        const eventId = parseInt(eventIdStr);
-        const match = culinaryEvents.find(e => e.id === eventId);
-        if (match) {
-          setSelectedEvent(match);
+    api.get<any[]>('/api/events/public')
+      .then(res => {
+        const mapped: CulinaryEvent[] = res.map(e => ({
+          id: e.id,
+          title: e.title,
+          date: e.date,
+          time: e.time,
+          location: e.location,
+          restaurantName: e.restaurantName,
+          tag: e.tag,
+          imageUrl: e.imageUrl,
+          price: e.price,
+          capacity: e.capacity,
+          description: e.description,
+          highlights: Array.isArray(e.highlights) ? e.highlights : [],
+          branchId: e.branchId,
+          eventDates: Array.isArray(e.eventDates) ? e.eventDates : []
+        }));
+        setCulinaryEvents(mapped);
+        loadEventCapacities(mapped);
+        
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const eventIdStr = params.get('id');
+          if (eventIdStr) {
+            const eventId = parseInt(eventIdStr);
+            const match = mapped.find(evt => evt.id === eventId);
+            if (match) {
+              setSelectedEvent(match);
+            }
+          }
         }
-      }
-    }
-    loadEventCapacities();
+      })
+      .catch(err => {
+        console.error('Failed to fetch public events', err);
+      });
   }, []);
 
   // --- Booking Modal State ---
@@ -288,110 +314,10 @@ export default function EventsPage() {
   });
   const [isBookedSuccess, setIsBookedSuccess] = useState(false);
 
-  // --- Mock Database for Culinary Events ---
-  const culinaryEvents: CulinaryEvent[] = [
-    {
-      id: 1,
-      title: 'Lễ hội Tinh hoa Ẩm thực Đường phố',
-      date: '28/06 - 30/06/2026',
-      time: '16:00 - 22:00',
-      location: 'Phố đi bộ Hồ Gươm, Hoàn Kiếm, Hà Nội',
-      restaurantName: 'RMS Premium Catering',
-      tag: 'Festival',
-      imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&q=80&w=600',
-      price: 'Miễn phí vào cửa',
-      capacity: 'Không giới hạn',
-      description: 'Lễ hội quy tụ hơn 50 gian hàng ẩm thực đường phố đặc sắc từ khắp các vùng miền Việt Nam và các nước châu Á. Du khách sẽ được thưởng thức các món ăn truyền thống được chế biến bởi các đầu bếp hàng đầu, tham gia các trò chơi dân gian ẩm thực và thưởng thức đêm nhạc Acoustic đường phố náo nhiệt.',
-      highlights: ['Hơn 50 gian hàng ẩm thực đặc sắc', 'Biểu diễn nhạc sống Acoustic mỗi tối', 'Trải nghiệm tự tay làm bánh dân gian'],
-      branchId: '01-2thang9',
-      eventDates: ['2026-06-28', '2026-06-29', '2026-06-30']
-    },
-    {
-      id: 2,
-      title: 'Đêm nhạc Acoustic & Fine Wine Tasting',
-      date: '04/07/2026',
-      time: '19:30 - 22:30',
-      location: 'Tầng 25, Skyline Lounge, Cầu Giấy, Hà Nội',
-      restaurantName: 'Skyline Lounge',
-      tag: 'Fine Dining',
-      imageUrl: 'https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&q=80&w=600',
-      price: '850.000đ / khách',
-      capacity: '40 khách',
-      description: 'Hòa mình vào không gian lộng gió trên cao, thưởng thức ly rượu vang thượng hạng được tuyển chọn từ các vùng nho nổi tiếng nước Pháp và Ý, kết hợp hài hòa với thực đơn Canapes hải sản tinh tế. Đêm tiệc được đệm nhạc Acoustic guitar mộc mạc và du dương đón hoàng hôn thành phố.',
-      highlights: ['Thử nếm 5 dòng rượu vang thượng hạng', 'Thực đơn Canapes hải sản cao cấp', 'View ngắm trọn hoàng hôn từ tầng cao'],
-      branchId: '11-NguyenHuuTho',
-      eventDates: ['2026-07-04']
-    },
-    {
-      id: 3,
-      title: 'Masterclass: Nghệ thuật làm Sushi truyền thống',
-      date: '12/07/2026',
-      time: '09:00 - 12:00',
-      location: 'The Én Restaurant, Hoàn Kiếm, Hà Nội',
-      restaurantName: 'The Én Restaurant',
-      tag: 'Workshop',
-      imageUrl: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&q=80&w=600',
-      price: '1.200.000đ / khách',
-      capacity: '15 học viên',
-      description: 'Khóa học thực hành trực tiếp cùng Bếp trưởng người Nhật với hơn 15 năm kinh nghiệm. Bạn sẽ được hướng dẫn từ khâu chọn cá hồi tươi sống, kỹ thuật nấu và trộn cơm giấm Shari chuẩn vị, đến nghệ thuật cuốn maki, nigiri đẹp mắt. Cuối buổi học là thời gian thưởng thức thành quả cùng trà xanh thượng hạng.',
-      highlights: ['Hướng dẫn trực tiếp bởi bếp trưởng Nhật Bản', 'Nguyên liệu cá hồi/sò điệp nhập khẩu tươi ngon', 'Chứng nhận hoàn thành Masterclass từ The Én'],
-      branchId: '21-HaiPhong',
-      eventDates: ['2026-07-12']
-    },
-    {
-      id: 4,
-      title: 'Lễ hội Bia thủ công và Đồ nướng BBQ khổng lồ',
-      date: '18/07 - 19/07/2026',
-      time: '17:00 - 23:00',
-      location: 'Vườn bia ngoài trời Cục Gạch Quán, Đống Đa, Hà Nội',
-      restaurantName: 'Cục Gạch Quán',
-      tag: 'Festival',
-      imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=600',
-      price: '150.000đ / vé (gồm 1 đồ uống)',
-      capacity: '300 khách',
-      description: 'Lễ hội thưởng thức hơn 20 loại bia thủ công đặc sắc từ các xưởng nấu bia danh tiếng Việt Nam kết hợp với đại tiệc nướng sườn tảng khổng lồ, bò Mỹ hun khói bằng gỗ sồi thơm nức. Không gian lễ hội trẻ trung sôi động với ban nhạc Rock nhẹ ngoài trời.',
-      highlights: ['Hơn 20 vị bia thủ công độc đáo', 'BBQ hun khói khổng lồ chuẩn vị Mỹ', 'Đêm nhạc Rock & Gameshow vui nhộn'],
-      branchId: '01-2thang9',
-      eventDates: ['2026-07-18', '2026-07-19']
-    },
-    {
-      id: 5,
-      title: 'Đại tiệc Truffle trắng nước Ý (Truffle Fine Dining)',
-      date: '25/07/2026',
-      time: '18:30 - 21:30',
-      location: 'Phòng VIP Hoàng Gia, Tầm Vị Restaurant, Tây Hồ, Hà Nội',
-      restaurantName: 'Tầm Vị Restaurant',
-      tag: 'Fine Dining',
-      imageUrl: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&q=80&w=600',
-      price: '3.500.000đ / khách',
-      capacity: '20 khách',
-      description: 'Một hành trình ẩm thực xa hoa tôn vinh "kim cương trắng" của giới ẩm thực - Truffle Alba nhập khẩu trực tiếp từ Ý. Bếp trưởng thiết kế thực đơn 6 món Fine Dining kết hợp tài tình truffle bào mỏng trên nền mì tươi làm tay, súp kem măng tây và thăn bò Wagyu nướng sốt truffle.',
-      highlights: ['Truffle trắng Alba tươi nhập khẩu trực tiếp', 'Thực đơn 6 món Fine Dining kết hợp rượu vang Ý', 'Không gian phòng VIP sang trọng, riêng tư'],
-      branchId: '11-NguyenHuuTho',
-      eventDates: ['2026-07-25']
-    },
-    {
-      id: 6,
-      title: 'Workshop: Nghệ thuật pha chế Cocktails cổ điển',
-      date: '02/08/2026',
-      time: '14:30 - 17:30',
-      location: 'Skyline Lounge Bar, Cầu Giấy, Hà Nội',
-      restaurantName: 'Skyline Lounge',
-      tag: 'Workshop',
-      imageUrl: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&q=80&w=600',
-      price: '500.000đ / khách',
-      capacity: '25 học viên',
-      description: 'Tìm hiểu lịch sử và nghệ thuật đằng sau các ly cocktail cổ điển trường tồn với thời gian như Old Fashioned, Negroni, Whiskey Sour. Bạn được hướng dẫn kỹ năng lắc shaker, khuấy barspoon chuẩn xác và tự tay pha chế 3 ly cocktail của riêng mình dưới sự chỉ dẫn của các Bartender hàng đầu.',
-      highlights: ['Học lý thuyết và thực hành pha chế 3 ly cocktail', 'Bộ dụng cụ pha chế chuyên nghiệp trang bị riêng', 'Quà tặng công thức pha chế độc quyền từ Bar trưởng'],
-      branchId: '21-HaiPhong',
-      eventDates: ['2026-08-02']
-    }
-  ];
-
   const filteredEvents = useMemo(() => {
     if (selectedTag === 'Tất cả') return culinaryEvents;
     return culinaryEvents.filter(e => e.tag === selectedTag);
-  }, [selectedTag]);
+  }, [selectedTag, culinaryEvents]);
 
   const translatedEvents = useMemo(() => {
     return filteredEvents.map(evt => {
@@ -448,11 +374,12 @@ export default function EventsPage() {
           location: 'Skyline Lounge Bar, Cau Giay, Hanoi',
           price: '500,000 VND / guest',
           capacity: '25 students',
-          description: 'Learn the history and art behind timeless classic cocktails like Old Fashioned, Negroni, Whiskey Sour. You will be guided on shaker shaking skills, precise barspoon stirring and make 3 cocktails of your own under the guidance of top Bartenders.',
+          description: 'Learn the history and art behind mixing classic cocktails like Old Fashioned, Negroni, Whiskey Sour. You will be guided on shaker shaking skills, precise barspoon stirring and make 3 cocktails of your own under the guidance of top Bartenders.',
           highlights: ['Learn theory and practice mixing 3 cocktails', 'Separately equipped professional bartending kit', 'Exclusive recipe gift from the Head Barman']
         }
       };
-      return { ...evt, ...dict[evt.id] };
+      const tr = dict[evt.id];
+      return tr ? { ...evt, ...tr } : evt;
     });
   }, [filteredEvents, locale]);
 
@@ -516,10 +443,11 @@ export default function EventsPage() {
           highlights: ['Learn theory and practice mixing 3 cocktails', 'Separately equipped professional bartending kit', 'Exclusive recipe gift from the Head Barman']
         }
       };
-      return { ...evt, ...dict[evt.id] };
+      const tr = dict[evt.id];
+      return tr ? { ...evt, ...tr } : evt;
     });
     return allTranslatedEvents.find(e => e.id === selectedEvent.id) || selectedEvent;
-  }, [selectedEvent, locale]);
+  }, [selectedEvent, culinaryEvents, locale]);
 
   // --- Open Booking Modal ---
   const [bookingCode, setBookingCode] = useState<string>('');
