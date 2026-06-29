@@ -27,6 +27,9 @@ export default function AdminFeedModerationPage() {
   const [newKeyword, setNewKeyword] = useState('');
   const [blacklistKeywords, setBlacklistKeywords] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [stats, setStats] = useState<any>(null);
+  const [selectedPostIds, setSelectedPostIds] = useState<number[]>([]);
+  const [replyTexts, setReplyTexts] = useState<Record<number, string>>({});
 
   const loadData = async () => {
     setLoading(true);
@@ -35,6 +38,8 @@ export default function AdminFeedModerationPage() {
       setPosts(postsRes || []);
       const blacklistRes = await api.get<any[]>('/api/admin/feed/blacklist');
       setBlacklistKeywords(blacklistRes || []);
+      const statsRes = await api.get<any>('/api/admin/feed/dashboard/stats');
+      setStats(statsRes);
     } catch (err) {
       toast.error(locale === 'vi' ? 'Không thể tải danh sách bài viết.' : 'Failed to load posts.');
     } finally {
@@ -98,6 +103,37 @@ export default function AdminFeedModerationPage() {
     }
   };
 
+  const handleBulkUpdateStatus = async (status: string) => {
+    if (selectedPostIds.length === 0) return;
+    try {
+      await Promise.all(
+        selectedPostIds.map(postId => 
+          api.put(`/api/admin/feed/posts/${postId}/status`, null, {
+            params: { status }
+          })
+        )
+      );
+      toast.success(locale === 'vi' ? 'Cập nhật hàng loạt thành công!' : 'Bulk status updated successfully!');
+      setSelectedPostIds([]);
+      loadData();
+    } catch (err) {
+      toast.error(locale === 'vi' ? 'Thao tác hàng loạt thất bại.' : 'Bulk action failed.');
+    }
+  };
+
+  const handleAddReply = async (postId: number) => {
+    const text = replyTexts[postId];
+    if (!text || !text.trim()) return;
+    try {
+      await api.post(`/api/admin/feed/posts/${postId}/reply`, { reply: text.trim() });
+      toast.success(locale === 'vi' ? 'Đã phản hồi đánh giá thành công!' : 'Reply submitted successfully!');
+      setReplyTexts(prev => ({ ...prev, [postId]: '' }));
+      loadData();
+    } catch (err) {
+      toast.error(locale === 'vi' ? 'Không thể gửi phản hồi.' : 'Failed to submit reply.');
+    }
+  };
+
   const filteredPosts = posts.filter(p => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -124,13 +160,77 @@ export default function AdminFeedModerationPage() {
           </p>
         </div>
       </div>
-
+      {/* Analytics Widgets */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase">{locale === 'vi' ? 'Hôm nay' : 'Today'}</span>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-2xl font-black text-slate-800">{stats.postsToday}</span>
+              <span className="text-[10px] text-emerald-500 font-bold">▲ {locale === 'vi' ? 'Mới' : 'New'}</span>
+            </div>
+            <p className="text-[10px] text-slate-450 mt-1">{locale === 'vi' ? 'Bài đăng được ghi nhận hôm nay' : 'Posts recorded today'}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase">{locale === 'vi' ? 'Tuần này' : 'This Week'}</span>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-2xl font-black text-slate-800">{stats.postsWeek}</span>
+              <span className="text-[10px] text-slate-400">{locale === 'vi' ? '7 ngày qua' : 'Last 7 days'}</span>
+            </div>
+            <p className="text-[10px] text-slate-450 mt-1">{locale === 'vi' ? 'Bài đăng tuần qua' : 'Weekly total posts'}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <span className="text-[10px] font-extrabold text-rose-500 uppercase">{locale === 'vi' ? 'Chờ kiểm duyệt' : 'Pending Moderation'}</span>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-2xl font-black text-rose-600">{stats.pendingCount}</span>
+              {stats.pendingCount > 0 && (
+                <span className="text-[9px] bg-rose-50 text-rose-600 font-extrabold px-1.5 py-0.5 rounded animate-pulse">
+                  {locale === 'vi' ? 'Cần duyệt' : 'Action Required'}
+                </span>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-450 mt-1">{locale === 'vi' ? 'Bài đăng bị giữ do từ cấm hoặc nhạy cảm' : 'Held due to forbidden keywords'}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase">{locale === 'vi' ? 'Phân bổ Sao đánh giá' : 'Rating Distribution'}</span>
+            <div className="flex items-end gap-1.5 h-12 mt-2">
+              {[1, 2, 3, 4, 5].map((star) => {
+                const count = stats.ratingDistribution[star] || 0;
+                const total = (Object.values(stats.ratingDistribution).reduce((a: any, b: any) => Number(a) + Number(b), 0) as number) || 1;
+                const pct = (count / total) * 100;
+                return (
+                  <div key={star} className="flex-1 flex flex-col items-center group">
+                    <div className="w-full bg-slate-100 rounded-t-sm relative h-[40px] flex items-end">
+                      <div className="w-full bg-blue-500 rounded-t-sm group-hover:bg-blue-600 transition-colors" style={{ height: `${Math.max(pct, 5)}%` }} />
+                    </div>
+                    <span className="text-[8px] font-black text-slate-400 mt-1">{star}★</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
         {/* Left/Middle section: Flagged & Reported Posts list */}
         <div className="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <h3 className="font-extrabold text-slate-800 text-sm">{locale === 'vi' ? 'Danh sách bài đăng' : 'Posts Feed List'}</h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filteredPosts.length > 0 && selectedPostIds.length === filteredPosts.length}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedPostIds(filteredPosts.map(p => p.id));
+                  } else {
+                    setSelectedPostIds([]);
+                  }
+                }}
+                className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+              />
+              <h3 className="font-extrabold text-slate-800 text-sm">{locale === 'vi' ? 'Danh sách bài đăng' : 'Posts Feed List'}</h3>
+            </div>
             
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
@@ -143,6 +243,36 @@ export default function AdminFeedModerationPage() {
               />
             </div>
           </div>
+
+          {selectedPostIds.length > 0 && (
+            <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl animate-fade-in text-xs">
+              <div className="font-bold text-slate-700">
+                {locale === 'vi' 
+                  ? `Đang chọn ${selectedPostIds.length} bài viết` 
+                  : `Selected ${selectedPostIds.length} posts`}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleBulkUpdateStatus('PUBLIC')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg transition"
+                >
+                  {locale === 'vi' ? 'Duyệt chọn' : 'Approve'}
+                </button>
+                <button
+                  onClick={() => handleBulkUpdateStatus('HIDDEN')}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-3 py-1.5 rounded-lg transition"
+                >
+                  {locale === 'vi' ? 'Ẩn chọn' : 'Hide'}
+                </button>
+                <button
+                  onClick={() => setSelectedPostIds([])}
+                  className="text-slate-400 hover:text-slate-600 font-bold px-2 py-1.5"
+                >
+                  {locale === 'vi' ? 'Hủy' : 'Clear'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex flex-col items-center py-12 gap-3">
@@ -161,11 +291,29 @@ export default function AdminFeedModerationPage() {
                 return (
                   <div 
                     key={post.id} 
-                    className={`p-4 rounded-xl border transition-all ${hasWarning ? 'border-amber-200 bg-amber-50/10' : 'border-slate-150 bg-white hover:border-slate-200'}`}
+                    className={`p-4 rounded-xl border transition-all ${
+                      post.rating <= 2 
+                        ? 'border-rose-250 bg-rose-50/10' 
+                        : hasWarning 
+                          ? 'border-amber-250 bg-amber-50/10' 
+                          : 'border-slate-200 bg-white hover:border-slate-250 shadow-sm'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-4">
-                      {/* Author & Header info */}
+                      {/* Checkbox + Author & Header info */}
                       <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedPostIds.includes(post.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPostIds(prev => [...prev, post.id]);
+                            } else {
+                              setSelectedPostIds(prev => prev.filter(id => id !== post.id));
+                            }
+                          }}
+                          className="mt-2 rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
+                        />
                         <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold shrink-0">
                           {post.authorName.charAt(0).toUpperCase()}
                         </div>
@@ -174,14 +322,24 @@ export default function AdminFeedModerationPage() {
                             <span className="font-bold text-xs text-slate-800">{post.authorName}</span>
                             <span className="text-[10px] text-slate-400">({post.authorPhone || 'N/A'})</span>
                           </div>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
+                          <p className="text-[10px] text-slate-450 mt-0.5">
                             ID: #{post.id} • {new Date(post.createdAt).toLocaleString()}
                           </p>
                         </div>
                       </div>
 
                       {/* Status Badges */}
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                        {post.rating <= 2 && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full border border-rose-200">
+                            🚨 {locale === 'vi' ? 'Đánh giá thấp' : 'Low Rating'}
+                          </span>
+                        )}
+                        {post.status === 'PENDING_MODERATION' && post.reportCount === 0 && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full border border-purple-200">
+                            🚫 {locale === 'vi' ? 'Hệ thống giữ - Nhạy cảm' : 'System Held'}
+                          </span>
+                        )}
                         {post.status === 'PENDING_MODERATION' && (
                           <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">
                             <AlertTriangle className="h-3 w-3" />
@@ -239,6 +397,37 @@ export default function AdminFeedModerationPage() {
                           })}
                         </div>
                       )}
+                      {/* Official Restaurant Reply Display */}
+                      {post.restaurantReply && (
+                        <div className="bg-slate-50 border border-slate-150 p-3 rounded-lg text-xs space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold bg-slate-800 text-white text-[9px] px-1.5 py-0.5 rounded">
+                              {locale === 'vi' ? 'Đã phản hồi' : 'Replied'}
+                            </span>
+                            <span className="text-[9px] text-slate-400">
+                              {post.replyAuthorName} • {new Date(post.repliedAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-slate-600 italic">"{post.restaurantReply}"</p>
+                        </div>
+                      )}
+
+                      {/* Restaurant Reply Input Form */}
+                      <div className="flex gap-2 items-center bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                        <textarea
+                          rows={1}
+                          value={replyTexts[post.id] || ''}
+                          onChange={(e) => setReplyTexts(prev => ({ ...prev, [post.id]: e.target.value }))}
+                          placeholder={locale === 'vi' ? 'Nhập phản hồi chính thức của nhà hàng...' : 'Write official reply...'}
+                          className="w-full bg-white px-2.5 py-1.5 border border-slate-205 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 resize-none"
+                        />
+                        <button
+                          onClick={() => handleAddReply(post.id)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] px-3.5 py-2 rounded-lg transition shrink-0"
+                        >
+                          {locale === 'vi' ? 'Gửi' : 'Send'}
+                        </button>
+                      </div>
 
                       {/* Action buttons */}
                       <div className="pt-3 border-t border-slate-100 flex justify-end gap-2 text-[10px] font-bold">

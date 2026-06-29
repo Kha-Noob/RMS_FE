@@ -98,6 +98,9 @@ export default function ForumFeedPage() {
   const [reportingPostId, setReportingPostId] = useState<number | null>(null);
   const [reportReason, setReportReason] = useState('');
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
+  const [activeStarFilter, setActiveStarFilter] = useState<string>('Tất cả');
+  const [lightboxMedia, setLightboxMedia] = useState<{ urls: string[], index: number } | null>(null);
+  const [leaderboardList, setLeaderboardList] = useState<any[]>([]);
 
   // --- Booking Modal State ---
   const [bookingRestaurant, setBookingRestaurant] = useState<string | null>(null);
@@ -112,13 +115,30 @@ export default function ForumFeedPage() {
   const [isBookedSuccess, setIsBookedSuccess] = useState(false);
 
   // --- Static/Mock Databases for Sidebar ---
-  const districts: District[] = [
-    { name: 'Quận Hoàn Kiếm', postCount: 18 },
-    { name: 'Quận Cầu Giấy', postCount: 14 },
-    { name: 'Quận Tây Hồ', postCount: 12 },
-    { name: 'Quận Đống Đa', postCount: 9 },
-    { name: 'Quận Hai Bà Trưng', postCount: 7 }
-  ];
+  const districts: District[] = useMemo(() => {
+    const namesSet = new Set<string>();
+    branchesList.forEach((b: any) => {
+      if (!b.address) return;
+      const parts = b.address.split(',').map((p: string) => p.trim());
+      if (parts.length >= 2) {
+        // District/Ward (second to last element)
+        const districtName = parts[parts.length - 2];
+        if (districtName) namesSet.add(districtName);
+        // City (last element)
+        const cityName = parts[parts.length - 1];
+        if (cityName) namesSet.add(cityName);
+      }
+    });
+
+    const names = namesSet.size > 0 ? Array.from(namesSet) : ['Hải Châu', 'Thạch Thang', 'Đà Nẵng'];
+    return names.map(name => {
+      const matchingBranchIds = branchesList
+        .filter(b => b.address && b.address.toLowerCase().includes(name.toLowerCase()))
+        .map(b => b.branchId);
+      const postCount = posts.filter(p => p.status === 'PUBLIC' && matchingBranchIds.includes(p.branchId)).length;
+      return { name, postCount };
+    });
+  }, [posts, branchesList]);
 
   const culinaryEvents: CulinaryEvent[] = [
     {
@@ -150,13 +170,31 @@ export default function ForumFeedPage() {
     }
   ];
 
-  const trendingHashtags: TrendingHashtag[] = [
-    { tag: '#MonVietAmCung', count: '124 bài' },
-    { tag: '#SkylineCocktails', count: '89 bài' },
-    { tag: '#FineDiningHanoi', count: '76 bài' },
-    { tag: '#AmThucDuongPho', count: '62 bài' },
-    { tag: '#HenHoLangMan', count: '45 bài' }
-  ];
+  const trendingHashtags: TrendingHashtag[] = useMemo(() => {
+    const counts: Record<string, number> = {};
+    posts.forEach(post => {
+      if (!post.content) return;
+      const matches = post.content.match(/#[a-zA-Z0-9_\u00C0-\u1EF9]+/gu);
+      if (matches) {
+        matches.forEach((tag: string) => {
+          counts[tag] = (counts[tag] || 0) + 1;
+        });
+      }
+    });
+    const sorted = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([tag, count]) => ({ tag, count: `${count} bài` }));
+    
+    if (sorted.length === 0) {
+      return [
+        { tag: '#AmThucDaNang', count: '10 bài' },
+        { tag: '#ComNieuDaNang', count: '8 bài' },
+        { tag: '#RMSReview', count: '5 bài' }
+      ];
+    }
+    return sorted;
+  }, [posts]);
 
   const leaderboardUsers: LeaderboardUser[] = [
     { rank: 1, name: 'Lê Hải Nam', points: 1240, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100', isTop: true },
@@ -392,8 +430,18 @@ export default function ForumFeedPage() {
     loadFeed(0, false);
     // Fetch branches list
     api.get<any[]>('/api/public/branches')
-      .then(setBranchesList)
+      .then(list => {
+        setBranchesList(list);
+        if (list && list.length > 0) {
+          setSelectedCreateBranchId(list[0].branchId);
+        }
+      })
       .catch(err => console.error("Error loading branches:", err));
+
+    // Fetch leaderboard list
+    api.get<any[]>('/api/public/feed/leaderboard')
+      .then(setLeaderboardList)
+      .catch(err => console.error("Error loading leaderboard:", err));
 
     // Connect to Feed WebSocket
     let ws: WebSocket | null = null;
@@ -482,9 +530,17 @@ export default function ForumFeedPage() {
     }
 
     if (activeHashtagFilter) {
-      // Match content keywords
       const cleanHash = activeHashtagFilter.toLowerCase();
       list = list.filter(p => p.content.toLowerCase().includes(cleanHash));
+    }
+
+    if (activeStarFilter !== 'Tất cả') {
+      if (activeStarFilter === 'Có ảnh/video') {
+        list = list.filter(p => p.mediaUrls && p.mediaUrls.trim().length > 0);
+      } else {
+        const stars = parseInt(activeStarFilter, 10);
+        list = list.filter(p => p.rating === stars);
+      }
     }
 
     if (activeReviewTab === 'popular') {
@@ -494,7 +550,7 @@ export default function ForumFeedPage() {
     }
 
     return list;
-  }, [posts, searchText, selectedDistrict, activeHashtagFilter, activeReviewTab, branchesList]);
+  }, [posts, searchText, selectedDistrict, activeHashtagFilter, activeReviewTab, branchesList, activeStarFilter]);
 
   // --- Action Handlers ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -655,7 +711,7 @@ export default function ForumFeedPage() {
   const handleDeletePost = async (postId: number) => {
     try {
       await api.delete(`/api/public/feed/posts/${postId}`, {
-        params: { phone: user?.phone }
+        params: { phone: user?.phone || undefined }
       });
       toast.success(locale === 'vi' ? 'Đã xóa bài viết thành công.' : 'Post deleted successfully.');
       setDeletingPostId(null);
@@ -1023,6 +1079,28 @@ export default function ForumFeedPage() {
               </div>
             </div>
 
+            {/* STAR FILTER MATRIX */}
+            <div className="flex flex-wrap gap-1.5 p-1.5 bg-slate-100/50 rounded-2xl border border-slate-200/50">
+              {['Tất cả', '5 sao', '4 sao', '3 sao', '2 sao', '1 sao', 'Có ảnh/video'].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => {
+                    setActiveStarFilter(filter);
+                    toast.info(locale === 'vi' ? `Lọc theo: ${filter}` : `Filtered by: ${filter}`);
+                  }}
+                  className={`text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all ${
+                    activeStarFilter === filter
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'bg-white text-slate-500 hover:text-slate-800 border border-slate-100 hover:border-slate-200'
+                  }`}
+                >
+                  {filter === 'Tất cả' && (locale === 'vi' ? '🌟 Tất cả' : '🌟 All')}
+                  {filter === 'Có ảnh/video' && (locale === 'vi' ? '🖼️ Có ảnh/video' : '🖼️ Media Only')}
+                  {filter !== 'Tất cả' && filter !== 'Có ảnh/video' && `⭐ ${filter}`}
+                </button>
+              ))}
+            </div>
+
             {/* Posts Feed */}
             {loading && posts.length === 0 ? (
               <div className="space-y-4">
@@ -1117,28 +1195,45 @@ export default function ForumFeedPage() {
                           {post.content}
                         </p>
 
-                        {/* Large Image/Video Display */}
-                        {post.mediaUrls && (
-                          <div className="grid grid-cols-2 gap-2 mt-3">
-                            {post.mediaUrls.split(';').filter(Boolean).map((url: string, index: number) => {
-                              const cleanUrl = url.startsWith('http') 
-                                ? url 
-                                : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
-                              
-                              const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
-
-                              return (
-                                <div key={index} className="relative h-44 rounded-xl overflow-hidden shadow-sm bg-slate-50 border border-slate-100">
-                                  {isVid ? (
-                                    <video src={cleanUrl} className="w-full h-full object-cover" controls />
-                                  ) : (
-                                    <img src={cleanUrl} alt={bName} className="w-full h-full object-cover" />
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        {/* Intelligent Media Grid Preview with Lightbox Click Trigger */}
+                        {post.mediaUrls && (() => {
+                          const urls = post.mediaUrls.split(';').filter(Boolean);
+                          if (urls.length === 0) return null;
+                          const displayCount = Math.min(urls.length, 3);
+                          return (
+                            <div className={`grid gap-2 mt-3 ${
+                              displayCount === 1 ? 'grid-cols-1' :
+                              displayCount === 2 ? 'grid-cols-2' : 'grid-cols-3'
+                            }`}>
+                              {urls.slice(0, 3).map((url: string, idx: number) => {
+                                const cleanUrl = url.startsWith('http') 
+                                  ? url 
+                                  : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
+                                const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
+                                const isLast = idx === 2 && urls.length > 3;
+                                
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    onClick={() => setLightboxMedia({ urls, index: idx })}
+                                    className="relative h-28 sm:h-36 rounded-xl overflow-hidden shadow-sm bg-slate-50 border border-slate-100 cursor-zoom-in group"
+                                  >
+                                    {isVid ? (
+                                      <video src={cleanUrl} className="w-full h-full object-cover pointer-events-none" />
+                                    ) : (
+                                      <img src={cleanUrl} alt="Review Media" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                                    )}
+                                    {isLast && (
+                                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-extrabold text-sm backdrop-blur-[1px]">
+                                        +{urls.length - 3}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
 
                         {/* Tagged Products Badges */}
                         {post.taggedProducts && post.taggedProducts.length > 0 && (
@@ -1152,6 +1247,21 @@ export default function ForumFeedPage() {
                                 🍽️ {prod.name}
                               </Link>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Official Restaurant Reply */}
+                        {post.restaurantReply && (
+                          <div className="mt-3 ml-6 pl-4 border-l-4 border-slate-700 bg-slate-50 p-3 rounded-r-xl space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] bg-slate-800 text-white font-extrabold px-2 py-0.5 rounded-full">
+                                {locale === 'vi' ? 'Phản hồi từ Nhà hàng' : 'Restaurant Response'}
+                              </span>
+                              <span className="text-[9px] text-slate-400">
+                                {post.replyAuthorName} • {new Date(post.repliedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-650 leading-relaxed italic">{post.restaurantReply}</p>
                           </div>
                         )}
                       </div>
@@ -1296,7 +1406,16 @@ export default function ForumFeedPage() {
                 <h3 className="font-bold text-slate-800 text-sm">{t.sidebarActiveMembers}</h3>
               </div>
               <div className="space-y-3.5">
-                {leaderboardUsers.map((user) => (
+                {(leaderboardList.length > 0 
+                  ? leaderboardList.map((item: any, idx: number) => ({
+                      rank: idx + 1,
+                      name: item.name || 'Khách hàng',
+                      points: item.loyaltyPoints || 0,
+                      avatar: `https://images.unsplash.com/photo-${1535713875000 + idx}?auto=format&fit=crop&q=80&w=100`,
+                      isTop: idx === 0
+                    }))
+                  : leaderboardUsers
+                ).map((user) => (
                   <div key={user.rank} className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <div className="relative">
@@ -1312,7 +1431,7 @@ export default function ForumFeedPage() {
                         <span className="text-[9px] text-slate-400 mt-1 block">{t.rankText} #{user.rank}</span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-55 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                       {user.points} pts
                     </span>
                   </div>
@@ -1384,6 +1503,55 @@ export default function ForumFeedPage() {
                 {locale === 'vi' ? 'Đồng ý xóa' : 'Delete'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MEDIA LIGHTBOX CAROUSEL MODAL */}
+      {lightboxMedia && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <button 
+            onClick={() => setLightboxMedia(null)}
+            className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full z-50 transition"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          
+          <div className="relative max-w-4xl w-full h-[80vh] flex items-center justify-center">
+            {/* Left navigation arrow */}
+            {lightboxMedia.index > 0 && (
+              <button 
+                onClick={() => setLightboxMedia(prev => prev ? { ...prev, index: prev.index - 1 } : null)}
+                className="absolute left-4 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full z-50 transition focus:outline-none"
+              >
+                ◀
+              </button>
+            )}
+
+            {/* Current displaying image/video */}
+            {(() => {
+              const url = lightboxMedia.urls[lightboxMedia.index];
+              const cleanUrl = url.startsWith('http') 
+                ? url 
+                : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
+              const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
+              
+              return isVid ? (
+                <video src={cleanUrl} className="max-w-full max-h-full rounded-lg object-contain" controls autoPlay />
+              ) : (
+                <img src={cleanUrl} alt="Lightbox Preview" className="max-w-full max-h-full rounded-lg object-contain" />
+              );
+            })()}
+
+            {/* Right navigation arrow */}
+            {lightboxMedia.index < lightboxMedia.urls.length - 1 && (
+              <button 
+                onClick={() => setLightboxMedia(prev => prev ? { ...prev, index: prev.index + 1 } : null)}
+                className="absolute right-4 bg-white/10 hover:bg-white/20 text-white p-3 rounded-full z-50 transition focus:outline-none"
+              >
+                ▶
+              </button>
+            )}
           </div>
         </div>
       )}
