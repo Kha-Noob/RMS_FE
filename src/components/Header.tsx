@@ -12,7 +12,9 @@ import {
   ChevronDown, 
   Award, 
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  Building,
+  Layers
 } from 'lucide-react';
 
 export default function Header() {
@@ -39,7 +41,9 @@ export default function Header() {
       myRestaurant: 'Nhà hàng của tôi',
       myProfile: 'Trang cá nhân',
       bookingHistory: 'Lịch sử đặt bàn',
-      bookTable: 'Đặt bàn ngay'
+      bookTable: 'Đặt bàn ngay',
+      tenantMgmt: 'Cấp chuỗi (Tenants)',
+      branchMgmt: 'Quản lý Chi nhánh'
     } : {
       navExplore: 'Explore',
       navFeed: 'Review Feed',
@@ -52,7 +56,9 @@ export default function Header() {
       myRestaurant: 'My Restaurant',
       myProfile: 'My Profile',
       bookingHistory: 'Booking History',
-      bookTable: 'Book Table'
+      bookTable: 'Book Table',
+      tenantMgmt: 'Tenants Provision',
+      branchMgmt: 'Branch Management'
     };
   }, [locale]);
 
@@ -177,6 +183,26 @@ export default function Header() {
                       <UserIcon className="h-4 w-4 text-slate-400" />
                       <span>{t.myProfile}</span>
                     </Link>
+                    {isAdmin && (
+                      <Link 
+                        href="/admin-tenants"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Building className="h-4 w-4 text-slate-400" />
+                        <span>{t.tenantMgmt}</span>
+                      </Link>
+                    )}
+                    {isCooperator && (
+                      <Link 
+                        href="/branch-management"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Layers className="h-4 w-4 text-slate-400" />
+                        <span>{t.branchMgmt}</span>
+                      </Link>
+                    )}
                     {(isAdmin || isCooperator) ? (
                       <Link 
                         href="/my-restaurant"
