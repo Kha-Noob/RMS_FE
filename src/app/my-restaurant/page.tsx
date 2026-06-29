@@ -87,7 +87,7 @@ export default function MyRestaurantPage() {
     highlights: '', // input as semicolon-separated
     branchId: '01-2thang9',
     eventDates: '', // input as comma-separated
-    isUsingSystemWeb: user?.roles.includes('ADMIN') || false
+    isUsingSystemWeb: user?.isUsingSystemWeb || user?.roles.includes('ADMIN') || false
   });
 
   const branches = [
@@ -171,7 +171,7 @@ export default function MyRestaurantPage() {
       highlights: '',
       branchId: '01-2thang9',
       eventDates: '',
-      isUsingSystemWeb: user?.roles.includes('ADMIN') || false
+      isUsingSystemWeb: user?.isUsingSystemWeb || user?.roles.includes('ADMIN') || false
     });
   };
 
@@ -659,31 +659,26 @@ export default function MyRestaurantPage() {
                 />
               </div>
 
-              {/* Cooperator Commission Toggling Policy */}
+              {/* Cooperator Commission Toggling Policy (Auto Detected) */}
               <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 <div className="space-y-1 flex-1">
                   <div className="flex items-center gap-2">
                     <Globe className="h-4.5 w-4.5 text-indigo-500" />
-                    <span className="font-extrabold text-slate-800">{locale === 'vi' ? 'Chính sách liên kết sử dụng Web RMS' : 'Collaborative System Web Usage'}</span>
+                    <span className="font-extrabold text-slate-800">{locale === 'vi' ? 'Chính sách tính phí hoa hồng' : 'Commission Fee Policy'}</span>
                   </div>
                   <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
                     {locale === 'vi'
-                      ? 'Tích chọn nếu nhà hàng của bạn hiện đang liên kết hoạt động trên phần mềm bán hàng/web của hệ thống RMS để được hưởng mức phí hoa hồng ưu đãi 5% thay vì 10%.'
-                      : 'Check this if your restaurant operates using our standard RMS POS/website software to enjoy a subsidized commission rate of 5% instead of 10%.'}
+                      ? 'Mức phí hoa hồng được hệ thống tự động xác định dựa trên trạng thái hợp tác của tài khoản của bạn (5.0% đối với các chuỗi sử dụng Web/POS RMS và 10.0% đối với các chiến dịch quảng cáo ngoài).'
+                      : 'The commission rate is automatically determined based on your account integration status (5.0% for chains using RMS Web/POS and 10.0% for external advertising campaigns).'}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <label className="relative inline-flex items-center cursor-pointer select-none">
-                    <input 
-                      type="checkbox" 
-                      checked={formData.isUsingSystemWeb}
-                      onChange={(e) => setFormData({...formData, isUsingSystemWeb: e.target.checked})}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                  <span className="font-extrabold text-xs text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full">
-                    {locale === 'vi' ? 'Phí:' : 'Fee:'} {formData.isUsingSystemWeb ? '5.0%' : '10.0%'}
+                  <span className={`px-3 py-1 rounded-full text-xs font-black border ${
+                    formData.isUsingSystemWeb 
+                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                      : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                  }`}>
+                    {locale === 'vi' ? 'Hệ thống nhận diện:' : 'Detected Status:'} {formData.isUsingSystemWeb ? (locale === 'vi' ? 'Liên kết RMS (5.0%)' : 'RMS Linked (5.0%)') : (locale === 'vi' ? 'Quảng cáo ngoài (10.0%)' : 'Ads Only (10.0%)')}
                   </span>
                 </div>
               </div>

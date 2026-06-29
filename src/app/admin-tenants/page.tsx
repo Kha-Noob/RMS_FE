@@ -12,6 +12,7 @@ interface TenantDto {
   name: string;
   domain: string;
   isActive: boolean;
+  isUsingSystemWeb: boolean;
   ownerEmail: string;
   ownerName: string;
 }
@@ -33,7 +34,8 @@ export default function AdminTenantsPage() {
     domain: '',
     ownerEmail: '',
     ownerName: '',
-    ownerPassword: ''
+    ownerPassword: '',
+    isUsingSystemWeb: false
   });
 
   // Check role permission
@@ -79,7 +81,7 @@ export default function AdminTenantsPage() {
       await api.post('/api/admin/tenants', form);
       toast.success(locale === 'vi' ? 'Cấp chuỗi thuê ứng dụng thành công!' : 'Tenant provisioned successfully!');
       setShowModal(false);
-      setForm({ name: '', domain: '', ownerEmail: '', ownerName: '', ownerPassword: '' });
+      setForm({ name: '', domain: '', ownerEmail: '', ownerName: '', ownerPassword: '', isUsingSystemWeb: false });
       fetchTenants();
     } catch (err: any) {
       const errMsg = err?.response?.data || (locale === 'vi' ? 'Thao tác thất bại!' : 'Failed to provision tenant!');
@@ -97,7 +99,8 @@ export default function AdminTenantsPage() {
       setSubmitting(true);
       await api.put(`/api/admin/tenants/${editingTenant.tenantId}`, {
         name: editingTenant.name,
-        domain: editingTenant.domain
+        domain: editingTenant.domain,
+        isUsingSystemWeb: editingTenant.isUsingSystemWeb
       });
       toast.success(locale === 'vi' ? 'Cập nhật thông tin thành công!' : 'Tenant updated successfully!');
       setEditingTenant(null);
@@ -154,6 +157,7 @@ export default function AdminTenantsPage() {
                   <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Mã Tenant' : 'Tenant ID'}</th>
                   <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Tên miền' : 'Domain'}</th>
                   <th className="py-4 px-6 text-left">{locale === 'vi' ? 'Chủ chuỗi (Email)' : 'Owner (Email)'}</th>
+                  <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Liên kết Web RMS' : 'Linked Web RMS'}</th>
                   <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Trạng thái' : 'Status'}</th>
                   <th className="py-4 px-6 text-center">{locale === 'vi' ? 'Hành động' : 'Actions'}</th>
                 </tr>
@@ -161,7 +165,7 @@ export default function AdminTenantsPage() {
               <tbody className="divide-y divide-slate-100">
                 {tenants.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-400">
+                    <td colSpan={7} className="py-8 text-center text-slate-400">
                       {locale === 'vi' ? 'Chưa có chuỗi nào được cấp quyền' : 'No tenants provisioned yet'}
                     </td>
                   </tr>
@@ -174,6 +178,15 @@ export default function AdminTenantsPage() {
                       <td className="py-4 px-6">
                         <div className="font-semibold text-slate-700">{t.ownerName || '—'}</div>
                         <div className="text-slate-400 font-mono text-[10px]">{t.ownerEmail || '—'}</div>
+                      </td>
+                      <td className="py-4 px-6 text-center">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border ${
+                          t.isUsingSystemWeb 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                            : 'bg-slate-55 text-slate-500 border-slate-100'
+                        }`}>
+                          {t.isUsingSystemWeb ? (locale === 'vi' ? 'Có (Phí 5%)' : 'Yes (5% Fee)') : (locale === 'vi' ? 'Không (Phí 10%)' : 'No (10% Fee)')}
+                        </span>
                       </td>
                       <td className="py-4 px-6 text-center">
                         <button
@@ -234,6 +247,21 @@ export default function AdminTenantsPage() {
                   className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#25439b]"
                 />
               </div>
+
+              {/* isUsingSystemWeb Checkbox */}
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  id="isUsingSystemWeb"
+                  checked={form.isUsingSystemWeb}
+                  onChange={e => setForm({...form, isUsingSystemWeb: e.target.checked})}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="isUsingSystemWeb" className="font-semibold text-slate-700 select-none cursor-pointer">
+                  {locale === 'vi' ? 'Hợp tác sử dụng phần mềm Web/POS RMS (Phí 5% thay vì 10%)' : 'Cooperate using RMS Web/POS (5% fee instead of 10%)'}
+                </label>
+              </div>
+
               <div className="border-t border-dashed border-slate-100 my-4 pt-3">
                 <h4 className="font-bold text-slate-700 mb-2">{locale === 'vi' ? 'Tài khoản Chủ chuỗi' : 'Chain Owner Credentials'}</h4>
                 <div className="grid grid-cols-2 gap-3 mb-3">
@@ -321,6 +349,21 @@ export default function AdminTenantsPage() {
                   className="w-full p-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#25439b]"
                 />
               </div>
+
+              {/* Edit isUsingSystemWeb Checkbox */}
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  id="editIsUsingSystemWeb"
+                  checked={editingTenant.isUsingSystemWeb}
+                  onChange={e => setEditingTenant({...editingTenant, isUsingSystemWeb: e.target.checked})}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="editIsUsingSystemWeb" className="font-semibold text-slate-700 select-none cursor-pointer">
+                  {locale === 'vi' ? 'Hợp tác sử dụng phần mềm Web/POS RMS (Phí 5% thay vì 10%)' : 'Cooperate using RMS Web/POS (5% fee instead of 10%)'}
+                </label>
+              </div>
+
               <div className="flex gap-2.5 pt-4 justify-end">
                 <button
                   type="button"

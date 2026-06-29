@@ -6,6 +6,7 @@ export interface User {
   isActive: boolean;
   branchId: string | null;
   tenantId: string | null;
+  isUsingSystemWeb?: boolean;
   avatarUrl?: string | null;
   bookingCount?: number;
   totalSpent?: number;
