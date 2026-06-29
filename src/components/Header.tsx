@@ -233,14 +233,16 @@ export default function Header() {
                         <span>{t.myRestaurant}</span>
                       </Link>
                     ) : null}
-                    <Link
-                      href="/profile"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                    >
-                      <Calendar className="h-4 w-4 text-slate-400" />
-                      <span>{t.bookingHistory}</span>
-                    </Link>
+                    {!isCooperator && (
+                      <Link
+                        href="/profile"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                      >
+                        <Calendar className="h-4 w-4 text-slate-400" />
+                        <span>{t.bookingHistory}</span>
+                      </Link>
+                    )}
                     <div className="my-1 border-t border-slate-100" />
                     <button 
                       onClick={() => {
