@@ -22,7 +22,12 @@ import {
   EyeOff,
   Award,
   Shield,
-  Lock
+  Lock,
+  Search,
+  Filter,
+  MapPin,
+  Ticket,
+  ArrowRight
 } from 'lucide-react';
 
 export default function PublicProfilePage() {
@@ -81,32 +86,7 @@ export default function PublicProfilePage() {
     }
   }, [user]);
 
-  // --- Live Booking History ---
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [loadingBookings, setLoadingBookings] = useState(false);
-  const [editingBooking, setEditingBooking] = useState<any | null>(null);
-  const [editDate, setEditDate] = useState('');
-  const [editTime, setEditTime] = useState('18:30');
-  const [editGuests, setEditGuests] = useState(2);
 
-  const fetchBookings = useCallback(async () => {
-    if (!user) return;
-    try {
-      setLoadingBookings(true);
-      const data = await api.get<any[]>('/api/public/bookings/customer', {
-        params: { phone: user.phone || '', email: user.email || '' }
-      });
-      setBookings(data);
-    } catch {
-      setBookings([]);
-    } finally {
-      setLoadingBookings(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchBookings();
-  }, [fetchBookings]);
 
   // Fetch and submit cooperation requests
   const fetchCoopRequests = useCallback(async () => {
@@ -165,41 +145,7 @@ export default function PublicProfilePage() {
     }
   };
 
-  const handleCancelBooking = async (bookingId: number) => {
-    if (!window.confirm('Bạn có chắc chắn muốn hủy đặt bàn này không?')) return;
-    try {
-      await api.delete(`/api/public/bookings/${bookingId}`);
-      toast.success('Hủy đặt bàn thành công!');
-      fetchBookings();
-    } catch (err: any) {
-      toast.error(err.message || 'Lỗi khi hủy đặt bàn!');
-    }
-  };
 
-  const handleOpenEdit = (booking: any) => {
-    setEditingBooking(booking);
-    const datePart = booking.bookingTime.split('T')[0];
-    const timePart = booking.bookingTime.split('T')[1].substring(0, 5);
-    setEditDate(datePart);
-    setEditTime(timePart);
-    setEditGuests(booking.guests);
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingBooking) return;
-    try {
-      await api.put(`/api/public/bookings/${editingBooking.id}`, {
-        bookingTime: `${editDate}T${editTime}:00`,
-        guests: editGuests
-      });
-      toast.success('Cập nhật đặt bàn thành công!');
-      setEditingBooking(null);
-      fetchBookings();
-    } catch (err: any) {
-      toast.error(err.message || 'Lỗi khi cập nhật đặt bàn!');
-    }
-  };
 
   // --- Dynamic Translations Dictionary ---
   const t = useMemo(() => {
@@ -241,16 +187,24 @@ export default function PublicProfilePage() {
       statMemberSinceSub: 'Ngày gia nhập hệ thống',
 
       // Booking History
-      bookingHistoryTitle: 'Lịch sử đặt bàn gần đây',
+      bookingHistoryTitle: 'Lịch sử hoạt động gần đây',
       btnViewAll: 'Xem tất cả',
-      thDate: 'Ngày đặt',
-      thBranch: 'Chi nhánh',
+      thDate: 'Thời gian',
+      thBranch: 'Sự kiện / Chi nhánh',
       thGuests: 'Số khách',
-      thSpent: 'Hóa đơn',
+      thSpent: 'Đặt cọc/Hóa đơn',
       thStatus: 'Trạng thái',
       statusCompleted: 'Hoàn thành',
       statusUpcoming: 'Sắp diễn ra',
       statusCancelled: 'Đã hủy',
+      thType: 'Loại',
+      typeTable: 'Đặt bàn',
+      typeEvent: 'Vé sự kiện',
+      thLocation: 'Địa điểm',
+      searchPlaceholder: 'Tìm theo tên event, nhà hàng, địa điểm...',
+      filterAll: 'Tất cả trạng thái',
+      filterAllTypes: 'Tất cả loại hình',
+      noBookingsFound: 'Không tìm thấy lịch sử đặt bàn hoặc đặt vé.',
       
       // Edit Account Info
       cardInfoTitle: 'Thông tin cá nhân',
@@ -344,16 +298,24 @@ export default function PublicProfilePage() {
       statMemberSinceSub: 'Join date',
 
       // Booking History
-      bookingHistoryTitle: 'Recent Booking History',
+      bookingHistoryTitle: 'Recent Activity History',
       btnViewAll: 'View All',
-      thDate: 'Booking Date',
-      thBranch: 'Branch',
+      thDate: 'Time',
+      thBranch: 'Event / Branch',
       thGuests: 'Party Size',
-      thSpent: 'Bill Amount',
+      thSpent: 'Deposit/Bill',
       thStatus: 'Status',
       statusCompleted: 'Completed',
       statusUpcoming: 'Upcoming',
       statusCancelled: 'Cancelled',
+      thType: 'Type',
+      typeTable: 'Table Reservation',
+      typeEvent: 'Event Ticket',
+      thLocation: 'Location',
+      searchPlaceholder: 'Search by event name, restaurant, address...',
+      filterAll: 'All statuses',
+      filterAllTypes: 'All types',
+      noBookingsFound: 'No booking or ticket history found.',
       
       // Edit Account Info
       cardInfoTitle: 'Personal Information',
@@ -753,106 +715,6 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
-        {/* RECENT BOOKINGS HISTORY TABLE */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-5 shadow-sm">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-650" />
-              <h2 className="text-base font-extrabold text-slate-800">{t.bookingHistoryTitle}</h2>
-            </div>
-            <button 
-              onClick={() => toast.info(locale === 'vi' ? 'Lịch sử đặt bàn đầy đủ đang được xây dựng!' : 'Full booking history is being built!')}
-              className="text-xs font-bold text-blue-650 hover:underline cursor-pointer"
-            >
-              {t.btnViewAll}
-            </button>
-          </div>
-
-          <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
-            <table className="w-full text-sm text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-400 font-bold text-[10px] uppercase tracking-wider">
-                  <th className="py-3 px-1">{t.thDate}</th>
-                  <th className="py-3 px-3">{t.thBranch}</th>
-                  <th className="py-3 px-3 text-center">{t.thGuests}</th>
-                  <th className="py-3 px-3 text-right">{t.thSpent}</th>
-                  <th className="py-3 px-1 text-center">{t.thStatus}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {bookings.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-6 text-center text-slate-400 text-xs">
-                      Không có thông tin lịch sử đặt bàn.
-                    </td>
-                  </tr>
-                ) : (
-                  bookings.map((booking) => {
-                    const isUpcoming = booking.status === 'PENDING' || booking.status === 'CONFIRMED';
-                    const branchName = booking.branchId === '01-2thang9' 
-                      ? 'Chi nhánh 2 Tháng 9' 
-                      : booking.branchId === '11-NguyenHuuTho' 
-                      ? 'Chi nhánh Nguyễn Hữu Thọ' 
-                      : booking.branchId === '21-HaiPhong' 
-                      ? 'Chi nhánh Hải Phòng' 
-                      : booking.branchId;
-
-                    return (
-                      <tr key={booking.id} className="hover:bg-slate-50/50 transition">
-                        <td className="py-4 px-1 font-medium text-xs whitespace-nowrap">
-                          {new Date(booking.bookingTime).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="py-4 px-3 font-semibold text-xs text-slate-900">
-                          {branchName} {booking.tableLabel ? `(${booking.tableLabel})` : ''}
-                        </td>
-                        <td className="py-4 px-3 text-center text-xs font-medium">
-                          {booking.guests} {locale === 'vi' ? 'khách' : 'guests'}
-                        </td>
-                        <td className="py-4 px-3 text-right font-bold text-xs text-slate-900">
-                          {booking.depositAmount > 0 ? formatCurrency(booking.depositAmount) : '---'}
-                        </td>
-                        <td className="py-4 px-1 text-center">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-black tracking-wide border ${
-                              booking.status === 'CHECKED_IN'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                : isUpcoming
-                                ? 'bg-blue-50 text-blue-700 border-blue-100'
-                                : 'bg-rose-50 text-rose-700 border-rose-100'
-                            }`}>
-                              {booking.status}
-                            </span>
-                            {isUpcoming && (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleOpenEdit(booking)}
-                                  className="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded text-[9px] font-bold transition"
-                                >
-                                  Sửa
-                                </button>
-                                <button
-                                  onClick={() => handleCancelBooking(booking.id)}
-                                  className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded text-[9px] font-bold transition"
-                                >
-                                  Hủy
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
         {/* Card 4: Edit Account Information & Avatar Upload */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm">
@@ -1244,85 +1106,7 @@ export default function PublicProfilePage() {
           </div>
         )}
 
-        {/* Edit Booking Modal (US#7) */}
-        {editingBooking && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-slate-200 shadow-xl space-y-4">
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-sm">Chỉnh sửa thông tin đặt bàn</h3>
-                <p className="text-xs text-slate-500">Mã đặt bàn: RMS-BK{editingBooking.id}</p>
-              </div>
 
-              <form onSubmit={handleSaveEdit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">Chọn ngày mới</label>
-                  <input
-                    type="date"
-                    min={new Date().toISOString().split('T')[0]}
-                    value={editDate}
-                    onChange={e => setEditDate(e.target.value)}
-                    required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">Chọn giờ mới</label>
-                  <select
-                    value={editTime}
-                    onChange={e => setEditTime(e.target.value)}
-                    required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
-                  >
-                    <option value="11:00">11:00 AM</option>
-                    <option value="11:30">11:30 AM</option>
-                    <option value="12:00">12:00 PM</option>
-                    <option value="12:30">12:30 PM</option>
-                    <option value="13:00">13:00 PM</option>
-                    <option value="17:00">17:00 PM</option>
-                    <option value="17:30">17:30 PM</option>
-                    <option value="18:00">18:00 PM</option>
-                    <option value="18:30">18:30 PM</option>
-                    <option value="19:00">19:00 PM</option>
-                    <option value="19:30">19:30 PM</option>
-                    <option value="20:00">20:00 PM</option>
-                    <option value="20:30">20:30 PM</option>
-                    <option value="21:00">21:00 PM</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 block">Số lượng khách</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={30}
-                    value={editGuests}
-                    onChange={e => setEditGuests(parseInt(e.target.value) || 2)}
-                    required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingBooking(null)}
-                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 bg-[#25439b] hover:bg-[#1c3580] text-white font-bold text-xs rounded-xl shadow"
-                  >
-                    Lưu thay đổi
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
 
 
       </main>
