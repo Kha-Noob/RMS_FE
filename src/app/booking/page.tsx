@@ -123,14 +123,24 @@ export default function BookingWizardPage() {
   // --- Step 5 States (Success) ---
   const [createdBooking, setCreatedBooking] = useState<any>(null);
 
-  // --- Load Branches ---
+  // --- Load Branches & Pre-fill from URL parameters ---
   useEffect(() => {
+    const queryParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+    const queryTenantId = queryParams.get('tenantId') || '';
+    const queryBranchId = queryParams.get('branchId') || '';
+    const queryDate = queryParams.get('date') || '';
+    const queryTime = queryParams.get('time') || '';
+    const queryGuests = queryParams.get('guests') || '';
+
     const loadBranches = async () => {
       try {
-        const data = await api.get<Branch[]>('/api/public/branches');
+        const data = await api.get<Branch[]>('/api/public/branches', {
+          params: queryTenantId ? { tenantId: queryTenantId } : undefined
+        });
         setBranches(data);
         if (data.length > 0) {
-          setSelectedBranchId(data[0].branchId);
+          const preSelected = data.find(b => b.branchId === queryBranchId);
+          setSelectedBranchId(preSelected ? preSelected.branchId : data[0].branchId);
         }
       } catch (err) {
         toast.error('Không thể tải danh sách chi nhánh!');
@@ -138,8 +148,9 @@ export default function BookingWizardPage() {
     };
     loadBranches();
     
-    // Set default date to today
-    setBookingDate(new Date().toISOString().split('T')[0]);
+    setBookingDate(queryDate || new Date().toISOString().split('T')[0]);
+    if (queryTime) setBookingTime(queryTime);
+    if (queryGuests) setGuests(parseInt(queryGuests) || 2);
   }, []);
 
   // Sync user info if loaded later
