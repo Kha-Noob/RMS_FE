@@ -151,6 +151,14 @@ export const api = {
       headers: {},
     });
   },
+  postMultipart: <T>(endpoint: string, formData: FormData, opts?: RequestOptions) => {
+    return request<T>(endpoint, {
+      method: 'POST',
+      body: formData,
+      headers: {},
+      ...opts,
+    });
+  },
 };
 
 export function connectWebSocket(path: string): WebSocket {

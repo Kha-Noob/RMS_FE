@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
@@ -685,6 +686,25 @@ export default function MyRestaurantPage() {
                 {locale === 'vi' ? 'Hủy bỏ' : 'Cancel'}
               </button>
             </div>
+            {user?.isUsingSystemWeb && (
+              <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-start gap-3 text-xs text-indigo-800">
+                <span className="text-sm">✨</span>
+                <div>
+                  <p className="font-extrabold text-slate-800">
+                    {locale === 'vi' ? 'Sử dụng AI tối ưu hóa sự kiện' : 'Optimize Events with AI Power'}
+                  </p>
+                  <p className="text-slate-500 font-semibold mt-0.5 leading-relaxed">
+                    {locale === 'vi' 
+                      ? 'Hệ thống hỗ trợ công cụ AI tự tạo ảnh banner đúng chuẩn và viết mô tả sự kiện hấp dẫn. Hãy chuyển qua trang '
+                      : 'We support AI features to auto-scale banners and generate premium descriptions. Switch to '}
+                    <Link href="/cms-events" className="text-indigo-600 hover:text-indigo-800 hover:underline font-extrabold">
+                      {locale === 'vi' ? 'CMS Sự Kiện' : 'CMS Events'}
+                    </Link>
+                    {locale === 'vi' ? ' trên thanh công cụ để sử dụng.' : ' on Sidebar to use.'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6 text-xs text-slate-700">
               

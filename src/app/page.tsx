@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
+import { api } from '@/lib/api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import {
@@ -63,6 +64,20 @@ export default function LandingPage() {
     notes: ''
   });
   const [isBookedSuccess, setIsBookedSuccess] = useState(false);
+
+  // --- AI Custom Pages State & Effect ---
+  const [customPages, setCustomPages] = useState<any[]>([]);
+  useEffect(() => {
+    const fetchCustomPages = async () => {
+      try {
+        const data = await api.get('/api/public/custom-pages');
+        setCustomPages(data as any[]);
+      } catch (err) {
+        console.error('Failed to fetch custom pages:', err);
+      }
+    };
+    fetchCustomPages();
+  }, []);
 
   const t = useMemo(() => {
     return locale === 'vi' ? {
@@ -739,6 +754,65 @@ export default function LandingPage() {
           )}
         </div>
       </section>
+
+      {/* --- EXPLORE PARTNER PAGES SECTION --- */}
+      {customPages.length > 0 && (
+        <section id="explore-ai-section" className="bg-[#F8FAFC] py-16 scroll-mt-20 border-b border-blue-100/50">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-8">
+            {/* Section Header */}
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">✨</span>
+              <div className="text-left">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-800">
+                  {locale === 'vi' ? 'Không gian nhà hàng đối tác' : 'Partner Restaurant Spaces'}
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  {locale === 'vi' 
+                    ? 'Ghé thăm trang giới thiệu riêng của các nhà hàng đối tác để xem thực đơn và ưu đãi độc quyền.' 
+                    : 'Visit the custom pages of our partner restaurants to explore their unique menus and exclusive offers.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Grid list of Custom Pages */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {customPages.map((page) => (
+                <div key={page.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between">
+                  {/* cover image */}
+                  <div className="h-44 w-full relative overflow-hidden bg-slate-150">
+                    <img 
+                      src={page.coverImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80'} 
+                      alt={page.restaurantName} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    />
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                    <div className="space-y-1.5 text-left">
+                      <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                        {page.restaurantName}
+                      </h3>
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                        {page.description}
+                      </p>
+                    </div>
+
+                    {/* Action button */}
+                    <Link
+                      href={`/restaurant-page/${page.tenantId}`}
+                      style={{ backgroundColor: page.primaryColor }}
+                      className="w-full text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm hover:brightness-105 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      <span>{locale === 'vi' ? 'Ghé thăm nhà hàng' : 'Visit Restaurant'}</span>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 5. INTERACTIVE BOOKING MODAL */}
       {bookingRestaurant && (
