@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -346,6 +346,64 @@ export default function EventsPage() {
     branchId: ''
   });
   const [isBookedSuccess, setIsBookedSuccess] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+  const [payingBookingIds, setPayingBookingIds] = useState<number[]>([]);
+  const [payosCheckoutUrl, setPayosCheckoutUrl] = useState<string | null>(null);
+  const [paymentTimeLeft, setPaymentTimeLeft] = useState(300); // 5 mins countdown
+
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+    let timerInterval: NodeJS.Timeout;
+
+    if (isPaying && payingBookingIds.length > 0) {
+      setPaymentTimeLeft(300); // Reset timer
+
+      // Timer countdown
+      timerInterval = setInterval(() => {
+        setPaymentTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerInterval);
+            clearInterval(pollInterval);
+            setIsPaying(false);
+            setPayingBookingIds([]);
+            toast.error(locale === 'vi' ? 'Hết thời gian thanh toán. Vui lòng thử lại!' : 'Payment timeout. Please try again!');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Polling function
+      const checkPaymentStatus = async () => {
+        try {
+          const checkPromises = payingBookingIds.map(id => api.get<any>(`/api/public/bookings/${id}`));
+          const bookings = await Promise.all(checkPromises);
+          
+          // Check if all bookings are PAID
+          const allPaid = bookings.every(b => b.paymentStatus === 'PAID');
+          if (allPaid) {
+            clearInterval(timerInterval);
+            clearInterval(pollInterval);
+            setIsPaying(false);
+            setPayingBookingIds([]);
+            setIsBookedSuccess(true);
+            toast.success(locale === 'vi' ? 'Thanh toán thành công! Vé đã được xác nhận.' : 'Payment successful! Ticket confirmed.');
+            loadEventCapacities();
+          }
+        } catch (err) {
+          console.error("Error polling payment status", err);
+        }
+      };
+
+      // Poll every 2 seconds
+      pollInterval = setInterval(checkPaymentStatus, 2000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (timerInterval) clearInterval(timerInterval);
+    };
+  }, [isPaying, payingBookingIds, locale]);
 
   const filteredEvents = useMemo(() => {
     if (selectedTag === 'Tất cả') return culinaryEvents;
@@ -409,6 +467,33 @@ export default function EventsPage() {
           capacity: '25 students',
           description: 'Learn the history and art behind mixing classic cocktails like Old Fashioned, Negroni, Whiskey Sour. You will be guided on shaker shaking skills, precise barspoon stirring and make 3 cocktails of your own under the guidance of top Bartenders.',
           highlights: ['Learn theory and practice mixing 3 cocktails', 'Separately equipped professional bartending kit', 'Exclusive recipe gift from the Head Barman']
+        },
+        7: {
+          title: 'Premium Seafood Buffet Feast',
+          date: '20/07 - 22/07/2026',
+          location: 'Branch 2 Thang 9, Da Nang',
+          price: '650,000 VND / guest',
+          capacity: '100 guests',
+          description: 'Premium seafood buffet feast featuring king crab, lobster, fresh oysters, and over 50 delicious side dishes. Enjoy a seafood feast in a romantic atmosphere.',
+          highlights: ['Fresh imported seafood', 'Free-flow white wine', 'Live sushi & sashimi counter']
+        },
+        8: {
+          title: 'International Grill & Craft Beer Festival',
+          date: '28/07 - 30/07/2026',
+          location: 'Branch Cooperator 2, Da Nang',
+          price: '250,000 VND / ticket (includes 1 beer)',
+          capacity: '200 guests',
+          description: 'Experience over 15 premium grilled meats from lamb, oak-smoked American beef ribs, combined with cold craft beer from famous brands.',
+          highlights: ['Specially marinated grilled meats', 'Diverse craft beer selection', 'Vibrant live music every night']
+        },
+        9: {
+          title: 'Special Omakase Sushi Experience',
+          date: '05/08/2026',
+          location: 'Branch Cooperator 3, Da Nang',
+          price: '2,000,000 VND / guest',
+          capacity: '10 guests',
+          description: 'A culinary journey discovering the delicate flavors of Japanese cuisine with an Omakase menu hand-prepared by the Head Chef from the freshest ingredients imported daily from Tokyo.',
+          highlights: ['Freshest ingredients imported daily', 'Direct interaction with Japanese Head Chef', 'Premium Sake pairing']
         }
       };
       const tr = dict[evt.id];
@@ -474,6 +559,33 @@ export default function EventsPage() {
           capacity: '25 students',
           description: 'Learn the history and art behind mixing classic cocktails like Old Fashioned, Negroni, Whiskey Sour. You will be guided on shaker shaking skills, precise barspoon stirring and make 3 cocktails of your own under the guidance of top Bartenders.',
           highlights: ['Learn theory and practice mixing 3 cocktails', 'Separately equipped professional bartending kit', 'Exclusive recipe gift from the Head Barman']
+        },
+        7: {
+          title: 'Premium Seafood Buffet Feast',
+          date: '20/07 - 22/07/2026',
+          location: 'Branch 2 Thang 9, Da Nang',
+          price: '650,000 VND / guest',
+          capacity: '100 guests',
+          description: 'Premium seafood buffet feast featuring king crab, lobster, fresh oysters, and over 50 delicious side dishes. Enjoy a seafood feast in a romantic atmosphere.',
+          highlights: ['Fresh imported seafood', 'Free-flow white wine', 'Live sushi & sashimi counter']
+        },
+        8: {
+          title: 'International Grill & Craft Beer Festival',
+          date: '28/07 - 30/07/2026',
+          location: 'Branch Cooperator 2, Da Nang',
+          price: '250,000 VND / ticket (includes 1 beer)',
+          capacity: '200 guests',
+          description: 'Experience over 15 premium grilled meats from lamb, oak-smoked American beef ribs, combined with cold craft beer from famous brands.',
+          highlights: ['Specially marinated grilled meats', 'Diverse craft beer selection', 'Vibrant live music every night']
+        },
+        9: {
+          title: 'Special Omakase Sushi Experience',
+          date: '05/08/2026',
+          location: 'Branch Cooperator 3, Da Nang',
+          price: '2,000,000 VND / guest',
+          capacity: '10 guests',
+          description: 'A culinary journey discovering the delicate flavors of Japanese cuisine with an Omakase menu hand-prepared by the Head Chef from the freshest ingredients imported daily from Tokyo.',
+          highlights: ['Freshest ingredients imported daily', 'Direct interaction with Japanese Head Chef', 'Premium Sake pairing']
         }
       };
       const tr = dict[evt.id];
@@ -565,8 +677,16 @@ export default function EventsPage() {
       toast.error(t.toastEnterName);
       return;
     }
+    if (!/^[A-Za-zÀ-ỹ\s']{2,100}$/.test(bookingForm.name.trim())) {
+      toast.error(locale === 'vi' ? 'Họ và tên không hợp lệ (chỉ chứa chữ cái, từ 2-100 ký tự)!' : 'Invalid name (letters only, 2-100 chars)!');
+      return;
+    }
     if (!bookingForm.phone.trim()) {
       toast.error(t.toastEnterPhone);
+      return;
+    }
+    if (!/^(0|\+84)[35789][0-9]{8}$/.test(bookingForm.phone.trim())) {
+      toast.error(locale === 'vi' ? 'Số điện thoại không đúng định dạng Việt Nam hợp lệ (ví dụ: 0912345678)!' : 'Invalid Vietnamese phone format (ex: 0912345678)!');
       return;
     }
 
@@ -606,8 +726,8 @@ export default function EventsPage() {
           notes: bookingForm.notes,
           tableId: null,
           paymentMethod: isPaid ? paymentMethod : null,
-          paymentStatus: 'PAID',
-          depositPaid: isPaid ? true : false,
+          paymentStatus: isPaid ? 'PENDING' : 'PAID',
+          depositPaid: false,
           depositAmount: isPaid ? (singlePrice * bookingForm.guests) : 0.0
         };
         return api.post<any>('/api/public/bookings', payload);
@@ -616,9 +736,18 @@ export default function EventsPage() {
       const results = await Promise.all(promises);
       const codes = results.map(res => res.id ? `#${res.id}` : '').filter(Boolean).join(', ');
       setBookingCode(codes || 'EVT-' + Math.floor(1000 + Math.random() * 9000));
-      setIsBookedSuccess(true);
-      toast.success(`${t.toastBookingSuccess} ${bookingRestaurant}!`);
-      loadEventCapacities();
+      
+      if (isPaid) {
+        const ids = results.map(res => res.id).filter(Boolean);
+        setPayingBookingIds(ids);
+        const checkoutUrl = results.find(res => res.checkoutUrl)?.checkoutUrl || null;
+        setPayosCheckoutUrl(checkoutUrl);
+        setIsPaying(true);
+      } else {
+        setIsBookedSuccess(true);
+        toast.success(`${t.toastBookingSuccess} ${bookingRestaurant}!`);
+        loadEventCapacities();
+      }
     } catch (err: any) {
       toast.error(err.message || (locale === 'vi' ? 'Đặt vé thất bại, vui lòng thử lại.' : 'Booking failed, please try again.'));
     }
@@ -872,6 +1001,29 @@ export default function EventsPage() {
                     {t.bookingCodeText} <strong className="text-blue-600">#{bookingCode}</strong>. {t.bookingConfirmContact}
                   </p>
                 </div>
+
+                {/* Check-in QR Block */}
+                <div className="border border-slate-200/80 rounded-2xl p-4 bg-slate-50/50 flex flex-col items-center space-y-2 max-w-sm mx-auto">
+                  <div className="bg-white p-2 rounded-xl shadow-inner border border-slate-100 flex items-center justify-center">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                        `=== THÔNG TIN VÉ SỰ KIỆN ===\n` +
+                        `Mã vé: #${bookingCode.replace(/[^0-9]/g, '')}\n` +
+                        `Sự kiện: ${bookingRestaurant || 'Sự kiện đã chọn'}\n` +
+                        `Khách hàng: ${bookingForm.name}\n` +
+                        `Số điện thoại: ${bookingForm.phone}\n` +
+                        `Thời gian: ${bookingForm.time} - ${selectedDates.map(d => d.split('-').reverse().join('/')).join(', ')}\n` +
+                        `Số lượng vé: ${bookingForm.guests} vé\n` +
+                        `Ghi chú: ${bookingForm.notes || 'Không có'}\n` +
+                        `============================`
+                      )}`}
+                      alt="Check-in QR"
+                      className="w-28 h-28 rounded-lg object-contain"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Mã vé Check-in của bạn</p>
+                </div>
+
                 <div className="bg-slate-50 p-4 rounded-xl text-left text-xs space-y-2 border border-slate-100">
                   <p><strong>{t.bookingCustomer}:</strong> {bookingForm.name}</p>
                   <p><strong>{t.bookingPhone}:</strong> {bookingForm.phone}</p>
@@ -885,6 +1037,117 @@ export default function EventsPage() {
                 >
                   {t.bookingBtnComplete}
                 </button>
+              </div>
+            ) : isPaying ? (
+              <div className="p-6 text-center space-y-5 overflow-y-auto flex-1 flex flex-col justify-between">
+                <div className="space-y-4 flex-1">
+                  {/* High-end loading animation */}
+                  <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-4 border-slate-100 border-t-blue-600 animate-spin" />
+                    <QrCode className="h-8 w-8 text-blue-600 animate-pulse" />
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-extrabold text-slate-800">
+                      {locale === 'vi' ? 'Đang chờ chuyển khoản...' : 'Waiting for transfer...'}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                      {locale === 'vi' 
+                        ? 'Hệ thống đang tự động xác thực giao dịch chuyển khoản. Vui lòng giữ nguyên màn hình này.' 
+                        : 'System is verifying transfer transaction. Please keep this screen open.'}
+                    </p>
+                  </div>
+
+                  {/* Timer display */}
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full text-amber-700 font-extrabold text-[10px]">
+                    <Clock className="w-3.5 h-3.5 animate-pulse" />
+                    <span>
+                      {Math.floor(paymentTimeLeft / 60)}:{(paymentTimeLeft % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+
+                  {/* Bank Info & VietQR */}
+                  {bookingEvent && bookingEvent.bankAccountNo && (
+                    <div className="bg-indigo-50/40 rounded-xl p-3 border border-indigo-100/40 space-y-2.5 text-xs font-semibold text-left text-slate-700">
+                      <p className="text-[9px] text-indigo-550 font-black uppercase tracking-wider flex items-center gap-1">
+                        <span>🏦</span> {locale === 'vi' ? 'Thông tin chuyển khoản thanh toán' : 'Transfer Details'}
+                      </p>
+                      <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[10px]">
+                        <span className="text-slate-400 font-bold">{locale === 'vi' ? 'Ngân hàng:' : 'Bank Name:'}</span>
+                        <span className="font-extrabold text-slate-800">{bookingEvent.bankName}</span>
+                        
+                        <span className="text-slate-400 font-bold">{locale === 'vi' ? 'Số tài khoản:' : 'Account No:'}</span>
+                        <span className="font-black text-indigo-700 select-all">{bookingEvent.bankAccountNo}</span>
+                        
+                        <span className="text-slate-400 font-bold">{locale === 'vi' ? 'Chủ tài khoản:' : 'Holder Name:'}</span>
+                        <span className="font-extrabold text-slate-850 uppercase">{bookingEvent.bankAccountName}</span>
+                      </div>
+                      
+                      <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
+                        <img 
+                          src={`https://img.vietqr.io/image/${getVietQrBankId(bookingEvent.bankName || '')}-${bookingEvent.bankAccountNo}-compact.png?amount=${(parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) * bookingForm.guests * selectedDates.length}&addInfo=${encodeURIComponent(`VE ${bookingForm.name.toUpperCase()} ${bookingForm.phone}`)}&accountName=${encodeURIComponent(bookingEvent.bankAccountName || '')}`}
+                          alt="VietQR Payment Code"
+                          className="w-32 h-32 object-contain rounded-lg border border-slate-100 shadow-sm"
+                        />
+                        <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
+                          {locale === 'vi' 
+                            ? '* Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét' 
+                            : '* Please keep amount and transfer note unchanged'}
+                        </p>
+                        {payosCheckoutUrl && (
+                          <a
+                            href={payosCheckoutUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 w-full text-center py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            💳 {locale === 'vi' ? 'Thanh toán tự động qua PayOS' : 'Pay Automatically via PayOS'}
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              // Simulate bank transfer callback to Casso webhook
+                              const amount = (parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) * bookingForm.guests * selectedDates.length;
+                              const description = payingBookingIds.map(id => `VE ${id}`).join(', ');
+                              
+                              await api.post('/api/public/webhook/banking', {
+                                error: 0,
+                                data: [
+                                  {
+                                    description: description,
+                                    amount: amount,
+                                    when: new Date().toISOString()
+                                  }
+                                ]
+                              });
+                              toast.success(locale === 'vi' ? 'Hệ thống đã tự động nhận diện giao dịch chuyển khoản thành công!' : 'System automatically detected successful bank transfer!');
+                            } catch (err) {
+                              toast.error('Simulation failed');
+                            }
+                          }}
+                          className="mt-2 w-full py-1.5 px-3 bg-gradient-to-r from-emerald-550 to-teal-650 hover:from-emerald-650 hover:to-teal-750 text-white rounded-lg text-[9px] font-black transition shadow-sm cursor-pointer animate-pulse"
+                        >
+                          ⚡ {locale === 'vi' ? 'Giả lập Banking tự động nhận diện' : 'Simulate Auto-Banking Webhook'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPaying(false);
+                      setPayingBookingIds([]);
+                    }}
+                    className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs font-bold transition cursor-pointer"
+                  >
+                    {locale === 'vi' ? 'Hủy giao dịch' : 'Cancel Transaction'}
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleConfirmBooking} className="p-6 space-y-4 overflow-y-auto flex-1">

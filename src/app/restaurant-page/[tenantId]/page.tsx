@@ -1114,6 +1114,29 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
                     Mã đặt vé của bạn là <strong className="text-blue-600">#{eventBookingCode}</strong>. Nhân viên nhà hàng sẽ liên hệ với bạn trong vòng 10 phút để xác nhận vé sự kiện và chỗ ngồi.
                   </p>
                 </div>
+
+                {/* Check-in QR Block */}
+                <div className="border border-slate-200/80 rounded-2xl p-4 bg-slate-50/50 flex flex-col items-center space-y-2 max-w-sm mx-auto">
+                  <div className="bg-white p-2 rounded-xl shadow-inner border border-slate-100 flex items-center justify-center">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                        `=== THÔNG TIN VÉ SỰ KIỆN ===\n` +
+                        `Mã vé: #${String(eventBookingCode).replace(/[^0-9]/g, '')}\n` +
+                        `Sự kiện: ${bookingEvent?.title || 'Sự kiện đã chọn'}\n` +
+                        `Khách hàng: ${eventBookingForm.name}\n` +
+                        `Số điện thoại: ${eventBookingForm.phone}\n` +
+                        `Thời gian: ${eventBookingForm.time} - ${selectedDates.map(d => d.split('-').reverse().join('/')).join(', ')}\n` +
+                        `Số lượng vé: ${eventBookingForm.guests} vé\n` +
+                        `Ghi chú: ${eventBookingForm.notes || 'Không có'}\n` +
+                        `============================`
+                      )}`}
+                      alt="Check-in QR"
+                      className="w-28 h-28 rounded-lg object-contain"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Mã vé Check-in của bạn</p>
+                </div>
+
                 <div className="bg-slate-50 p-4 rounded-xl text-left text-xs space-y-2 border border-slate-100 text-slate-700">
                   <p><strong>Khách hàng:</strong> {eventBookingForm.name}</p>
                   <p><strong>Số điện thoại:</strong> {eventBookingForm.phone}</p>
@@ -2015,6 +2038,28 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
                       Mã giữ bàn của bạn là <strong className="text-blue-600">#{createdBooking.id}</strong>. Nhân viên nhà hàng sẽ gọi điện xác nhận trong 10 phút.
                     </p>
                   </div>
+
+                  {/* Check-in QR Block */}
+                  <div className="border border-slate-200/80 rounded-2xl p-4 bg-slate-50/50 flex flex-col items-center space-y-2 max-w-sm mx-auto">
+                    <div className="bg-white p-2 rounded-xl shadow-inner border border-slate-100 flex items-center justify-center">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                          `=== THÔNG TIN ĐẶT BÀN ===\n` +
+                          `Mã đặt bàn: #${createdBooking.id}\n` +
+                          `Khách hàng: ${custName}\n` +
+                          `Số điện thoại: ${custPhone}\n` +
+                          `Thời gian: ${bookingForm.time} ngày ${bookingForm.date.split('-').reverse().join('/')}\n` +
+                          `Số lượng khách: ${bookingForm.guests} người\n` +
+                          `Bàn đã khóa: Bàn ${selectedTableObj?.label || 'Chờ xếp bàn'} - ${selectedPlan?.name || ''}\n` +
+                          `========================`
+                        )}`}
+                        alt="Check-in QR"
+                        className="w-28 h-28 rounded-lg object-contain"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider">Mã vé Check-in của bạn</p>
+                  </div>
+
                   <div className="bg-slate-50 p-4 rounded-xl text-left text-xs space-y-2 border border-slate-100 text-slate-700 font-semibold">
                     <p><strong>Khách hàng:</strong> {custName}</p>
                     <p><strong>Số điện thoại:</strong> {custPhone}</p>

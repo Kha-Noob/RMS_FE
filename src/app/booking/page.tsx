@@ -119,9 +119,59 @@ export default function BookingWizardPage() {
   const [agreedToPolicy, setAgreedToPolicy] = useState<boolean>(false);
   const [paymentMethod, setPaymentMethod] = useState<'QR_PAY' | 'CARD' | 'WALLET'>('QR_PAY');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isPaying, setIsPaying] = useState<boolean>(false);
+  const [paymentTimeLeft, setPaymentTimeLeft] = useState<number>(300); // 5 mins countdown
 
   // --- Step 5 States (Success) ---
   const [createdBooking, setCreatedBooking] = useState<any>(null);
+
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+    let timerInterval: NodeJS.Timeout;
+
+    if (isPaying && createdBooking && createdBooking.id) {
+      setPaymentTimeLeft(300); // Reset timer
+
+      // Timer countdown
+      timerInterval = setInterval(() => {
+        setPaymentTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timerInterval);
+            clearInterval(pollInterval);
+            setIsPaying(false);
+            setIsSubmitting(false);
+            toast.error(locale === 'vi' ? 'Hết thời gian thanh toán đặt cọc. Vui lòng thử lại!' : 'Payment timeout. Please try again!');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // Polling function
+      const checkPaymentStatus = async () => {
+        try {
+          const booking = await api.get<any>(`/api/public/bookings/${createdBooking.id}`);
+          if (booking && booking.paymentStatus === 'PAID') {
+            clearInterval(timerInterval);
+            clearInterval(pollInterval);
+            setIsPaying(false);
+            setCreatedBooking(booking); // Update details with PAID status
+            setStep(5); // Proceed to success screen
+            toast.success(locale === 'vi' ? 'Thanh toán tiền đặt cọc thành công!' : 'Deposit payment successful!');
+          }
+        } catch (err) {
+          console.error("Error polling booking payment status", err);
+        }
+      };
+
+      pollInterval = setInterval(checkPaymentStatus, 2000);
+    }
+
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+      if (timerInterval) clearInterval(timerInterval);
+    };
+  }, [isPaying, createdBooking, locale]);
 
   // --- Load Branches & Pre-fill from URL parameters ---
   useEffect(() => {
@@ -221,7 +271,19 @@ export default function BookingWizardPage() {
   // --- Step 3 -> Step 4 ---
   const handleProceedToStep4 = () => {
     if (!custName.trim()) { toast.error('Vui lòng nhập họ và tên!'); return; }
+    if (!/^[A-Za-zÀ-ỹ\s']{2,100}$/.test(custName.trim())) {
+      toast.error('Họ và tên không hợp lệ (chỉ chứa chữ cái, từ 2-100 ký tự)!');
+      return;
+    }
     if (!custPhone.trim()) { toast.error('Vui lòng nhập số điện thoại!'); return; }
+    if (!/^(0|\+84)[35789][0-9]{8}$/.test(custPhone.trim())) {
+      toast.error('Số điện thoại không đúng định dạng Việt Nam hợp lệ (ví dụ: 0912345678)!');
+      return;
+    }
+    if (custEmail.trim() && !/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(custEmail.trim())) {
+      toast.error('Email không đúng định dạng (ví dụ: name@example.com)!');
+      return;
+    }
     setStep(4);
   };
 
@@ -252,14 +314,20 @@ export default function BookingWizardPage() {
         orderedItemsJson: preOrderCart.length > 0 ? JSON.stringify(preOrderCart) : null,
         depositAmount: requireDeposit ? 100000.0 : 0.0,
         paymentMethod: requireDeposit ? paymentMethod : null,
-        paymentStatus: requireDeposit ? 'PAID' : 'PENDING',
+        paymentStatus: 'PENDING',
+        depositPaid: false,
         status: 'CONFIRMED'
       };
 
       const result = await api.post<any>('/api/public/bookings', bookingData);
       setCreatedBooking(result);
-      setStep(5);
-      toast.success('Đã đặt bàn thành công!');
+      
+      if (requireDeposit) {
+        setIsPaying(true);
+      } else {
+        setStep(5);
+        toast.success('Đã đặt bàn thành công!');
+      }
     } catch (err: any) {
       toast.error(err.message || 'Lỗi khi xử lý đặt bàn!');
     } finally {
@@ -761,6 +829,34 @@ export default function BookingWizardPage() {
               {/* Profile Contacts */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
                 <h3 className="font-extrabold text-slate-900 text-base border-b border-slate-100 pb-2">1. Thông tin liên hệ</h3>
+                {!user && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="space-y-1 text-center sm:text-left">
+                      <h4 className="font-extrabold text-blue-900 text-xs flex items-center justify-center sm:justify-start gap-1.5 uppercase tracking-wide">
+                        <Sparkles className="h-4 w-4 text-blue-600 animate-pulse" /> Đăng nhập nhanh bằng Google
+                      </h4>
+                      <p className="text-slate-600 text-[11px] font-medium leading-relaxed">
+                        Tự động điền nhanh thông tin liên hệ, tích lũy điểm thưởng thành viên và xem lịch sử đặt bàn.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        localStorage.setItem('oauth_redirect', window.location.pathname + window.location.search);
+                        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+                        window.location.href = `${API_BASE}/oauth2/authorization/google`;
+                      }}
+                      className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-lg shadow-sm flex items-center gap-2 transition shrink-0 cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                      </svg>
+                      Đăng nhập ngay
+                    </button>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-700">Họ và tên *</label>
@@ -1038,174 +1134,279 @@ export default function BookingWizardPage() {
 
         {/* STEP 4: Deposit & Policies */}
         {step === 4 && (
-          <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
-            <div className="text-center space-y-1 pb-4 border-b border-slate-100">
-              <h2 className="text-xl font-extrabold text-slate-900">Đặt cọc giữ chỗ & Điều khoản</h2>
-              <p className="text-xs text-slate-500">Xem xét cẩn thận các điều khoản trước khi bấm đặt bàn</p>
-            </div>
-
-            {/* Clear refund policies (US#5) */}
-            <div className="space-y-4">
-              <div className="bg-rose-50 border border-rose-100 text-rose-900 rounded-xl p-4.5 space-y-3">
-                <h4 className="font-extrabold text-sm flex items-center gap-1.5">
-                  <ShieldAlert className="h-4.5 w-4.5 text-rose-600" /> CHÍNH SÁCH ĐẶT CỌC & HỦY BÀN SÒNG PHẲNG
-                </h4>
-                <div className="text-[12px] font-semibold text-slate-650 leading-relaxed space-y-2">
-                  <p>Để duy trì chỗ ngồi trống và bảo đảm các nguyên liệu chế biến trước được chuẩn bị tốt nhất:</p>
-                  
-                  {/* Large font policy list */}
-                  <table className="w-full text-xs font-extrabold border-collapse border border-rose-200 mt-2 bg-white rounded-lg overflow-hidden">
-                    <thead>
-                      <tr className="bg-rose-100 text-rose-900 text-left">
-                        <th className="p-2 border border-rose-250">Thời gian hủy</th>
-                        <th className="p-2 border border-rose-250">Tỷ lệ hoàn tiền cọc</th>
-                      </tr>
-                    </thead>
-                    <tbody className="text-slate-700">
-                      <tr>
-                        <td className="p-2 border border-rose-200">Trước 24 giờ kể từ giờ đón</td>
-                        <td className="p-2 border border-rose-200 text-emerald-650 font-black">Hoàn trả 100% tiền cọc</td>
-                      </tr>
-                      <tr className="bg-slate-50">
-                        <td className="p-2 border border-rose-200">Từ 2 giờ đến 24 giờ trước giờ đón</td>
-                        <td className="p-2 border border-rose-200 text-amber-600 font-black">Hoàn trả 50% tiền cọc</td>
-                      </tr>
-                      <tr>
-                        <td className="p-2 border border-rose-200">Dưới 2 giờ hoặc trễ hẹn quá 15 phút</td>
-                        <td className="p-2 border border-rose-200 text-rose-600 font-black">Không được hoàn cọc (0%)</td>
-                      </tr>
-                    </tbody>
-                  </table>
+          isPaying ? (
+            <div className="max-w-md mx-auto bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl space-y-6 text-center animate-fade-in">
+              <div className="space-y-4">
+                {/* Visual loading ring */}
+                <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-slate-100 border-t-blue-600 animate-spin" />
+                  <QrCode className="h-8 w-8 text-blue-600 animate-pulse" />
                 </div>
+                
+                <div className="space-y-1">
+                  <h3 className="text-base font-black text-slate-900">Đang kiểm tra thanh toán đặt cọc</h3>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    Hệ thống đang tự động rà soát giao dịch chuyển khoản ngân hàng của bạn. Vui lòng giữ nguyên trang, quá trình xác thực mất khoảng 5-15 giây.
+                  </p>
+                </div>
+
+                {/* Countdown Timer */}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full text-amber-700 font-extrabold text-[10px]">
+                  <Clock className="w-3.5 h-3.5 animate-pulse" />
+                  <span>
+                    {Math.floor(paymentTimeLeft / 60)}:{(paymentTimeLeft % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
+
+                {/* Bank details and VietQR */}
+                {selectedBranchObj && selectedBranchObj.bankAccountNo && (
+                  <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100/50 space-y-2.5 text-xs font-semibold text-left text-slate-700">
+                    <p className="text-[10px] text-indigo-550 font-black uppercase tracking-wider flex items-center gap-1">
+                      <span>🏦</span> Thông tin tài khoản nhận đặt cọc
+                    </p>
+                    <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[10px]">
+                      <span className="text-slate-450 font-bold">Ngân hàng:</span>
+                      <span className="font-extrabold text-slate-800">{selectedBranchObj.bankName}</span>
+                      
+                      <span className="text-slate-450 font-bold">Số tài khoản:</span>
+                      <span className="font-black text-indigo-700 select-all">{selectedBranchObj.bankAccountNo}</span>
+                      
+                      <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
+                      <span className="font-extrabold text-slate-800 uppercase">{selectedBranchObj.bankAccountName}</span>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
+                      <img 
+                        src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=100000&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
+                        alt="VietQR Payment Code"
+                        className="w-32 h-32 object-contain rounded-lg border border-slate-100 shadow-sm"
+                      />
+                      <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
+                        * Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét
+                      </p>
+                      {createdBooking && createdBooking.checkoutUrl && (
+                        <a
+                          href={createdBooking.checkoutUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 w-full text-center py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black transition shadow flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          💳 {locale === 'vi' ? 'Thanh toán tự động qua PayOS' : 'Pay Automatically via PayOS'}
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            if (createdBooking && createdBooking.id) {
+                              await api.post('/api/public/webhook/banking', {
+                                error: 0,
+                                data: [
+                                  {
+                                    description: `DC ${createdBooking.id}`,
+                                    amount: 100000,
+                                    when: new Date().toISOString()
+                                  }
+                                ]
+                              });
+                              toast.success(locale === 'vi' ? 'Hệ thống đã tự động nhận diện giao dịch chuyển khoản cọc thành công!' : 'System automatically detected deposit payment transfer!');
+                            }
+                          } catch (err) {
+                            toast.error('Simulation failed');
+                          }
+                        }}
+                        className="mt-2 w-full py-1.5 px-3 bg-gradient-to-r from-emerald-550 to-teal-650 hover:from-emerald-650 hover:to-teal-750 text-white rounded-lg text-[9px] font-black transition shadow-sm cursor-pointer animate-pulse"
+                      >
+                        ⚡ {locale === 'vi' ? 'Giả lập Banking tự động nhận diện' : 'Simulate Auto-Banking Webhook'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Deposit amount show */}
-              {requireDeposit ? (
-                <div className="bg-blue-50 border border-blue-150 rounded-xl p-4 flex justify-between items-center text-xs">
-                  <div className="space-y-0.5">
-                    <p className="font-extrabold text-blue-900">Số tiền đặt cọc yêu cầu:</p>
-                    <p className="text-[10px] text-slate-400">Bao gồm cọc giữ bàn VIP và 20% đặt trước món ăn</p>
+              <div className="pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPaying(false);
+                    setIsSubmitting(false);
+                  }}
+                  className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs font-bold transition cursor-pointer"
+                >
+                  Quay lại để sửa đổi
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+              <div className="text-center space-y-1 pb-4 border-b border-slate-100">
+                <h2 className="text-xl font-extrabold text-slate-900">Đặt cọc giữ chỗ & Điều khoản</h2>
+                <p className="text-xs text-slate-500">Xem xét cẩn thận các điều khoản trước khi bấm đặt bàn</p>
+              </div>
+
+              {/* Clear refund policies (US#5) */}
+              <div className="space-y-4">
+                <div className="bg-rose-50 border border-rose-100 text-rose-900 rounded-xl p-4.5 space-y-3">
+                  <h4 className="font-extrabold text-sm flex items-center gap-1.5">
+                    <ShieldAlert className="h-4.5 w-4.5 text-rose-600" /> CHÍNH SÁCH ĐẶT CỌC & HỦY BÀN SÒNG PHẲNG
+                  </h4>
+                  <div className="text-[12px] font-semibold text-slate-650 leading-relaxed space-y-2">
+                    <p>Để duy trì chỗ ngồi trống và bảo đảm các nguyên liệu chế biến trước được chuẩn bị tốt nhất:</p>
+                    
+                    {/* Large font policy list */}
+                    <table className="w-full text-xs font-extrabold border-collapse border border-rose-200 mt-2 bg-white rounded-lg overflow-hidden">
+                      <thead>
+                        <tr className="bg-rose-100 text-rose-900 text-left">
+                          <th className="p-2 border border-rose-250">Thời gian hủy</th>
+                          <th className="p-2 border border-rose-250">Tỷ lệ hoàn tiền cọc</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-slate-700">
+                        <tr>
+                          <td className="p-2 border border-rose-200">Trước 24 giờ kể từ giờ đón</td>
+                          <td className="p-2 border border-rose-200 text-emerald-650 font-black">Hoàn trả 100% tiền cọc</td>
+                        </tr>
+                        <tr className="bg-slate-50">
+                          <td className="p-2 border border-rose-200">Từ 2 giờ đến 24 giờ trước giờ đón</td>
+                          <td className="p-2 border border-rose-200 text-amber-600 font-black">Hoàn trả 50% tiền cọc</td>
+                        </tr>
+                        <tr>
+                          <td className="p-2 border border-rose-200">Dưới 2 giờ hoặc trễ hẹn quá 15 phút</td>
+                          <td className="p-2 border border-rose-200 text-rose-600 font-black">Không được hoàn cọc (0%)</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                  <span className="text-base font-black text-blue-750">100.000 ₫</span>
                 </div>
-              ) : (
-                <div className="bg-emerald-50 border border-emerald-150 rounded-xl p-4 flex justify-between items-center text-xs">
-                  <div className="space-y-0.5">
-                    <p className="font-extrabold text-emerald-900">Chi phí đặt cọc:</p>
-                    <p className="text-[10px] text-slate-400">Không yêu cầu cọc cho cuộc hẹn thông thường</p>
-                  </div>
-                  <span className="text-sm font-black text-emerald-700">Miễn phí cọc</span>
-                </div>
-              )}
 
-              {/* Mandatory acceptance checkbox */}
-              <label className="flex items-start gap-2.5 cursor-pointer bg-slate-50 border border-slate-200/50 p-3 rounded-xl">
-                <input
-                  type="checkbox"
-                  checked={agreedToPolicy}
-                  onChange={e => setAgreedToPolicy(e.target.checked)}
-                  className="h-4.5 w-4.5 rounded border-slate-350 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0"
-                />
-                <span className="text-[11px] md:text-xs font-bold text-slate-650 leading-relaxed">
-                  "Tôi đã đọc và đồng ý với chính sách đặt cọc và chính sách hủy bàn/hoàn tiền được hiển thị ở trên." *
-                </span>
-              </label>
-
-              {/* Payment Methods (US#5) */}
-              {requireDeposit && (
-                <div className="space-y-2 pt-2">
-                  <label className="text-xs font-bold text-slate-700 block">Phương thức thanh toán đặt cọc:</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('QR_PAY')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition ${paymentMethod === 'QR_PAY' ? 'border-[#25439b] bg-blue-50/50 text-[#25439b]' : 'border-slate-200 hover:bg-slate-50 text-slate-500'}`}
-                    >
-                      <QrCode className="h-5 w-5" />
-                      <span className="text-[10px] font-bold">Chuyển khoản QR</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('CARD')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition ${paymentMethod === 'CARD' ? 'border-[#25439b] bg-blue-50/50 text-[#25439b]' : 'border-slate-200 hover:bg-slate-50 text-slate-500'}`}
-                    >
-                      <CreditCard className="h-5 w-5" />
-                      <span className="text-[10px] font-bold">Thẻ Quốc Tế</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('WALLET')}
-                      className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition ${paymentMethod === 'WALLET' ? 'border-[#25439b] bg-blue-50/50 text-[#25439b]' : 'border-slate-200 hover:bg-slate-50 text-slate-500'}`}
-                    >
-                      <Wallet className="h-5 w-5" />
-                      <span className="text-[10px] font-bold">Ví Momo/ZaloPay</span>
-                    </button>
-                  </div>
-
-                  {/* Bank Transfer Details (US#1) */}
-                  {paymentMethod === 'QR_PAY' && selectedBranchObj && selectedBranchObj.bankAccountNo && (
-                    <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100/50 space-y-2 text-xs font-semibold animate-fade-in text-slate-750 mt-2">
-                      <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider flex items-center gap-1">
-                        <span>🏦</span> Thông tin tài khoản nhận đặt cọc
-                      </p>
-                      <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[11px]">
-                        <span className="text-slate-450 font-bold">Ngân hàng:</span>
-                        <span className="font-extrabold text-slate-800">{selectedBranchObj.bankName}</span>
-                        
-                        <span className="text-slate-450 font-bold">Số tài khoản:</span>
-                        <span className="font-black text-indigo-700 select-all">{selectedBranchObj.bankAccountNo}</span>
-                        
-                        <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
-                        <span className="font-extrabold text-slate-800 uppercase">{selectedBranchObj.bankAccountName}</span>
-                        
-                        {selectedBranchObj.bankBranch && (
-                          <>
-                            <span className="text-slate-450 font-bold">Chi nhánh:</span>
-                            <span className="font-bold text-slate-700">{selectedBranchObj.bankBranch}</span>
-                          </>
-                        )}
-                      </div>
-                      {/* VietQR Code Display */}
-                      <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
-                        <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider flex items-center gap-1">
-                          <span>📲</span> {locale === 'vi' ? 'Quét mã VietQR để thanh toán đặt cọc' : 'Scan VietQR to Pay Deposit'}
-                        </p>
-                        <img 
-                          src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=100000&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
-                          alt="VietQR Payment Code"
-                          className="w-40 h-40 object-contain rounded-lg border border-slate-100 shadow-sm"
-                        />
-                        <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
-                          {locale === 'vi' 
-                            ? '* Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét' 
-                            : '* Please keep amount and transfer note unchanged'}
-                        </p>
-                      </div>
-                      <p className="text-[9px] text-slate-400 font-medium pt-1.5 border-t border-dashed border-slate-200">
-                        Vui lòng chuyển khoản đúng số tiền 100.000 ₫ và ghi rõ nội dung chuyển khoản là tên và số điện thoại của bạn.
-                      </p>
+                {/* Deposit amount show */}
+                {requireDeposit ? (
+                  <div className="bg-blue-50 border border-blue-150 rounded-xl p-4 flex justify-between items-center text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-extrabold text-blue-900">Số tiền đặt cọc yêu cầu:</p>
+                      <p className="text-[10px] text-slate-400">Bao gồm cọc giữ bàn VIP và 20% đặt trước món ăn</p>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    <span className="text-base font-black text-blue-750">100.000 ₫</span>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-50 border border-emerald-150 rounded-xl p-4 flex justify-between items-center text-xs">
+                    <div className="space-y-0.5">
+                      <p className="font-extrabold text-emerald-900">Chi phí đặt cọc:</p>
+                      <p className="text-[10px] text-slate-400">Không yêu cầu cọc cho cuộc hẹn thông thường</p>
+                    </div>
+                    <span className="text-sm font-black text-emerald-700">Miễn phí cọc</span>
+                  </div>
+                )}
 
-            <div className="flex gap-4 pt-2">
-              <button
-                onClick={() => setStep(3)}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <ArrowLeft className="h-4 w-4" /> Quay lại
-              </button>
-              <button
-                onClick={handleConfirmAndPay}
-                disabled={isSubmitting || !agreedToPolicy}
-                className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white font-bold text-xs rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:shadow"
-              >
-                {isSubmitting ? 'Đang xử lý...' : requireDeposit ? 'Thanh toán & Hoàn tất' : 'Xác nhận Đặt bàn'}
-              </button>
+                {/* Mandatory acceptance checkbox */}
+                <label className="flex items-start gap-2.5 cursor-pointer bg-slate-50 border border-slate-200/50 p-3 rounded-xl">
+                  <input
+                    type="checkbox"
+                    checked={agreedToPolicy}
+                    onChange={e => setAgreedToPolicy(e.target.checked)}
+                    className="h-4.5 w-4.5 rounded border-slate-350 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0"
+                  />
+                  <span className="text-[11px] md:text-xs font-bold text-slate-650 leading-relaxed">
+                    "Tôi đã đọc và đồng ý với chính sách đặt cọc và chính sách hủy bàn/hoàn tiền được hiển thị ở trên." *
+                  </span>
+                </label>
+
+                {/* Payment Methods (US#5) */}
+                {requireDeposit && (
+                  <div className="space-y-2 pt-2">
+                    <label className="text-xs font-bold text-slate-700 block">Phương thức thanh toán đặt cọc:</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('QR_PAY')}
+                        className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition ${paymentMethod === 'QR_PAY' ? 'border-[#25439b] bg-blue-50/50 text-[#25439b]' : 'border-slate-200 hover:bg-slate-50 text-slate-500'}`}
+                      >
+                        <QrCode className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Chuyển khoản QR</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('CARD')}
+                        className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition ${paymentMethod === 'CARD' ? 'border-[#25439b] bg-blue-50/50 text-[#25439b]' : 'border-slate-200 hover:bg-slate-50 text-slate-500'}`}
+                      >
+                        <CreditCard className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Thẻ Quốc Tế</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentMethod('WALLET')}
+                        className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition ${paymentMethod === 'WALLET' ? 'border-[#25439b] bg-blue-50/50 text-[#25439b]' : 'border-slate-200 hover:bg-slate-50 text-slate-500'}`}
+                      >
+                        <Wallet className="h-5 w-5" />
+                        <span className="text-[10px] font-bold">Ví Momo/ZaloPay</span>
+                      </button>
+                    </div>
+
+                    {/* Bank Transfer Details (US#1) */}
+                    {paymentMethod === 'QR_PAY' && selectedBranchObj && selectedBranchObj.bankAccountNo && (
+                      <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100/50 space-y-2 text-xs font-semibold animate-fade-in text-slate-750 mt-2">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider flex items-center gap-1">
+                          <span>🏦</span> Thông tin tài khoản nhận đặt cọc
+                        </p>
+                        <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[11px]">
+                          <span className="text-slate-450 font-bold">Ngân hàng:</span>
+                          <span className="font-extrabold text-slate-800">{selectedBranchObj.bankName}</span>
+                          
+                          <span className="text-slate-450 font-bold">Số tài khoản:</span>
+                          <span className="font-black text-indigo-700 select-all">{selectedBranchObj.bankAccountNo}</span>
+                          
+                          <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
+                          <span className="font-extrabold text-slate-800 uppercase">{selectedBranchObj.bankAccountName}</span>
+                          
+                          {selectedBranchObj.bankBranch && (
+                            <>
+                              <span className="text-slate-450 font-bold">Chi nhánh:</span>
+                              <span className="font-bold text-slate-700">{selectedBranchObj.bankBranch}</span>
+                            </>
+                          )}
+                        </div>
+                        {/* VietQR Code Display */}
+                        <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
+                          <p className="text-[9px] text-indigo-550 font-black uppercase tracking-wider flex items-center gap-1">
+                            <span>📲</span> {locale === 'vi' ? 'Quét mã VietQR để thanh toán đặt cọc' : 'Scan VietQR to Pay Deposit'}
+                          </p>
+                          <img 
+                            src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=100000&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
+                            alt="VietQR Payment Code"
+                            className="w-40 h-40 object-contain rounded-lg border border-slate-100 shadow-sm"
+                          />
+                          <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
+                            {locale === 'vi' 
+                              ? '* Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét' 
+                              : '* Please keep amount and transfer note unchanged'}
+                          </p>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-medium pt-1.5 border-t border-dashed border-slate-200">
+                          Vui lòng chuyển khoản đúng số tiền 100.000 ₫ và ghi rõ nội dung chuyển khoản là tên và số điện thoại của bạn.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-4 pt-2">
+                <button
+                  onClick={() => setStep(3)}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Quay lại
+                </button>
+                <button
+                  onClick={handleConfirmAndPay}
+                  disabled={isSubmitting || !agreedToPolicy}
+                  className="flex-1 py-3 bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white font-bold text-xs rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md hover:shadow"
+                >
+                  {isSubmitting ? 'Đang xử lý...' : requireDeposit ? 'Thanh toán & Hoàn tất' : 'Xác nhận Đặt bàn'}
+                </button>
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* STEP 5: Success & Check-in QR (US#6 & US#7) */}
@@ -1222,27 +1423,24 @@ export default function BookingWizardPage() {
 
             {/* Check-in QR Block (US#6) */}
             <div className="border border-slate-200/80 rounded-2xl p-6 bg-slate-50/50 flex flex-col items-center space-y-4 max-w-sm mx-auto">
-              <div className="bg-white p-3 rounded-xl shadow-inner border border-slate-100">
-                {/* Visual generated QR Mock */}
-                <svg className="w-32 h-32" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="5" y="5" width="25" height="25" fill="#1e293b" />
-                  <rect x="10" y="10" width="15" height="15" fill="white" />
-                  <rect x="70" y="5" width="25" height="25" fill="#1e293b" />
-                  <rect x="75" y="10" width="15" height="15" fill="white" />
-                  <rect x="5" y="70" width="25" height="25" fill="#1e293b" />
-                  <rect x="10" y="75" width="15" height="15" fill="white" />
-                  {/* Random QR dots */}
-                  <rect x="35" y="15" width="5" height="10" fill="#1e293b" />
-                  <rect x="45" y="5" width="10" height="5" fill="#1e293b" />
-                  <rect x="55" y="15" width="5" height="5" fill="#1e293b" />
-                  <rect x="35" y="35" width="15" height="5" fill="#1e293b" />
-                  <rect x="55" y="35" width="10" height="10" fill="#1e293b" />
-                  <rect x="15" y="45" width="5" height="15" fill="#1e293b" />
-                  <rect x="75" y="45" width="10" height="5" fill="#1e293b" />
-                  <rect x="35" y="55" width="5" height="20" fill="#1e293b" />
-                  <rect x="45" y="75" width="15" height="10" fill="#1e293b" />
-                  <rect x="70" y="70" width="20" height="20" fill="#1e293b" />
-                </svg>
+              <div className="bg-white p-3 rounded-xl shadow-inner border border-slate-100 flex items-center justify-center">
+                {/* Real Generated Check-in QR */}
+                <img 
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                    `=== THÔNG TIN ĐẶT BÀN ===\n` +
+                    `Mã đặt bàn: RMS-BK${createdBooking.id}\n` +
+                    `Khách hàng: ${createdBooking.customerName}\n` +
+                    `Số điện thoại: ${createdBooking.customerPhone}\n` +
+                    `Thời gian: ${new Date(createdBooking.bookingTime).toLocaleString('vi-VN')}\n` +
+                    `Số lượng khách: ${createdBooking.guests} người\n` +
+                    `Bàn cụ thể: ${createdBooking.tableLabel || 'Tùy chọn'}\n` +
+                    `Số tiền cọc: ${createdBooking.depositAmount > 0 ? createdBooking.depositAmount.toLocaleString('vi-VN') + 'đ' : '0đ'}\n` +
+                    `Ghi chú: ${createdBooking.notes || 'Không có'}\n` +
+                    `========================`
+                  )}`}
+                  alt="Check-in QR"
+                  className="w-36 h-36 rounded-lg object-contain"
+                />
               </div>
 
               <div className="text-xs space-y-1.5 w-full text-left border-t border-slate-200/60 pt-4 font-semibold text-slate-650">

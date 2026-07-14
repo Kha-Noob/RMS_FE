@@ -272,6 +272,21 @@ export default function MyRestaurantPage() {
       });
   };
 
+  const handleConfirmBookingPayment = (bookingId: number) => {
+    api.put(`/api/public/bookings/${bookingId}/confirm-payment`, {})
+      .then(() => {
+        toast.success(locale === 'vi' ? 'Đã xác nhận thanh toán thành công!' : 'Payment confirmed successfully!');
+        if (selectedEventIdForDetails) {
+          loadBookingDetails(selectedEventIdForDetails);
+        }
+        loadEventBookings();
+      })
+      .catch(err => {
+        console.error('Failed to confirm payment', err);
+        toast.error('Failed to confirm payment');
+      });
+  };
+
   useEffect(() => {
     if (user && activeTab === 'bookings') {
       loadEventBookings();
@@ -1289,6 +1304,7 @@ export default function MyRestaurantPage() {
                           <th className="p-3 text-right">{locale === 'vi' ? 'Số tiền' : 'Amount'}</th>
                           <th className="p-3 text-center">{locale === 'vi' ? 'Thanh toán' : 'Payment'}</th>
                           <th className="p-3 text-center">{locale === 'vi' ? 'Trạng thái đơn' : 'Booking Status'}</th>
+                          <th className="p-3 text-center">{locale === 'vi' ? 'Thao tác' : 'Actions'}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -1341,6 +1357,18 @@ export default function MyRestaurantPage() {
                               }`}>
                                 {b.status}
                               </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              {b.paymentStatus !== 'PAID' ? (
+                                <button
+                                  onClick={() => handleConfirmBookingPayment(b.id)}
+                                  className="px-2.5 py-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold rounded-lg text-[9px] transition shadow-sm cursor-pointer"
+                                >
+                                  {locale === 'vi' ? 'Xác nhận chuyển khoản' : 'Confirm Payment'}
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 text-[10px] font-bold">✓ {locale === 'vi' ? 'Đã hoàn tất' : 'Done'}</span>
+                              )}
                             </td>
                           </tr>
                         ))}

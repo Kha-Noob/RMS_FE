@@ -19,5 +19,6 @@ export const menuItems: MenuItem[] = [
   { label: 'CMS Sự Kiện', href: '/cms-events', icon: 'event', roles: ['ADMIN', 'MANAGER', 'COOPERATOR'] },
   { label: 'Hub Đánh Giá', href: '/cms-reviews', icon: 'review-hub', roles: ['ADMIN', 'MANAGER', 'COOPERATOR'] },
   { label: 'Duyệt Review', href: '/admin-feed', icon: 'review', roles: ['ADMIN', 'MANAGER', 'COOPERATOR'] },
+  { label: 'CMS Khuyến Mãi', href: '/cms-promotions', icon: 'promotion', roles: ['ADMIN', 'MANAGER', 'COOPERATOR'] },
   { label: 'Thiết kế trang AI', href: '/admin-page-builder', icon: 'layout', roles: ['ADMIN', 'COOPERATOR'] },
 ];
