@@ -32,7 +32,10 @@ const columns: { key: OrderStatus; label: string; color: string; bgColor: string
 ];
 
 function timeElapsed(createdAt: string): string {
-  const diff = Date.now() - new Date(createdAt).getTime();
+  if (!createdAt) return 'không rõ';
+  const parsed = new Date(createdAt).getTime();
+  if (isNaN(parsed)) return 'không rõ';
+  const diff = Date.now() - parsed;
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'vừa xong';
   if (mins < 60) return `${mins} phút`;
@@ -44,6 +47,7 @@ export default function KDSPage() {
   const { activeBranchId } = useAuth();
   const [orders, setOrders] = useState<KDSOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -77,24 +81,41 @@ export default function KDSPage() {
 
       ws.onopen = () => {
         console.log('[KDS] WebSocket connected');
+        setConnected(true);
       };
 
       ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'NEW_ORDER') {
-            toast.info(`Đơn mới: ${msg.data?.tableName || '#' + msg.data?.id}`);
-            loadOrders();
-          } else if (msg.type === 'ORDER_UPDATED') {
-            loadOrders();
-          } else if (msg.type === 'ORDER_CANCELLED') {
-            toast.warning(`Đơn bị hủy: #${msg.data?.id}`);
-            loadOrders();
-          }
-        } catch { /* ignore malformed */ }
+        const payload = event.data;
+        console.log('[KDS] WebSocket message received:', payload);
+        
+        if (payload === 'NEW_ORDER_SUBMITTED') {
+          toast.info('Có đơn hàng mới gửi xuống bếp!');
+          loadOrders();
+        } else if (payload === 'ORDER_STATE_CHANGED' || payload === 'ORDER_UPDATED') {
+          loadOrders();
+        } else if (payload.startsWith('KDS_READY_ALERT:')) {
+          const tableName = payload.replace('KDS_READY_ALERT:', '');
+          toast.success(`Bàn ${tableName} đã chuẩn bị xong món!`);
+          loadOrders();
+        } else {
+          // Fallback parsing JSON if needed
+          try {
+            const msg = JSON.parse(payload);
+            if (msg.type === 'NEW_ORDER') {
+              toast.info(`Đơn mới: ${msg.data?.tableName || '#' + msg.data?.id}`);
+              loadOrders();
+            } else if (msg.type === 'ORDER_UPDATED') {
+              loadOrders();
+            } else if (msg.type === 'ORDER_CANCELLED') {
+              toast.warning(`Đơn bị hủy: #${msg.data?.id}`);
+              loadOrders();
+            }
+          } catch { /* ignore */ }
+        }
       };
 
       ws.onclose = () => {
+        setConnected(false);
         if (mounted) {
           reconnectTimer.current = setTimeout(connect, 3000);
         }
@@ -114,20 +135,30 @@ export default function KDSPage() {
     };
   }, [loadOrders, activeBranchId]);
 
-  const updateStatus = async (orderId: number, status: OrderStatus) => {
+  const updateStatus = async (orderId: number, status: OrderStatus | 'SERVED') => {
     try {
       await api.post('/api/kds/status', { orderId, status });
-      setOrders(prev =>
-        prev.map(o => o.id === orderId ? { ...o, status } : o)
-      );
-      toast.success(`Đơn #${orderId} → ${columns.find(c => c.key === status)?.label}`);
+      if (status === 'SERVED') {
+        setOrders(prev => prev.filter(o => o.id !== orderId));
+        toast.success(`Đơn #${orderId} đã phục vụ và dọn bàn`);
+      } else {
+        setOrders(prev =>
+          prev.map(o => o.id === orderId ? { ...o, status } : o)
+        );
+        toast.success(`Đơn #${orderId} → ${columns.find(c => c.key === status)?.label}`);
+      }
     } catch {
       toast.error('Cập nhật trạng thái thất bại');
     }
   };
 
   const ordersByStatus = (status: OrderStatus) =>
-    orders.filter(o => o.status === status);
+    orders.filter(o => {
+      if (status === 'PENDING') {
+        return o.status === 'PENDING' || o.status === 'SENT';
+      }
+      return o.status === status;
+    });
 
   if (loading) {
     return (
@@ -147,9 +178,9 @@ export default function KDSPage() {
         <h1 className="text-lg font-bold text-slate-800">🍳 Kitchen Display System</h1>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${wsRef.current?.readyState === WebSocket.OPEN ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
             <span className="text-xs text-slate-400">
-              {wsRef.current?.readyState === WebSocket.OPEN ? 'Đã kết nối' : 'Mất kết nối'}
+              {connected ? 'Đã kết nối' : 'Mất kết nối'}
             </span>
           </div>
           <button onClick={loadOrders} className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors">
@@ -224,9 +255,12 @@ export default function KDSPage() {
                         </button>
                       )}
                       {col.key === 'READY' && (
-                        <span className="flex-1 py-1.5 bg-slate-100 rounded-lg text-xs font-medium text-center text-slate-400">
-                          Đã hoàn thành
-                        </span>
+                        <button
+                          onClick={() => updateStatus(order.id, 'SERVED')}
+                          className="flex-1 py-1.5 bg-slate-600 hover:bg-slate-500 rounded-lg text-xs font-medium text-white transition-colors"
+                        >
+                          🍽️ Đã phục vụ
+                        </button>
                       )}
                     </div>
                   </div>
