@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { RouteGuard } from "@/components/RouteGuard";
 import { ToastContainer } from "@/components/Toast";
 import { Chatbot } from "@/components/Chatbot";
 
@@ -26,7 +27,9 @@ export default function RootLayout({
       <body className="min-h-full bg-[#f8f9fc] text-slate-800 antialiased">
         <LanguageProvider>
           <AuthProvider>
-            {children}
+            <RouteGuard>
+              {children}
+            </RouteGuard>
             <ToastContainer />
             <Chatbot />
           </AuthProvider>
