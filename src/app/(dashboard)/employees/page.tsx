@@ -44,7 +44,7 @@ export default function EmployeesPage() {
       const data = await api.get<AttendanceStatus>('/api/employee/attendance/status');
       setAttendance(data);
     } catch {
-      toast.error('Failed to load attendance status');
+      toast.error('Không tải được trạng thái chấm công');
     } finally {
       setLoadingAttendance(false);
     }
@@ -56,7 +56,7 @@ export default function EmployeesPage() {
       const data = await api.get<LeaveRequest[]>('/api/employee/leave-requests');
       setLeaveRequests(data);
     } catch {
-      toast.error('Failed to load leave requests');
+      toast.error('Không tải được danh sách đơn xin nghỉ');
     } finally {
       setLeaveLoading(false);
     }
@@ -68,7 +68,7 @@ export default function EmployeesPage() {
       const data = await api.get<ForgotClockRequest[]>('/api/employee/forgot-clock-requests');
       setForgotRequests(data);
     } catch {
-      toast.error('Failed to load forgot clock requests');
+      toast.error('Không tải được đơn quên chấm công');
     } finally {
       setForgotLoading(false);
     }
@@ -82,7 +82,7 @@ export default function EmployeesPage() {
       });
       setSchedule(data);
     } catch {
-      toast.error('Failed to load schedule');
+      toast.error('Không tải được lịch làm việc');
     } finally {
       setScheduleLoading(false);
     }
@@ -99,10 +99,10 @@ export default function EmployeesPage() {
     try {
       setClockActionLoading(true);
       await api.post('/api/employee/clock-in');
-      toast.success('Clocked in successfully');
+      toast.success('Bắt đầu ca làm việc (Clock In) thành công!');
       fetchAttendance();
     } catch {
-      toast.error('Failed to clock in');
+      toast.error('Không thể Clock In');
     } finally {
       setClockActionLoading(false);
     }
@@ -112,10 +112,10 @@ export default function EmployeesPage() {
     try {
       setClockActionLoading(true);
       await api.post('/api/employee/clock-out');
-      toast.success('Clocked out successfully');
+      toast.success('Kết thúc ca làm việc (Clock Out) thành công!');
       fetchAttendance();
     } catch {
-      toast.error('Failed to clock out');
+      toast.error('Không thể Clock Out');
     } finally {
       setClockActionLoading(false);
     }
@@ -124,17 +124,17 @@ export default function EmployeesPage() {
   const handleLeaveSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!leaveForm.startDate || !leaveForm.endDate || !leaveForm.reason) {
-      toast.error('Please fill in all required fields');
+      toast.error('Vui lòng nhập đủ các trường bắt buộc');
       return;
     }
     try {
       setSubmittingLeave(true);
       await api.post('/api/employee/leave-request', leaveForm);
-      toast.success('Leave request submitted');
+      toast.success('Gửi đơn xin nghỉ thành công');
       setLeaveForm({ startDate: '', endDate: '', leaveType: 'ANNUAL', reason: '' });
       fetchLeaveRequests();
     } catch {
-      toast.error('Failed to submit leave request');
+      toast.error('Gửi đơn xin nghỉ thất bại');
     } finally {
       setSubmittingLeave(false);
     }
@@ -143,17 +143,17 @@ export default function EmployeesPage() {
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotForm.date || !forgotForm.timeProposed || !forgotForm.reason) {
-      toast.error('Please fill in all required fields');
+      toast.error('Vui lòng điền đầy đủ các trường');
       return;
     }
     try {
       setSubmittingForgot(true);
       await api.post('/api/employee/forgot-clock-request', forgotForm);
-      toast.success('Forgot clock request submitted');
+      toast.success('Gửi đơn giải trình quên chấm công thành công');
       setForgotForm({ date: '', clockType: 'CLOCK_IN', timeProposed: '', reason: '' });
       fetchForgotRequests();
     } catch {
-      toast.error('Failed to submit forgot clock request');
+      toast.error('Gửi yêu cầu thất bại');
     } finally {
       setSubmittingForgot(false);
     }
@@ -167,298 +167,289 @@ export default function EmployeesPage() {
 
   const formatMonthLabel = (ym: string) => {
     const [y, m] = ym.split('-').map(Number);
-    return new Date(y, m - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return new Date(y, m - 1).toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' });
   };
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
-      PENDING: 'bg-amber-50 text-amber-600 border-amber-200',
-      APPROVED: 'bg-emerald-50 text-emerald-600 border-emerald-200',
-      REJECTED: 'bg-red-50 text-red-600 border-red-200',
+      PENDING: 'bg-amber-50 text-amber-600 border-amber-100',
+      APPROVED: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+      REJECTED: 'bg-rose-50 text-rose-600 border-rose-100',
     };
     return (
-      <span className={`px-2 py-1 rounded-full text-xs border ${styles[status] || 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+      <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold border ${styles[status] || 'bg-slate-50 text-slate-400 border-slate-200'}`}>
         {status}
       </span>
     );
   };
 
-  const inputClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent placeholder-slate-400';
-  const selectClass = 'w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b] focus:border-transparent';
-  const labelClass = 'block text-sm font-medium text-slate-600 mb-1';
-  const btnPrimary = 'bg-[#25439b] hover:bg-[#1c3580] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-  const btnDanger = 'bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-  const tableTh = 'px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider';
-  const tableTd = 'px-4 py-3 text-sm text-slate-600';
+  const inputClass = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all placeholder-slate-400';
+  const selectClass = 'w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all';
+  const labelClass = 'block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1';
+  const btnPrimary = 'bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 active:scale-95 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-indigo-950/10 transition-all disabled:opacity-50';
+  const btnDanger = 'bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 active:scale-95 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-red-950/10 transition-all disabled:opacity-50';
+  
+  const cardCls = 'bg-white rounded-2xl border border-slate-100 p-6 shadow-sm';
+  const tableTh = 'px-4 py-3.5 text-left text-xs font-bold text-slate-400 uppercase tracking-widest bg-slate-50/70 border-b border-slate-100';
+  const tableTd = 'px-4 py-3.5 text-sm text-slate-600 font-medium';
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
-      <h1 className="text-2xl font-bold text-slate-800">Employee Portal</h1>
+    <div className="max-w-7xl mx-auto space-y-6 pb-6">
+      {/* Header Profile Summary */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-2xl text-white shadow-md relative overflow-hidden">
+        <div className="absolute right-0 bottom-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xl font-bold border-2 border-white/20 shadow-md">
+            {user?.name?.substring(0, 2).toUpperCase() || 'NV'}
+          </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-indigo-200">
+              Cổng thông tin nhân viên
+            </h1>
+            <p className="text-xs text-indigo-200/80 mt-1 font-semibold">
+              Mã NV: #{user?.id || '—'} · Bộ phận: Phục vụ
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Attendance Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">Attendance</h2>
+      <div className={cardCls}>
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-lg">⏰</span>
+          <h2 className="text-base font-bold text-slate-800">Chấm công hàng ngày</h2>
+        </div>
         {loadingAttendance ? (
-          <div className="flex items-center gap-2 text-slate-500">
-            <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
-            Loading...
+          <div className="flex items-center gap-2 text-slate-500 py-4">
+            <div className="w-4 h-4 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+            <span className="text-sm">Đang tải dữ liệu chấm công...</span>
           </div>
         ) : attendance ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <div className="bg-slate-50 rounded-lg p-4 flex-1">
-              <p className="text-sm text-slate-500">Status</p>
-              <p className={`text-lg font-bold ${attendance.isClockedIn ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {attendance.isClockedIn ? 'Clocked In' : 'Not Clocked In'}
-              </p>
-              {attendance.clockInTime && (
-                <p className="text-xs text-slate-400 mt-1">In: {new Date(attendance.clockInTime).toLocaleTimeString()}</p>
-              )}
-              {attendance.clockOutTime && (
-                <p className="text-xs text-slate-400 mt-1">Out: {new Date(attendance.clockOutTime).toLocaleTimeString()}</p>
-              )}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-6 bg-slate-50/50 border border-slate-100 p-5 rounded-2xl">
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${attendance.isClockedIn ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-slate-300'}`} />
+                <span className="text-sm font-bold text-slate-700">Trạng thái hiện tại:</span>
+                <span className={`text-sm font-extrabold uppercase ${attendance.isClockedIn ? 'text-emerald-600' : 'text-slate-400'}`}>
+                  {attendance.isClockedIn ? 'Đã Clock-in' : 'Chưa Clock-in'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-xs font-semibold text-slate-500 pt-1">
+                <div>Giờ vào: <span className="text-slate-800 font-bold ml-1">{attendance.clockInTime ? new Date(attendance.clockInTime).toLocaleTimeString('vi-VN') : '—'}</span></div>
+                <div>Giờ ra: <span className="text-slate-800 font-bold ml-1">{attendance.clockOutTime ? new Date(attendance.clockOutTime).toLocaleTimeString('vi-VN') : '—'}</span></div>
+              </div>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 justify-end items-center">
               <button
                 onClick={handleClockIn}
                 disabled={clockActionLoading || attendance.isClockedIn}
                 className={btnPrimary}
               >
-                {clockActionLoading ? 'Processing...' : 'Clock In'}
+                {clockActionLoading ? 'Đang xử lý...' : 'Vào ca (Clock In)'}
               </button>
               <button
                 onClick={handleClockOut}
                 disabled={clockActionLoading || !attendance.isClockedIn}
                 className={btnDanger}
               >
-                {clockActionLoading ? 'Processing...' : 'Clock Out'}
+                {clockActionLoading ? 'Đang xử lý...' : 'Tan ca (Clock Out)'}
               </button>
             </div>
           </div>
         ) : null}
       </div>
 
-      {/* Leave Request Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">Leave Request</h2>
-        <form onSubmit={handleLeaveSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className={labelClass}>Start Date *</label>
-            <input
-              type="date"
-              value={leaveForm.startDate}
-              onChange={e => setLeaveForm(p => ({ ...p, startDate: e.target.value }))}
-              className={inputClass}
-              required
-            />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Leave Request Section */}
+        <div className={cardCls}>
+          <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+            <span className="text-lg">🏖️</span>
+            <h2 className="text-base font-bold text-slate-800">Xin nghỉ phép</h2>
           </div>
-          <div>
-            <label className={labelClass}>End Date *</label>
-            <input
-              type="date"
-              value={leaveForm.endDate}
-              onChange={e => setLeaveForm(p => ({ ...p, endDate: e.target.value }))}
-              className={inputClass}
-              required
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Leave Type</label>
-            <select
-              value={leaveForm.leaveType}
-              onChange={e => setLeaveForm(p => ({ ...p, leaveType: e.target.value }))}
-              className={selectClass}
-            >
-              <option value="ANNUAL">Annual</option>
-              <option value="SICK">Sick</option>
-              <option value="PERSONAL">Personal</option>
-              <option value="MATERNITY">Maternity</option>
-              <option value="PATERNITY">Paternity</option>
-              <option value="UNPAID">Unpaid</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Reason *</label>
-            <input
-              type="text"
-              value={leaveForm.reason}
-              onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))}
-              className={inputClass}
-              placeholder="Reason for leave"
-              required
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button type="submit" disabled={submittingLeave} className={btnPrimary}>
-              {submittingLeave ? 'Submitting...' : 'Submit Leave Request'}
-            </button>
-          </div>
-        </form>
-
-        <div className="overflow-x-auto">
-          {leaveLoading ? (
-            <div className="flex items-center gap-2 text-slate-500 py-4">
-              <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
-              Loading...
+          <form onSubmit={handleLeaveSubmit} className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className={labelClass}>Từ ngày *</label>
+              <input type="date" value={leaveForm.startDate} onChange={e => setLeaveForm(p => ({ ...p, startDate: e.target.value }))} className={inputClass} required />
             </div>
-          ) : leaveRequests.length === 0 ? (
-            <p className="text-slate-400 py-4 text-sm">No leave requests found.</p>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className={tableTh}>Type</th>
-                  <th className={tableTh}>Start</th>
-                  <th className={tableTh}>End</th>
-                  <th className={tableTh}>Reason</th>
-                  <th className={tableTh}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaveRequests.map(lr => (
-                  <tr key={lr.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className={tableTd}>{lr.leaveType}</td>
-                    <td className={tableTd}>{new Date(lr.startDate).toLocaleDateString()}</td>
-                    <td className={tableTd}>{new Date(lr.endDate).toLocaleDateString()}</td>
-                    <td className={tableTd}>{lr.reason}</td>
-                    <td className={tableTd}>{statusBadge(lr.status)}</td>
+            <div>
+              <label className={labelClass}>Đến ngày *</label>
+              <input type="date" value={leaveForm.endDate} onChange={e => setLeaveForm(p => ({ ...p, endDate: e.target.value }))} className={inputClass} required />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Loại nghỉ</label>
+              <select value={leaveForm.leaveType} onChange={e => setLeaveForm(p => ({ ...p, leaveType: e.target.value }))} className={selectClass}>
+                <option value="ANNUAL">Nghỉ phép năm (Annual)</option>
+                <option value="SICK">Nghỉ ốm (Sick)</option>
+                <option value="PERSONAL">Việc riêng (Personal)</option>
+                <option value="UNPAID">Nghỉ không lương (Unpaid)</option>
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Lý do xin nghỉ *</label>
+              <input type="text" value={leaveForm.reason} onChange={e => setLeaveForm(p => ({ ...p, reason: e.target.value }))} className={inputClass} placeholder="Ghi rõ lý do nghỉ phép..." required />
+            </div>
+            <div className="col-span-2 pt-2">
+              <button type="submit" disabled={submittingLeave} className={btnPrimary}>
+                {submittingLeave ? 'Đang gửi...' : 'Gửi đơn xin nghỉ phép'}
+              </button>
+            </div>
+          </form>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            {leaveLoading ? (
+              <div className="flex items-center gap-2 text-slate-500 py-8 justify-center">
+                <div className="w-4 h-4 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+                <span className="text-xs">Đang tải lịch sử đơn...</span>
+              </div>
+            ) : leaveRequests.length === 0 ? (
+              <p className="text-slate-400 py-8 text-center text-xs font-semibold">Chưa có đơn xin nghỉ phép nào.</p>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className={tableTh}>Phân loại</th>
+                    <th className={tableTh}>Bắt đầu</th>
+                    <th className={tableTh}>Kết thúc</th>
+                    <th className={tableTh}>Trạng thái</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {leaveRequests.map(lr => (
+                    <tr key={lr.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className={tableTd}>
+                        <span className="font-bold text-slate-800 text-xs">{lr.leaveType}</span>
+                      </td>
+                      <td className={tableTd}>{new Date(lr.startDate).toLocaleDateString('vi-VN')}</td>
+                      <td className={tableTd}>{new Date(lr.endDate).toLocaleDateString('vi-VN')}</td>
+                      <td className={tableTd}>{statusBadge(lr.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Forgot Clock Request Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4">Forgot Clock Request</h2>
-        <form onSubmit={handleForgotSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className={labelClass}>Date *</label>
-            <input
-              type="date"
-              value={forgotForm.date}
-              onChange={e => setForgotForm(p => ({ ...p, date: e.target.value }))}
-              className={inputClass}
-              required
-            />
+        {/* Forgot Clock Request Section */}
+        <div className={cardCls}>
+          <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+            <span className="text-lg">📝</span>
+            <h2 className="text-base font-bold text-slate-800">Giải trình quên chấm công</h2>
           </div>
-          <div>
-            <label className={labelClass}>Clock Type</label>
-            <select
-              value={forgotForm.clockType}
-              onChange={e => setForgotForm(p => ({ ...p, clockType: e.target.value }))}
-              className={selectClass}
-            >
-              <option value="CLOCK_IN">Clock In</option>
-              <option value="CLOCK_OUT">Clock Out</option>
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Proposed Time *</label>
-            <input
-              type="time"
-              value={forgotForm.timeProposed}
-              onChange={e => setForgotForm(p => ({ ...p, timeProposed: e.target.value }))}
-              className={inputClass}
-              required
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Reason *</label>
-            <input
-              type="text"
-              value={forgotForm.reason}
-              onChange={e => setForgotForm(p => ({ ...p, reason: e.target.value }))}
-              className={inputClass}
-              placeholder="Why did you forget to clock?"
-              required
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button type="submit" disabled={submittingForgot} className={btnPrimary}>
-              {submittingForgot ? 'Submitting...' : 'Submit Forgot Clock Request'}
-            </button>
-          </div>
-        </form>
-
-        <div className="overflow-x-auto">
-          {forgotLoading ? (
-            <div className="flex items-center gap-2 text-slate-500 py-4">
-              <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
-              Loading...
+          <form onSubmit={handleForgotSubmit} className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className={labelClass}>Ngày quên *</label>
+              <input type="date" value={forgotForm.date} onChange={e => setForgotForm(p => ({ ...p, date: e.target.value }))} className={inputClass} required />
             </div>
-          ) : forgotRequests.length === 0 ? (
-            <p className="text-slate-400 py-4 text-sm">No forgot clock requests found.</p>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className={tableTh}>Date</th>
-                  <th className={tableTh}>Type</th>
-                  <th className={tableTh}>Time Proposed</th>
-                  <th className={tableTh}>Reason</th>
-                  <th className={tableTh}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {forgotRequests.map(fr => (
-                  <tr key={fr.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className={tableTd}>{new Date(fr.date).toLocaleDateString()}</td>
-                    <td className={tableTd}>{fr.clockType}</td>
-                    <td className={tableTd}>{fr.timeProposed}</td>
-                    <td className={tableTd}>{fr.reason}</td>
-                    <td className={tableTd}>{statusBadge(fr.status)}</td>
+            <div>
+              <label className={labelClass}>Loại quên</label>
+              <select value={forgotForm.clockType} onChange={e => setForgotForm(p => ({ ...p, clockType: e.target.value }))} className={selectClass}>
+                <option value="CLOCK_IN">Quên Check-In</option>
+                <option value="CLOCK_OUT">Quên Check-Out</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Giờ đề xuất *</label>
+              <input type="time" value={forgotForm.timeProposed} onChange={e => setForgotForm(p => ({ ...p, timeProposed: e.target.value }))} className={inputClass} required />
+            </div>
+            <div>
+              <label className={labelClass}>Lý do giải trình *</label>
+              <input type="text" value={forgotForm.reason} onChange={e => setForgotForm(p => ({ ...p, reason: e.target.value }))} className={inputClass} placeholder="Ghi rõ lý do quên..." required />
+            </div>
+            <div className="col-span-2 pt-2">
+              <button type="submit" disabled={submittingForgot} className={btnPrimary}>
+                {submittingForgot ? 'Đang gửi...' : 'Gửi đơn giải trình'}
+              </button>
+            </div>
+          </form>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-100">
+            {forgotLoading ? (
+              <div className="flex items-center gap-2 text-slate-500 py-8 justify-center">
+                <div className="w-4 h-4 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+                <span className="text-xs">Đang tải lịch sử đơn...</span>
+              </div>
+            ) : forgotRequests.length === 0 ? (
+              <p className="text-slate-400 py-8 text-center text-xs font-semibold">Chưa có đơn giải trình nào.</p>
+            ) : (
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className={tableTh}>Ngày</th>
+                    <th className={tableTh}>Check Type</th>
+                    <th className={tableTh}>Giờ đề xuất</th>
+                    <th className={tableTh}>Trạng thái</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {forgotRequests.map(fr => (
+                    <tr key={fr.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className={tableTd}>{new Date(fr.date).toLocaleDateString('vi-VN')}</td>
+                      <td className={tableTd}>
+                        <span className="font-bold text-slate-800 text-xs">{fr.clockType}</span>
+                      </td>
+                      <td className={tableTd}>{fr.timeProposed}</td>
+                      <td className={tableTd}>{statusBadge(fr.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Personal Schedule Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">My Schedule</h2>
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigateMonth(-1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors">
-              ← Prev
+      <div className={cardCls}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">📅</span>
+            <h2 className="text-base font-bold text-slate-800">Lịch làm việc cá nhân</h2>
+          </div>
+          <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200/40">
+            <button onClick={() => navigateMonth(-1)} className="bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all border border-slate-200/60">
+              ← Tháng trước
             </button>
-            <span className="text-sm text-slate-600 font-medium">{formatMonthLabel(scheduleMonth)}</span>
-            <button onClick={() => navigateMonth(1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors">
-              Next →
+            <span className="text-xs text-slate-600 font-bold px-3 py-1 rounded-lg uppercase tracking-wider">{formatMonthLabel(scheduleMonth)}</span>
+            <button onClick={() => navigateMonth(1)} className="bg-white hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition-all border border-slate-200/60">
+              Tháng sau →
             </button>
           </div>
         </div>
 
         {scheduleLoading ? (
-          <div className="flex items-center gap-2 text-slate-500 py-4">
-            <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
-            Loading schedule...
+          <div className="flex items-center gap-2 text-slate-500 py-16 justify-center">
+            <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+            <span className="text-sm font-semibold">Đang tải lịch làm việc...</span>
           </div>
         ) : schedule.length === 0 ? (
-          <p className="text-slate-400 py-4 text-sm">No shifts scheduled for this month.</p>
+          <p className="text-slate-400 py-16 text-center text-sm font-semibold">Không tìm thấy ca làm việc nào được phân trong tháng này.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className={tableTh}>Date</th>
-                  <th className={tableTh}>Shift</th>
-                  <th className={tableTh}>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schedule.map(s => (
-                  <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className={tableTd}>{new Date(s.date).toLocaleDateString()}</td>
-                    <td className={tableTd}>{s.shiftTemplateName}</td>
-                    <td className={tableTd}>{s.startTime} - {s.endTime}</td>
+          <div className={tableCardCls}>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className={tableTh}>Ngày làm việc</th>
+                    <th className={tableTh}>Tên ca trực</th>
+                    <th className={tableTh}>Thời gian làm việc</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {schedule.map(s => (
+                    <tr key={s.id} className="hover:bg-slate-50/40 transition-colors">
+                      <td className={tableTd}>{new Date(s.date).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit' })}</td>
+                      <td className={tableTd}>
+                        <span className="inline-flex px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100 text-xs font-bold">
+                          {s.shiftTemplateName}
+                        </span>
+                      </td>
+                      <td className={tableTd}>{s.startTime} - {s.endTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

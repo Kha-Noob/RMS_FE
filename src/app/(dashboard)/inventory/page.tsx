@@ -8,12 +8,12 @@ import { useAuth } from '@/contexts/AuthContext';
 type Tab = 'stock' | 'recipes' | 'menu' | 'raw-materials' | 'categories' | 'transfer';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'stock', label: 'Stock' },
-  { key: 'recipes', label: 'Recipes' },
-  { key: 'menu', label: 'Menu' },
-  { key: 'raw-materials', label: 'Raw Materials' },
-  { key: 'categories', label: 'Categories' },
-  { key: 'transfer', label: 'Branch Transfer' },
+  { key: 'stock', label: 'Tồn Kho' },
+  { key: 'recipes', label: 'Công thức' },
+  { key: 'menu', label: 'Thực đơn' },
+  { key: 'raw-materials', label: 'Nguyên liệu' },
+  { key: 'categories', label: 'Danh mục' },
+  { key: 'transfer', label: 'Điều chuyển' },
 ];
 
 interface StockItem {
@@ -95,23 +95,26 @@ function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-lg">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-800 text-xl">✕</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+      <div className="bg-white border border-slate-100 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="text-base font-bold text-slate-800 tracking-tight">{title}</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );
 }
 
 // ─── Reusable Styles ────────────────────────────────────────────────────────
-const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b] text-sm';
-const btnPrimary = 'px-4 py-2 rounded-lg bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition';
-const btnDanger = 'px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm transition';
-const btnSecondary = 'px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition';
+const inputCls = 'w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all text-sm';
+const btnPrimary = 'px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white text-sm font-bold shadow-md shadow-indigo-950/10 active:scale-95 transition-all flex items-center gap-1.5';
+const btnDanger = 'px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white text-xs font-bold active:scale-95 transition-all';
+const btnSecondary = 'px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold transition-all';
+const tableCardCls = 'bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
@@ -121,19 +124,24 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<Tab>('stock');
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Inventory Management</h1>
+    <div className="space-y-6 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Quản lý kho hàng</h1>
+          <p className="text-xs text-slate-400 mt-1">Quản lý định lượng, nguyên liệu và điều chuyển kho giữa các chi nhánh</p>
+        </div>
+      </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
+      <div className="flex gap-2 p-1.5 bg-slate-100/80 backdrop-blur-md rounded-2xl border border-slate-200/40 overflow-x-auto">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300 ${
               activeTab === tab.key
-                ? 'border-[#25439b] text-[#25439b]'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+                ? 'bg-white text-indigo-600 shadow-md'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-white/50'
             }`}
           >
             {tab.label}
@@ -170,7 +178,7 @@ function StockTab({ activeBranchId }: { activeBranchId: string | null }) {
       const data = await api.get<StockItem[]>('/api/inventory/stock');
       setItems(data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load stock');
+      toast.error(err instanceof Error ? err.message : 'Không thể tải kho hàng');
     } finally {
       setLoading(false);
     }
@@ -178,43 +186,56 @@ function StockTab({ activeBranchId }: { activeBranchId: string | null }) {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading stock...</div>;
+  if (loading) {
+    return (
+      <div className="text-slate-500 py-16 text-center flex items-center justify-center gap-2">
+        <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+        <span className="text-sm font-medium">Đang tải tồn kho...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-500 border-b border-slate-200">
-            <th className="py-3 px-4">Name</th>
-            <th className="py-3 px-4">Unit</th>
-            <th className="py-3 px-4">Current Stock</th>
-            <th className="py-3 px-4">Minimum Stock</th>
-            <th className="py-3 px-4">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-              <td className="py-3 px-4 text-slate-800">{item.name}</td>
-              <td className="py-3 px-4 text-slate-600">{item.unit}</td>
-              <td className="py-3 px-4 text-slate-600">{item.currentStock}</td>
-              <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
-              <td className="py-3 px-4">
-                {item.currentStock <= 0 ? (
-                  <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">Hết hàng</span>
-                ) : item.currentStock <= item.minimumStock ? (
-                  <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-medium">Cần nhập thêm</span>
-                ) : (
-                  <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">Đủ</span>
-                )}
-              </td>
+    <div className={tableCardCls}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-400 font-bold bg-slate-50/70 border-b border-slate-100">
+              <th className="py-4 px-6">Tên nguyên liệu</th>
+              <th className="py-4 px-6">Đơn vị</th>
+              <th className="py-4 px-6">Tồn hiện tại</th>
+              <th className="py-4 px-6">Tồn tối thiểu</th>
+              <th className="py-4 px-6">Trạng thái</th>
             </tr>
-          ))}
-          {items.length === 0 && (
-            <tr><td colSpan={5} className="py-8 text-center text-slate-400">No stock items found</td></tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {items.map((item) => (
+              <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
+                <td className="py-4 px-6 font-semibold text-slate-800">{item.name}</td>
+                <td className="py-4 px-6 text-slate-500">{item.unit}</td>
+                <td className="py-4 px-6 text-slate-700 font-medium">{item.currentStock}</td>
+                <td className="py-4 px-6 text-slate-400">{item.minimumStock}</td>
+                <td className="py-4 px-6">
+                  {item.currentStock <= 0 ? (
+                    <span className="inline-flex px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 text-xs font-semibold">Hết hàng</span>
+                  ) : item.currentStock <= item.minimumStock ? (
+                    <span className="inline-flex px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-xs font-semibold">Cần nhập kho</span>
+                  ) : (
+                    <span className="inline-flex px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 text-xs font-semibold">Đủ hàng</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-16 text-center text-slate-400 font-medium">
+                  Không tìm thấy nguyên liệu nào trong kho chi nhánh
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -240,8 +261,8 @@ function RecipesTab() {
       ]);
       setRecipes(r);
       setRawMaterials(rm);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load recipes');
+    } catch {
+      toast.error('Không thể tải dữ liệu công thức');
     } finally {
       setLoading(false);
     }
@@ -269,8 +290,8 @@ function RecipesTab() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { toast.error('Recipe name is required'); return; }
-    if (ingredients.length === 0) { toast.error('Add at least one ingredient'); return; }
+    if (!form.name.trim()) { toast.error('Yêu cầu nhập tên công thức'); return; }
+    if (ingredients.length === 0) { toast.error('Yêu cầu thêm ít nhất một nguyên liệu'); return; }
     try {
       setSubmitting(true);
       await api.post('/api/inventory/recipes', {
@@ -282,122 +303,147 @@ function RecipesTab() {
           unit: i.unit,
         })),
       });
-      toast.success('Recipe created');
+      toast.success('Đã lưu công thức mới');
       setShowCreate(false);
       setForm({ name: '', description: '' });
       setIngredients([]);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create recipe');
+      toast.error(err instanceof Error ? err.message : 'Tạo thất bại');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this recipe?')) return;
+    if (!confirm('Xóa công thức định lượng món ăn này?')) return;
     try {
       await api.delete(`/api/inventory/recipes/${id}`);
-      toast.success('Recipe deleted');
+      toast.success('Đã xóa công thức');
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete recipe');
+      toast.error(err instanceof Error ? err.message : 'Xóa thất bại');
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading recipes...</div>;
+  if (loading) {
+    return (
+      <div className="text-slate-500 py-16 text-center flex items-center justify-center gap-2">
+        <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+        <span className="text-sm font-medium">Đang tải định lượng món ăn...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Recipe</button>
+        <button onClick={() => setShowCreate(true)} className={btnPrimary}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Thêm công thức
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4">Description</th>
-              <th className="py-3 px-4">Ingredients</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recipes.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-800">{r.name}</td>
-                <td className="py-3 px-4 text-slate-600">{r.description}</td>
-                <td className="py-3 px-4 text-slate-600">
-                  {r.ingredients?.length ?? 0} items
-                </td>
-                <td className="py-3 px-4 text-right">
-                  <button onClick={() => handleDelete(r.id)} className={btnDanger}>Delete</button>
-                </td>
+      <div className={tableCardCls}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-400 font-bold bg-slate-50/70 border-b border-slate-100">
+                <th className="py-4 px-6">Món ăn</th>
+                <th className="py-4 px-6">Mô tả</th>
+                <th className="py-4 px-6">Số lượng nguyên liệu</th>
+                <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
-            ))}
-            {recipes.length === 0 && (
-              <tr><td colSpan={4} className="py-8 text-center text-slate-400">No recipes found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {recipes.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-50/40 transition-colors">
+                  <td className="py-4 px-6 font-semibold text-slate-800">{r.name}</td>
+                  <td className="py-4 px-6 text-slate-500">{r.description || '—'}</td>
+                  <td className="py-4 px-6 text-slate-600">
+                    <span className="inline-flex px-2 py-0.5 rounded bg-indigo-50 text-indigo-600 text-xs font-semibold">
+                      {r.ingredients?.length ?? 0} nguyên liệu
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 text-right">
+                    <button onClick={() => handleDelete(r.id)} className={btnDanger}>Xóa</button>
+                  </td>
+                </tr>
+              ))}
+              {recipes.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-16 text-center text-slate-400 font-medium">
+                    Chưa thiết lập định lượng món ăn nào
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Create Recipe Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Recipe">
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Thêm công thức định lượng món ăn">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Name</label>
-            <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tên món ăn</label>
+            <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ví dụ: Phở Bò Chín" required />
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Description</label>
-            <input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Mô tả công thức</label>
+            <input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Ví dụ: Công thức định lượng chuẩn" />
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-sm text-slate-600 font-medium">Ingredients</label>
-              <button type="button" onClick={addIngredient} className="text-sm text-[#25439b] hover:text-[#1c3580]">+ Add</button>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nguyên liệu thành phần</label>
+              <button type="button" onClick={addIngredient} className="text-xs font-bold text-indigo-600 hover:text-indigo-800">+ Thêm dòng</button>
             </div>
-            {ingredients.map((ing, idx) => (
-              <div key={idx} className="flex gap-2 items-end">
-                <div className="flex-1">
-                  {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Material</label>}
-                  <select
-                    className={inputCls}
-                    value={ing.rawMaterialId}
-                    onChange={e => updateIngredient(idx, 'rawMaterialId', e.target.value)}
-                  >
-                    <option value={0}>Select...</option>
-                    {rawMaterials.map(rm => (
-                      <option key={rm.id} value={rm.id}>{rm.name}</option>
-                    ))}
-                  </select>
+            <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
+              {ingredients.map((ing, idx) => (
+                <div key={idx} className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    {idx === 0 && <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Nguyên liệu</label>}
+                    <select
+                      className={inputCls}
+                      value={ing.rawMaterialId}
+                      onChange={e => updateIngredient(idx, 'rawMaterialId', e.target.value)}
+                    >
+                      <option value={0}>Chọn...</option>
+                      {rawMaterials.map(rm => (
+                        <option key={rm.id} value={rm.id}>{rm.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-24">
+                    {idx === 0 && <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Đ.Lượng</label>}
+                    <input
+                      type="number"
+                      className={inputCls}
+                      value={ing.quantity || ''}
+                      onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
+                      min="0"
+                      step="0.01"
+                      placeholder="0.0"
+                    />
+                  </div>
+                  <div className="w-20">
+                    {idx === 0 && <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Đơn vị</label>}
+                    <input className={inputCls} value={ing.unit} readOnly placeholder="kg" />
+                  </div>
+                  <button type="button" onClick={() => removeIngredient(idx)} className="text-red-500 hover:text-red-600 pb-2.5 text-lg">✕</button>
                 </div>
-                <div className="w-24">
-                  {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Qty</label>}
-                  <input
-                    type="number"
-                    className={inputCls}
-                    value={ing.quantity || ''}
-                    onChange={e => updateIngredient(idx, 'quantity', e.target.value)}
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div className="w-20">
-                  {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Unit</label>}
-                  <input className={inputCls} value={ing.unit} readOnly />
-                </div>
-                <button type="button" onClick={() => removeIngredient(idx)} className="text-red-500 hover:text-red-600 pb-2 text-lg">✕</button>
-              </div>
-            ))}
+              ))}
+              {ingredients.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">Bấm "+ Thêm dòng" để bắt đầu thiết lập</p>
+              )}
+            </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
-            <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Creating...' : 'Create'}</button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Hủy</button>
+            <button type="submit" disabled={submitting} className={btnPrimary}>
+              {submitting ? 'Đang tạo...' : 'Lưu công thức'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -427,8 +473,8 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
       ]);
       setItems(m);
       setCategories(c);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load menu');
+    } catch {
+      toast.error('Không tải được thực đơn');
     } finally {
       setLoading(false);
     }
@@ -465,7 +511,7 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    if (!form.name.trim()) { toast.error('Tên là bắt buộc'); return; }
     try {
       setSubmitting(true);
       const body = {
@@ -477,124 +523,152 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
       };
       if (editingItem) {
         await api.put(`/api/inventory/menu/${editingItem.id}`, body);
-        toast.success('Menu item updated');
+        toast.success('Đã cập nhật món ăn');
       } else {
         await api.post('/api/inventory/menu', body);
-        toast.success('Menu item created');
+        toast.success('Đã thêm món ăn');
       }
       setShowCreate(false);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save menu item');
+      toast.error(err instanceof Error ? err.message : 'Lưu thất bại');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this menu item?')) return;
+    if (!confirm('Xóa món ăn này khỏi thực đơn?')) return;
     try {
       await api.delete(`/api/inventory/menu/${id}`);
-      toast.success('Menu item deleted');
+      toast.success('Đã xóa món ăn');
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+      toast.error(err instanceof Error ? err.message : 'Xóa thất bại');
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading menu...</div>;
+  if (loading) {
+    return (
+      <div className="text-slate-500 py-16 text-center flex items-center justify-center gap-2">
+        <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+        <span className="text-sm font-medium">Đang tải thực đơn...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={openCreate} className={btnPrimary}>+ New Menu Item</button>
+        <button onClick={openCreate} className={btnPrimary}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Món ăn mới
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4">Category</th>
-              <th className="py-3 px-4">Price</th>
-              <th className="py-3 px-4">Variants</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-800">{item.name}</td>
-                <td className="py-3 px-4 text-slate-600">{item.category?.name ?? '—'}</td>
-                <td className="py-3 px-4 text-slate-600">${item.price?.toFixed(2)}</td>
-                <td className="py-3 px-4 text-slate-600">{item.variants?.length ?? 0}</td>
-                <td className="py-3 px-4">
-                  {item.isActive ? (
-                    <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs">Active</span>
-                  ) : (
-                    <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">Inactive</span>
-                  )}
-                </td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Edit</button>
-                  <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm">Delete</button>
-                </td>
+      <div className={tableCardCls}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-400 font-bold bg-slate-50/70 border-b border-slate-100">
+                <th className="py-4 px-6">Tên món ăn</th>
+                <th className="py-4 px-6">Danh mục</th>
+                <th className="py-4 px-6">Giá cơ bản</th>
+                <th className="py-4 px-6">Số biến thể (size, vị)</th>
+                <th className="py-4 px-6">Trạng thái</th>
+                <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
-            ))}
-            {items.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-slate-400">No menu items found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {items.map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
+                  <td className="py-4 px-6 font-semibold text-slate-800">{item.name}</td>
+                  <td className="py-4 px-6 text-slate-500">{item.category?.name ?? '—'}</td>
+                  <td className="py-4 px-6 text-slate-700 font-medium">
+                    {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.price)}
+                  </td>
+                  <td className="py-4 px-6 text-slate-500">
+                    <span className="inline-flex px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-xs font-semibold">
+                      {item.variants?.length ?? 0} tùy chọn
+                    </span>
+                  </td>
+                  <td className="py-4 px-6">
+                    {item.isActive ? (
+                      <span className="inline-flex px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 text-xs font-semibold">Bán hàng</span>
+                    ) : (
+                      <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-50 text-slate-400 border border-slate-100 text-xs font-semibold">Tạm dừng</span>
+                    )}
+                  </td>
+                  <td className="py-4 px-6 text-right space-x-2">
+                    <button onClick={() => openEdit(item)} className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm">Sửa</button>
+                    <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-700 font-semibold text-sm">Xóa</button>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-slate-400 font-medium">
+                    Không tìm thấy món ăn nào trong thực đơn
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Create/Edit Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Edit Menu Item' : 'New Menu Item'}>
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Cập nhật món ăn' : 'Món ăn thực đơn mới'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Name</label>
-            <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tên món ăn</label>
+            <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ví dụ: Phở Đặc Biệt" required />
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Description</label>
-            <input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Mô tả chi tiết</label>
+            <input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Nguyên liệu chính, cách phục vụ..." />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-slate-600 mb-1">Category</label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Danh mục</label>
               <select className={inputCls} value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}>
-                <option value="">Select...</option>
+                <option value="">Chọn...</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-slate-600 mb-1">Base Price</label>
-              <input type="number" step="0.01" className={inputCls} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Giá cơ bản (VND)</label>
+              <input type="number" className={inputCls} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="45000" />
             </div>
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-sm text-slate-600 font-medium">Variants</label>
-              <button type="button" onClick={addVariant} className="text-sm text-[#25439b] hover:text-[#1c3580]">+ Add</button>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tùy chọn biến thể (Sizes/Vị)</label>
+              <button type="button" onClick={addVariant} className="text-xs font-bold text-indigo-600 hover:text-indigo-800">+ Thêm dòng</button>
             </div>
-            {variants.map((v, idx) => (
-              <div key={idx} className="flex gap-2 items-end">
-                <div className="flex-1">
-                  <input className={inputCls} placeholder="Variant name" value={v.name} onChange={e => updateVariant(idx, 'name', e.target.value)} />
+            <div className="max-h-[160px] overflow-y-auto space-y-2 pr-1">
+              {variants.map((v, idx) => (
+                <div key={idx} className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <input className={inputCls} placeholder="Tên biến thể (ví dụ: Size Lớn)" value={v.name} onChange={e => updateVariant(idx, 'name', e.target.value)} required />
+                  </div>
+                  <div className="w-32">
+                    <input type="number" className={inputCls} placeholder="Giá (VND)" value={v.price} onChange={e => updateVariant(idx, 'price', e.target.value)} required />
+                  </div>
+                  <button type="button" onClick={() => removeVariant(idx)} className="text-red-500 hover:text-red-600 pb-2.5 text-lg">✕</button>
                 </div>
-                <div className="w-32">
-                  <input type="number" step="0.01" className={inputCls} placeholder="Price" value={v.price} onChange={e => updateVariant(idx, 'price', e.target.value)} />
-                </div>
-                <button type="button" onClick={() => removeVariant(idx)} className="text-red-500 hover:text-red-600 pb-2 text-lg">✕</button>
-              </div>
-            ))}
+              ))}
+              {variants.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-2">Món ăn bán giá cố định, chưa có phân loại</p>
+              )}
+            </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
-            <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Saving...' : 'Save'}</button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Hủy</button>
+            <button type="submit" disabled={submitting} className={btnPrimary}>
+              {submitting ? 'Đang lưu...' : 'Lưu món ăn'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -618,8 +692,8 @@ function RawMaterialsTab() {
       setLoading(true);
       const data = await api.get<RawMaterial[]>('/api/inventory/items');
       setItems(data);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load raw materials');
+    } catch {
+      toast.error('Không tải được danh sách nguyên liệu');
     } finally {
       setLoading(false);
     }
@@ -641,92 +715,108 @@ function RawMaterialsTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { toast.error('Name is required'); return; }
-    if (!form.unit.trim()) { toast.error('Unit is required'); return; }
+    if (!form.name.trim()) { toast.error('Tên nguyên liệu không được trống'); return; }
+    if (!form.unit.trim()) { toast.error('Đơn vị tính không được trống'); return; }
     try {
       setSubmitting(true);
       const body = { name: form.name, unit: form.unit, minimumStock: parseFloat(form.minimumStock) || 0 };
       if (editingItem) {
         await api.put(`/api/inventory/items/${editingItem.id}`, body);
-        toast.success('Raw material updated');
+        toast.success('Đã cập nhật nguyên liệu');
       } else {
         await api.post('/api/inventory/items', body);
-        toast.success('Raw material created');
+        toast.success('Đã thêm nguyên liệu');
       }
       setShowCreate(false);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save');
+      toast.error(err instanceof Error ? err.message : 'Lưu thất bại');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this raw material?')) return;
+    if (!confirm('Xóa nguyên liệu này khỏi danh mục hệ thống?')) return;
     try {
       await api.delete(`/api/inventory/items/${id}`);
-      toast.success('Raw material deleted');
+      toast.success('Đã xóa nguyên liệu');
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+      toast.error(err instanceof Error ? err.message : 'Xóa thất bại');
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading raw materials...</div>;
+  if (loading) {
+    return (
+      <div className="text-slate-500 py-16 text-center flex items-center justify-center gap-2">
+        <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+        <span className="text-sm font-medium">Đang tải danh sách nguyên liệu...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={openCreate} className={btnPrimary}>+ New Raw Material</button>
+        <button onClick={openCreate} className={btnPrimary}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Nguyên liệu mới
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4">Unit</th>
-              <th className="py-3 px-4">Minimum Stock</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-800">{item.name}</td>
-                <td className="py-3 px-4 text-slate-600">{item.unit}</td>
-                <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Edit</button>
-                  <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm">Delete</button>
-                </td>
+      <div className={tableCardCls}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-400 font-bold bg-slate-50/70 border-b border-slate-100">
+                <th className="py-4 px-6">Tên nguyên liệu</th>
+                <th className="py-4 px-6">Đơn vị tính</th>
+                <th className="py-4 px-6">Định mức tồn tối thiểu</th>
+                <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
-            ))}
-            {items.length === 0 && (
-              <tr><td colSpan={4} className="py-8 text-center text-slate-400">No raw materials found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {items.map((item) => (
+                <tr key={item.id} className="hover:bg-slate-50/40 transition-colors">
+                  <td className="py-4 px-6 font-semibold text-slate-800">{item.name}</td>
+                  <td className="py-4 px-6 text-slate-600">{item.unit}</td>
+                  <td className="py-4 px-6 text-slate-600 font-medium">{item.minimumStock}</td>
+                  <td className="py-4 px-6 text-right space-x-2">
+                    <button onClick={() => openEdit(item)} className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm">Sửa</button>
+                    <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-700 font-semibold text-sm">Xóa</button>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-16 text-center text-slate-400 font-medium">
+                    Chưa tạo nguyên liệu thô nào
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Edit Raw Material' : 'New Raw Material'}>
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Sửa thông tin nguyên liệu' : 'Khai báo nguyên liệu mới'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Name</label>
-            <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tên nguyên liệu</label>
+            <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ví dụ: Thịt Bò Mỹ, Sữa Tươi..." required />
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Unit</label>
-            <input className={inputCls} value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} placeholder="e.g. kg, liter, pcs" required />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Đơn vị tính</label>
+            <input className={inputCls} value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} placeholder="Ví dụ: kg, lít, hộp, túi..." required />
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Minimum Stock</label>
-            <input type="number" step="0.01" className={inputCls} value={form.minimumStock} onChange={e => setForm({ ...form, minimumStock: e.target.value })} />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tồn tối thiểu cảnh báo</label>
+            <input type="number" step="0.01" className={inputCls} value={form.minimumStock} onChange={e => setForm({ ...form, minimumStock: e.target.value })} placeholder="Nhận cảnh báo khi tồn dưới số này" />
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
-            <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Saving...' : 'Save'}</button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Hủy</button>
+            <button type="submit" disabled={submitting} className={btnPrimary}>Lưu lại</button>
           </div>
         </form>
       </Modal>
@@ -737,6 +827,7 @@ function RawMaterialsTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CATEGORIES TAB
 // ═══════════════════════════════════════════════════════════════════════════════
+// Tab Danh mục món ăn
 function CategoriesTab() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -749,8 +840,8 @@ function CategoriesTab() {
       setLoading(true);
       const data = await api.get<Category[]>('/api/inventory/categories');
       setCategories(data);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load categories');
+    } catch {
+      toast.error('Không tải được danh mục');
     } finally {
       setLoading(false);
     }
@@ -760,73 +851,89 @@ function CategoriesTab() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) { toast.error('Name is required'); return; }
+    if (!name.trim()) { toast.error('Yêu cầu điền tên danh mục'); return; }
     try {
       setSubmitting(true);
       await api.post('/api/inventory/categories', { name });
-      toast.success('Category created');
+      toast.success('Đã thêm danh mục mới');
       setShowCreate(false);
       setName('');
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create category');
+      toast.error(err instanceof Error ? err.message : 'Tạo thất bại');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this category?')) return;
+    if (!confirm('Xóa danh mục này? Món ăn thuộc danh mục sẽ bị ảnh hưởng')) return;
     try {
       await api.delete(`/api/inventory/categories/${id}`);
-      toast.success('Category deleted');
+      toast.success('Đã xóa danh mục');
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+      toast.error(err instanceof Error ? err.message : 'Xóa thất bại');
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading categories...</div>;
+  if (loading) {
+    return (
+      <div className="text-slate-500 py-16 text-center flex items-center justify-center gap-2">
+        <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+        <span className="text-sm font-medium">Đang tải danh mục...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Category</button>
+        <button onClick={() => setShowCreate(true)} className={btnPrimary}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+          Danh mục mới
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((cat) => (
-              <tr key={cat.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-800">{cat.name}</td>
-                <td className="py-3 px-4 text-right">
-                  <button onClick={() => handleDelete(cat.id)} className={btnDanger}>Delete</button>
-                </td>
+      <div className={tableCardCls}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-400 font-bold bg-slate-50/70 border-b border-slate-100">
+                <th className="py-4 px-6">Tên phân loại danh mục</th>
+                <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
-            ))}
-            {categories.length === 0 && (
-              <tr><td colSpan={2} className="py-8 text-center text-slate-400">No categories found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {categories.map((cat) => (
+                <tr key={cat.id} className="hover:bg-slate-50/40 transition-colors">
+                  <td className="py-4 px-6 font-semibold text-slate-800">{cat.name}</td>
+                  <td className="py-4 px-6 text-right">
+                    <button onClick={() => handleDelete(cat.id)} className={btnDanger}>Xóa danh mục</button>
+                  </td>
+                </tr>
+              ))}
+              {categories.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="py-16 text-center text-slate-400 font-medium">
+                    Chưa tạo danh mục món ăn nào
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Category">
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Thêm danh mục phân loại món ăn">
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Category Name</label>
-            <input className={inputCls} value={name} onChange={e => setName(e.target.value)} required autoFocus />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tên danh mục</label>
+            <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Ví dụ: Đồ Uống, Món Khai Vị..." required autoFocus />
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
-            <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Creating...' : 'Create'}</button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Hủy</button>
+            <button type="submit" disabled={submitting} className={btnPrimary}>Lưu lại</button>
           </div>
         </form>
       </Modal>
@@ -865,8 +972,8 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
       setTransfers(t);
       setBranches(b);
       setItems(i);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load transfers');
+    } catch {
+      toast.error('Không tải được lịch sử điều chuyển kho');
     } finally {
       setLoading(false);
     }
@@ -876,9 +983,9 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.toBranchId) { toast.error('Select destination branch'); return; }
-    if (!form.rawMaterialId) { toast.error('Select an item'); return; }
-    if (!form.quantity || parseFloat(form.quantity) <= 0) { toast.error('Enter a valid quantity'); return; }
+    if (!form.toBranchId) { toast.error('Vui lòng chọn chi nhánh đích'); return; }
+    if (!form.rawMaterialId) { toast.error('Vui lòng chọn một nguyên liệu'); return; }
+    if (!form.quantity || parseFloat(form.quantity) <= 0) { toast.error('Nhập số lượng hợp lệ'); return; }
     try {
       setSubmitting(true);
       await api.post('/api/inventory/transfer/create', {
@@ -886,25 +993,25 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
         rawMaterialId: Number(form.rawMaterialId),
         quantity: parseFloat(form.quantity),
       });
-      toast.success('Transfer created');
+      toast.success('Yêu cầu điều chuyển kho đã được gửi');
       setShowCreate(false);
       setForm({ toBranchId: '', rawMaterialId: '', quantity: '' });
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create transfer');
+      toast.error(err instanceof Error ? err.message : 'Tạo yêu cầu thất bại');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleApprove = async (id: number) => {
-    if (!confirm('Approve this transfer?')) return;
+    if (!confirm('Duyệt yêu cầu điều chuyển kho này? Hàng sẽ được khấu trừ trong hệ thống')) return;
     try {
       await api.post(`/api/inventory/transfer/approve/${id}`);
-      toast.success('Transfer approved');
+      toast.success('Yêu cầu điều chuyển đã duyệt thành công!');
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to approve');
+      toast.error(err instanceof Error ? err.message : 'Duyệt thất bại');
     }
   };
 
@@ -913,109 +1020,124 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
       const details = await api.get<any>(`/api/inventory/transfer/details/${transfer.id}`);
       setSelectedTransfer({ ...transfer, ...details });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load details');
+      toast.error(err instanceof Error ? err.message : 'Không tải được chi tiết điều chuyển');
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading transfers...</div>;
+  if (loading) {
+    return (
+      <div className="text-slate-500 py-16 text-center flex items-center justify-center gap-2">
+        <div className="w-5 h-5 border-2 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+        <span className="text-sm font-medium">Đang tải danh sách điều chuyển kho...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Transfer</button>
+        <button onClick={() => setShowCreate(true)} className={btnPrimary}>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+          Điều kho mới
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4">ID</th>
-              <th className="py-3 px-4">From</th>
-              <th className="py-3 px-4">To</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Date</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transfers.map((t) => (
-              <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-600">#{t.id}</td>
-                <td className="py-3 px-4 text-slate-800">{t.fromBranch}</td>
-                <td className="py-3 px-4 text-slate-800">{t.toBranch}</td>
-                <td className="py-3 px-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    t.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' :
-                    t.status === 'PENDING' ? 'bg-amber-50 text-amber-600' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>{t.status}</span>
-                </td>
-                <td className="py-3 px-4 text-slate-600">{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => handleViewDetails(t)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Details</button>
-                  {t.status === 'PENDING' && (
-                    <button onClick={() => handleApprove(t.id)} className="text-emerald-600 hover:text-emerald-700 text-sm">Approve</button>
-                  )}
-                </td>
+      <div className={tableCardCls}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-400 font-bold bg-slate-50/70 border-b border-slate-100">
+                <th className="py-4 px-6">Mã đơn</th>
+                <th className="py-4 px-6">Từ chi nhánh</th>
+                <th className="py-4 px-6">Đến chi nhánh</th>
+                <th className="py-4 px-6">Trạng thái</th>
+                <th className="py-4 px-6">Ngày tạo</th>
+                <th className="py-4 px-6 text-right">Thao tác</th>
               </tr>
-            ))}
-            {transfers.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-slate-400">No transfers found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {transfers.map((t) => (
+                <tr key={t.id} className="hover:bg-slate-50/40 transition-colors">
+                  <td className="py-4 px-6 text-slate-500 font-medium">#{t.id}</td>
+                  <td className="py-4 px-6 font-semibold text-slate-800">{t.fromBranch}</td>
+                  <td className="py-4 px-6 font-semibold text-slate-800">{t.toBranch}</td>
+                  <td className="py-4 px-6">
+                    <span className={`inline-flex px-2.5 py-1 rounded-lg text-xs font-bold ${
+                      t.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                      t.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border border-amber-100 animate-pulse' :
+                      'bg-slate-50 text-slate-400 border border-slate-200'
+                    }`}>{t.status}</span>
+                  </td>
+                  <td className="py-4 px-6 text-slate-500">{new Date(t.createdAt).toLocaleDateString('vi-VN')}</td>
+                  <td className="py-4 px-6 text-right space-x-2">
+                    <button onClick={() => handleViewDetails(t)} className="text-indigo-600 hover:text-indigo-800 font-semibold text-sm">Chi tiết</button>
+                    {t.status === 'PENDING' && (
+                      <button onClick={() => handleApprove(t.id)} className="text-emerald-600 hover:text-emerald-800 font-semibold text-sm">Phê duyệt</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {transfers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center text-slate-400 font-medium">
+                    Không tìm thấy lịch sử điều chuyển nào
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Create Transfer Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Branch Transfer">
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Tạo phiếu yêu cầu điều chuyển kho chi nhánh">
         <form onSubmit={handleCreate} className="space-y-4">
           {activeBranchId && (
             <div>
-              <label className="block text-sm text-slate-600 mb-1">From Branch (Current)</label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Từ kho nguồn (Chi nhánh hiện tại)</label>
               <input className={inputCls} value={branches.find(b => b.branchId === activeBranchId)?.name || activeBranchId} readOnly />
             </div>
           )}
           <div>
-            <label className="block text-sm text-slate-600 mb-1">To Branch</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Đến kho đích (Chi nhánh nhận)</label>
             <select className={inputCls} value={form.toBranchId} onChange={e => setForm({ ...form, toBranchId: e.target.value })} required>
-              <option value="">Select branch...</option>
+              <option value="">Chọn chi nhánh...</option>
               {branches.filter(b => b.branchId !== activeBranchId).map(b => (
                 <option key={b.branchId} value={b.branchId}>{b.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Item</label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Nguyên liệu cần chuyển</label>
             <select className={inputCls} value={form.rawMaterialId} onChange={e => setForm({ ...form, rawMaterialId: e.target.value })} required>
-              <option value="">Select item...</option>
+              <option value="">Chọn nguyên liệu...</option>
               {items.map(i => (
-                <option key={i.id} value={i.id}>{i.name} ({i.currentStock} {i.unit} available)</option>
+                <option key={i.id} value={i.id}>{i.name} (Hiện có: {i.currentStock} {i.unit})</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-sm text-slate-600 mb-1">Quantity</label>
-            <input type="number" step="0.01" min="0" className={inputCls} value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Số lượng chuyển</label>
+            <input type="number" step="0.01" min="0" className={inputCls} value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} placeholder="0.0" required />
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
-            <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Creating...' : 'Create Transfer'}</button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Hủy</button>
+            <button type="submit" disabled={submitting} className={btnPrimary}>Gửi yêu cầu</button>
           </div>
         </form>
       </Modal>
 
       {/* Transfer Details Modal */}
-      <Modal open={!!selectedTransfer} onClose={() => setSelectedTransfer(null)} title={`Transfer #${selectedTransfer?.id}`}>
+      <Modal open={!!selectedTransfer} onClose={() => setSelectedTransfer(null)} title={`Yêu cầu điều chuyển kho #${selectedTransfer?.id}`}>
         {selectedTransfer && (
-          <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div><span className="text-slate-500">From:</span> <span className="text-slate-800 ml-2">{selectedTransfer.fromBranch}</span></div>
-              <div><span className="text-slate-500">To:</span> <span className="text-slate-800 ml-2">{selectedTransfer.toBranch}</span></div>
-              <div><span className="text-slate-500">Status:</span> <span className="text-slate-800 ml-2">{selectedTransfer.status}</span></div>
-              <div><span className="text-slate-500">Date:</span> <span className="text-slate-800 ml-2">{new Date(selectedTransfer.createdAt).toLocaleString()}</span></div>
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <div><span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">Từ kho nguồn:</span> <span className="text-slate-800 font-semibold block mt-0.5">{selectedTransfer.fromBranch}</span></div>
+              <div><span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">Đến kho nhận:</span> <span className="text-slate-800 font-semibold block mt-0.5">{selectedTransfer.toBranch}</span></div>
+              <div className="mt-2"><span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">Trạng thái:</span> <span className="text-slate-800 font-bold block mt-0.5">{selectedTransfer.status}</span></div>
+              <div className="mt-2"><span className="text-slate-400 font-semibold block text-[11px] uppercase tracking-wider">Ngày tạo:</span> <span className="text-slate-800 font-semibold block mt-0.5">{new Date(selectedTransfer.createdAt).toLocaleString('vi-VN')}</span></div>
             </div>
-            <div className="border-t border-slate-200 pt-3">
-              <button onClick={() => setSelectedTransfer(null)} className={btnSecondary}>Close</button>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setSelectedTransfer(null)} className={btnSecondary}>Đóng</button>
             </div>
           </div>
         )}
