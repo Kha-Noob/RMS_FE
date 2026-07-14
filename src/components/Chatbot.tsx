@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, X, MapPin, Sparkles, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useParams } from 'next/navigation';
 
 interface Message {
   sender: 'user' | 'assistant';
@@ -10,6 +11,9 @@ interface Message {
 }
 
 export function Chatbot() {
+  const params = useParams();
+  const tenantId = params?.tenantId as string | undefined;
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -112,7 +116,8 @@ export function Chatbot() {
       const response: { response: string } = await api.post('/api/public/ai/chat', {
         message: userMessage,
         latitude: coords?.latitude || null,
-        longitude: coords?.longitude || null
+        longitude: coords?.longitude || null,
+        tenantId: tenantId || null
       });
 
       setMessages(prev => [...prev, { sender: 'assistant', text: response.response }]);
