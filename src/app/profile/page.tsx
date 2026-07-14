@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
@@ -34,6 +34,18 @@ export default function PublicProfilePage() {
   const { user, logout, refreshUser, loading } = useAuth();
   const { locale, setLocale } = useLanguage();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('registerPartner') === 'true') {
+      setTimeout(() => {
+        const el = document.getElementById('cooperation-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+    }
+  }, [searchParams]);
 
   // --- States ---
   const [uploading, setUploading] = useState(false);
@@ -61,6 +73,7 @@ export default function PublicProfilePage() {
   const [coopDomain, setCoopDomain] = useState('');
   const [contactPhone, setContactPhone] = useState('');
   const [requestType, setRequestType] = useState('EVENT_ONLY');
+  const [packages, setPackages] = useState<any[]>([]);
   const [coopRequests, setCoopRequests] = useState<any[]>([]);
   const [submittingCoop, setSubmittingCoop] = useState(false);
   const [loadingCoop, setLoadingCoop] = useState(false);
@@ -83,6 +96,11 @@ export default function PublicProfilePage() {
       setBirthday(user.birthday || '');
       setGender(user.gender || 'OTHER');
       setDietaryNotes(user.dietaryNotes || '');
+      if (user.hasDefaultPassword) {
+        setOldPassword('GoogleUser123!');
+      } else {
+        setOldPassword('');
+      }
     }
   }, [user]);
 
@@ -114,6 +132,25 @@ export default function PublicProfilePage() {
     }
   }, [user]);
 
+  // Load packages dynamically from public API
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const data = await api.get('/api/public/cooperation/packages');
+        if (data) {
+          setPackages(data as any[]);
+          const typeFromUrl = searchParams.get('requestType');
+          if (typeFromUrl) {
+            setRequestType(typeFromUrl.toUpperCase());
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load packages:', err);
+      }
+    };
+    fetchPackages();
+  }, [searchParams]);
+
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!businessName.trim() || !contactPhone.trim()) {
@@ -139,6 +176,29 @@ export default function PublicProfilePage() {
       }
     } catch (err: any) {
       const errMsg = err?.response?.data?.error || 'Tạo liên kết thanh toán thất bại.';
+      toast.error(errMsg);
+    } finally {
+      setSubmittingCoop(false);
+    }
+  };
+
+  const handleQuickUpgrade = async () => {
+    if (!businessName.trim() || !contactPhone.trim()) {
+      toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc.');
+      return;
+    }
+    try {
+      setSubmittingCoop(true);
+      const res = await api.post<any>('/api/cooperation/quick-upgrade', {
+        businessName,
+        contactPhone,
+        requestType
+      });
+      toast.success(res?.message || 'Nâng cấp đối tác thành công!');
+      // Force reload user context or window to update layout and permission settings
+      window.location.reload();
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || 'Nâng cấp đối tác thất bại.';
       toast.error(errMsg);
     } finally {
       setSubmittingCoop(false);
@@ -479,6 +539,30 @@ export default function PublicProfilePage() {
   // --- Handle Save Personal Info ---
   const handleUpdateInfo = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) {
+      toast.error(locale === 'vi' ? 'Họ và tên không được để trống.' : 'Full name cannot be empty.');
+      return;
+    }
+    if (!/^[A-Za-zÀ-ỹ\s']{2,100}$/.test(name.trim())) {
+      toast.error(locale === 'vi' ? 'Họ và tên không hợp lệ (chỉ chứa chữ cái, từ 2-100 ký tự).' : 'Invalid full name (letters only, 2-100 characters).');
+      return;
+    }
+    if (!phone.trim()) {
+      toast.error(locale === 'vi' ? 'Số điện thoại không được để trống.' : 'Phone number cannot be empty.');
+      return;
+    }
+    if (!/^(0|\+84)[35789][0-9]{8}$/.test(phone.trim())) {
+      toast.error(locale === 'vi' ? 'Số điện thoại không hợp lệ (phải là số điện thoại Việt Nam hợp lệ).' : 'Invalid Vietnamese phone number.');
+      return;
+    }
+    if (birthday) {
+      const selectedBdate = new Date(birthday);
+      const today = new Date();
+      if (selectedBdate >= today) {
+        toast.error(locale === 'vi' ? 'Ngày sinh phải ở trong quá khứ.' : 'Birthday must be in the past.');
+        return;
+      }
+    }
     try {
       setUpdatingInfo(true);
       await api.post('/api/profile/update-info', {
@@ -513,7 +597,12 @@ export default function PublicProfilePage() {
     e.preventDefault();
     if (!oldPassword) { toast.error(t.toastOldPassRequired); return; }
     if (!newPassword) { toast.error(t.toastNewPassRequired); return; }
-    if (newPassword.length < 6) { toast.error(t.toastPassMinLength); return; }
+    if (newPassword.length < 8 || !/\d/.test(newPassword) || !/[!@#$%^&*()]/.test(newPassword)) {
+      toast.error(locale === 'vi' 
+        ? 'Mật khẩu mới không đủ mạnh (phải có ít nhất 8 ký tự, 1 chữ số và 1 ký tự đặc biệt)!'
+        : 'New password is not strong enough (must be at least 8 characters long, containing at least 1 digit and 1 special character)!');
+      return;
+    }
     if (newPassword !== confirmPassword) { toast.error(t.toastPassMismatch); return; }
 
     try {
@@ -870,6 +959,15 @@ export default function PublicProfilePage() {
             <h2 className="text-base font-extrabold text-slate-800">{t.cardPassTitle}</h2>
           </div>
 
+          {user?.roles.includes('CUSTOMER') && user.hasDefaultPassword && (
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-150 text-xs text-blue-800 leading-relaxed shadow-sm">
+              <strong>💡 {locale === 'vi' ? 'Thiết lập mật khẩu cho tài khoản Google' : 'Set password for Google account'}:</strong>{' '}
+              {locale === 'vi' 
+                ? 'Do bạn đăng nhập bằng Google, hệ thống đã tự động điền mật khẩu hiện tại mặc định (GoogleUser123!) vào ô bên dưới. Bạn chỉ cần nhập Mật khẩu mới và xác nhận để hoàn tất thiết lập mật khẩu riêng của mình!'
+                : 'Since you log in via Google, the system has automatically pre-filled the default current password (GoogleUser123!) below. Just type your new password to set your own custom password!'}
+            </div>
+          )}
+
           <form onSubmit={handleChangePassword} className="space-y-5 text-left max-w-xl">
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">{t.labelOldPass}</label>
@@ -949,9 +1047,9 @@ export default function PublicProfilePage() {
           </form>
         </div>
 
-        {/* Card 6: Đăng ký hợp tác kinh doanh & Sử dụng phần mềm (Chỉ hiện cho CUSTOMER) */}
-        {user?.roles.includes('CUSTOMER') && (
-          <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm text-left">
+        {/* Card 6: Đăng ký hợp tác kinh doanh & Sử dụng phần mềm (Chỉ hiện cho CUSTOMER nếu có query param registerPartner=true) */}
+        {user?.roles.includes('CUSTOMER') && searchParams.get('registerPartner') === 'true' && (
+          <div id="cooperation-section" className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm text-left">
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
               <Sparkles className="h-5 w-5 text-amber-500" />
               <h2 className="text-base font-extrabold text-slate-800">
@@ -1008,41 +1106,53 @@ export default function PublicProfilePage() {
                   <div className="space-y-2">
                     <label className="block font-bold text-slate-700 mb-1">{locale === 'vi' ? 'Chọn gói dịch vụ hợp tác' : 'Choose Cooperation Plan'}</label>
                     <div className="grid grid-cols-1 gap-2.5">
-                      {[
-                        { id: 'EVENT_ONLY', titleVi: 'Chỉ hợp tác đăng Event & Ưu đãi', descVi: 'Phí khởi tạo ban đầu: 5.000.000đ. Nhận dòng tiền bán vé sự kiện trên nền tảng, chiết khấu hoa hồng 10%. Không sử dụng phần mềm quản lý nội bộ chuỗi.', titleEn: 'Cooperate on Events only', descEn: 'One-time setup fee: 5,000,000đ. Sell tickets, 10% commission. No system dashboard access.' },
-                        { id: 'APP_SUBSCRIPTION', titleVi: 'Thuê phần mềm quản trị chuỗi (Thuê theo tháng)', descVi: 'Phí thuê: 2.000.000đ / tháng. Sử dụng trọn bộ hệ thống quản trị RMS, POS chi nhánh, KDS, Kho, sơ đồ bàn, chấm công. Chiết khấu hoa hồng sự kiện 5%.', titleEn: 'App Subscription (Monthly)', descEn: 'Fee: 2,000,000đ / month. Access entire RMS management, POS, KDS, Inventory. 5% event ticket commission.' },
-                        { id: 'APP_LIFETIME', titleVi: 'Mua đứt phần mềm quản trị chuỗi (Vĩnh viễn)', descVi: 'Phí mua đứt trọn gói: 50.000.000đ. Sở hữu vĩnh viễn hệ thống phần mềm quản lý chuỗi nhà hàng và POS mà không phát sinh thêm chi phí duy trì. Chiết khấu hoa hồng sự kiện 5%.', titleEn: 'App Purchase (Lifetime)', descEn: 'One-time fee: 50,000,000đ. Lifetime access to RMS management and branch POS. 5% event ticket commission.' }
-                      ].map((plan) => (
-                        <label
-                          key={plan.id}
-                          className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
-                            requestType === plan.id
-                              ? 'bg-blue-50/50 border-blue-400 shadow-sm'
-                              : 'bg-white border-slate-200 hover:bg-slate-50/50'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="requestType"
-                            value={plan.id}
-                            checked={requestType === plan.id}
-                            onChange={() => setRequestType(plan.id)}
-                            className="mt-0.5"
-                          />
-                          <div>
-                            <span className="font-bold text-slate-800 text-xs sm:text-sm">
-                              {locale === 'vi' ? plan.titleVi : plan.titleEn}
-                            </span>
-                            <span className="block text-[11px] text-slate-400 mt-1 leading-normal">
-                              {locale === 'vi' ? plan.descVi : plan.descEn}
-                            </span>
-                          </div>
-                        </label>
-                      ))}
+                      {packages.length === 0 ? (
+                        <div className="text-center p-4 text-slate-400 font-medium">
+                          {locale === 'vi' ? 'Đang tải thông tin các gói dịch vụ...' : 'Loading cooperation plans...'}
+                        </div>
+                      ) : (
+                        packages.map((plan) => (
+                          <label
+                            key={plan.code}
+                            className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                              requestType === plan.code
+                                ? 'bg-blue-50/50 border-blue-400 shadow-sm'
+                                : 'bg-white border-slate-200 hover:bg-slate-50/50'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="requestType"
+                              value={plan.code}
+                              checked={requestType === plan.code}
+                              onChange={() => setRequestType(plan.code)}
+                              className="mt-0.5"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                                {locale === 'vi' ? plan.titleVi : plan.titleEn}
+                              </span>
+                              <span className="block text-[11px] text-slate-500 mt-1 leading-normal">
+                                {locale === 'vi' ? plan.descVi : plan.descEn}
+                              </span>
+                            </div>
+                          </label>
+                        ))
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      disabled={submittingCoop}
+                      onClick={handleQuickUpgrade}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 px-6 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer disabled:opacity-50"
+                    >
+                      {submittingCoop 
+                        ? (locale === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                        : (locale === 'vi' ? 'Kích hoạt trực tiếp (Dùng thử)' : 'Instant Trial Activation')}
+                    </button>
                     <button
                       type="submit"
                       disabled={submittingCoop}

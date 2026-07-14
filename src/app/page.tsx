@@ -67,6 +67,17 @@ export default function LandingPage() {
 
   // --- AI Custom Pages State & Effect ---
   const [customPages, setCustomPages] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
+  const [aboutUsInfo, setAboutUsInfo] = useState<{
+    aboutTag?: string;
+    aboutTitle?: string;
+    aboutDesc?: string;
+    partnerRestaurants?: string;
+    happyDiners?: string;
+    dedicatedService?: string;
+    aboutOverlay?: string;
+  } | null>(null);
+
   useEffect(() => {
     const fetchCustomPages = async () => {
       try {
@@ -76,7 +87,27 @@ export default function LandingPage() {
         console.error('Failed to fetch custom pages:', err);
       }
     };
+    const fetchAboutUs = async () => {
+      try {
+        const data = await api.get('/api/public/about-us');
+        if (data) {
+          setAboutUsInfo(data as any);
+        }
+      } catch (err) {
+        console.error('Failed to fetch About Us info:', err);
+      }
+    };
+    const fetchEvents = async () => {
+      try {
+        const data = await api.get('/api/events/public');
+        setEvents((data as any[]).slice(0, 3));
+      } catch (err) {
+        console.error('Failed to fetch events:', err);
+      }
+    };
     fetchCustomPages();
+    fetchAboutUs();
+    fetchEvents();
   }, []);
 
   const t = useMemo(() => {
@@ -341,53 +372,105 @@ export default function LandingPage() {
     };
   }, [locale]);
 
-  // --- Mock Database ---
-  const restaurants: Restaurant[] = [
-    {
-      id: 'r1',
-      name: 'The Én Restaurant',
-      rating: 4.8,
-      reviewsCount: 128,
-      location: 'Hoàn Kiếm, Hà Nội',
-      distance: '0.8 km',
-      categories: ['Hải sản', 'Á Âu', 'Sang trọng'],
-      imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=400',
-      badge: 'Mới'
-    },
-    {
-      id: 'r2',
-      name: 'Skyline Lounge',
-      rating: 4.7,
-      reviewsCount: 96,
-      location: 'Cầu Giấy, Hà Nội',
-      distance: '2.1 km',
-      categories: ['Bar', 'Cocktail', 'View đẹp'],
-      imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=400',
-      badge: 'Ưu đãi'
-    },
-    {
-      id: 'r3',
-      name: 'Cục Gạch Quán',
-      rating: 4.6,
-      reviewsCount: 64,
-      location: 'Đống Đa, Hà Nội',
-      distance: '2.3 km',
-      categories: ['Món Việt', 'Mộc mạc', 'Ấm cúng'],
-      imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&q=80&w=400',
-      badge: 'Mới'
-    },
-    {
-      id: 'r4',
-      name: 'Tầm Vị Restaurant',
-      rating: 4.9,
-      reviewsCount: 112,
-      location: 'Tây Hồ, Hà Nội',
-      distance: '3.4 km',
-      categories: ['Fine Dining', 'Món Việt', 'Cổ điển'],
-      imageUrl: 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&q=80&w=400',
-      badge: 'Ưu đãi'
-    }
-  ];
+  // --- Translated Events Hook ---
+  const translatedEvents = useMemo(() => {
+    return events.map(evt => {
+      if (locale === 'vi') return evt;
+      const dict: Record<number, any> = {
+        1: {
+          title: 'Street Food Essence Festival',
+          tag: 'Festival',
+          date: '28/06 - 30/06/2026',
+          location: 'Hoan Kiem Lake Walking Street, Hoan Kiem, Hanoi',
+          price: 'Free admission'
+        },
+        2: {
+          title: 'Acoustic Night & Fine Wine Tasting',
+          tag: 'Fine Dining',
+          date: '04/07/2026',
+          location: '25th Floor, Skyline Lounge, Cau Giay, Hanoi',
+          price: '850,000 VND / guest'
+        },
+        3: {
+          title: 'Masterclass: The Art of Traditional Sushi Making',
+          tag: 'Workshop',
+          date: '12/07/2026',
+          location: 'The En Restaurant, Hoan Kiem, Hanoi',
+          price: '1,200,000 VND / guest'
+        },
+        4: {
+          title: 'Craft Beer & Giant BBQ Smoked Ribs Festival',
+          tag: 'Festival',
+          date: '18/07 - 19/07/2026',
+          location: 'Outdoor Beer Garden, Cuc Gach Quan, Dong Da, Hanoi',
+          price: '150,000 VND / ticket (includes 1 drink)'
+        },
+        5: {
+          title: 'Italian Alba White Truffle Dinner (Truffle Fine Dining)',
+          tag: 'Fine Dining',
+          date: '25/07/2026',
+          location: 'Royal VIP Room, Tam Vi Restaurant, Tay Ho, Hanoi',
+          price: '3,500,000 VND / guest'
+        },
+        6: {
+          title: 'Workshop: The Art of Mixing Classic Cocktails',
+          tag: 'Workshop',
+          date: '02/08/2026',
+          location: 'Skyline Lounge Bar, Cau Giay, Hanoi',
+          price: '500,000 VND / guest'
+        },
+        7: {
+          title: 'Premium Seafood Buffet Feast',
+          tag: 'Buffet',
+          date: '20/07 - 22/07/2026',
+          location: 'Branch 2 Thang 9, Da Nang',
+          price: '650,000 VND / guest'
+        },
+        8: {
+          title: 'International Grill & Craft Beer Festival',
+          tag: 'Festival',
+          date: '28/07 - 30/07/2026',
+          location: 'Branch Cooperator 2, Da Nang',
+          price: '250,000 VND / ticket (includes 1 beer)'
+        },
+        9: {
+          title: 'Special Omakase Sushi Experience',
+          tag: 'Fine Dining',
+          date: '05/08/2026',
+          location: 'Branch Cooperator 3, Da Nang',
+          price: '2,000,000 VND / guest'
+        }
+      };
+      const tr = dict[evt.id];
+      return tr ? { ...evt, ...tr } : evt;
+    });
+  }, [events, locale]);
+
+  // --- Dynamic Restaurants from Database ---
+  const restaurants = useMemo<Restaurant[]>(() => {
+    return customPages.map((page, idx) => {
+      let categories = ['Món Việt', 'Sang trọng'];
+      if (page.layoutStyle === 'modern') {
+        categories = ['Nướng BBQ', 'Hiện đại'];
+      } else if (page.layoutStyle === 'minimalist') {
+        categories = ['Sushi & Sashimi', 'Nhật Bản'];
+      } else if (page.layoutStyle === 'luxury') {
+        categories = ['Fine Dining', 'Á Âu', 'Sang trọng'];
+      }
+      
+      return {
+        id: page.tenantId,
+        name: page.restaurantName,
+        rating: 4.6 + (idx % 4) * 0.1,
+        reviewsCount: 64 + (idx % 6) * 16,
+        location: page.tenantId === 'tenant-1' ? 'Hải Châu, Đà Nẵng' : (page.tenantId === 'tenant-2' ? 'Lê Lợi, Đà Nẵng' : 'Hùng Vương, Đà Nẵng'),
+        distance: `${0.8 + idx * 0.6} km`,
+        categories: categories,
+        imageUrl: page.coverImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80',
+        badge: idx % 3 === 0 ? 'Mới' : (idx % 3 === 1 ? 'Ưu đãi' : 'Đặt nhiều') as any
+      };
+    });
+  }, [customPages]);
 
   // --- Filtering Logic for Restaurants ---
   const filteredRestaurants = useMemo(() => {
@@ -427,7 +510,7 @@ export default function LandingPage() {
     }
 
     return list;
-  }, [searchText, selectedDistrict, selectedCuisine, sortBy]);
+  }, [searchText, selectedDistrict, selectedCuisine, sortBy, restaurants]);
 
   // --- Handle Toggle Wishlist Restaurant ---
   const handleToggleWishlist = (id: string) => {
@@ -684,64 +767,72 @@ export default function LandingPage() {
                 };
 
                 return (
-                  <div key={rest.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between">
+                  <div key={rest.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between relative">
                     
-                    {/* Restaurant Image */}
-                    <div className="h-48 w-full relative overflow-hidden bg-slate-100">
-                      <img src={rest.imageUrl} alt={rest.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                      
-                      {/* Top-Left Badge */}
-                      {badgeText && (
-                        <span className="absolute top-3 left-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md">
-                          {badgeText}
-                        </span>
-                      )}
+                    {/* Top-Right Heart Wishlist */}
+                    <button 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleToggleWishlist(rest.id);
+                      }}
+                      className="absolute top-3 right-3 h-8.5 w-8.5 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-20"
+                    >
+                      <Heart className={`h-4.5 w-4.5 transition-colors ${isWishlisted ? 'text-rose-500 fill-rose-500' : 'text-slate-400 hover:text-rose-500'}`} />
+                    </button>
 
-                      {/* Top-Right Heart Wishlist */}
-                      <button 
-                        onClick={() => handleToggleWishlist(rest.id)}
-                        className="absolute top-3 right-3 h-8.5 w-8.5 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 active:scale-95 transition-all flex items-center justify-center"
-                      >
-                        <Heart className={`h-4.5 w-4.5 transition-colors ${isWishlisted ? 'text-rose-500 fill-rose-500' : 'text-slate-400 hover:text-rose-500'}`} />
-                      </button>
-                    </div>
-
-                    {/* Information Body */}
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                      <div className="space-y-2">
-                        <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
-                          {rest.name}
-                        </h3>
+                    <Link href={`/restaurant-page/${rest.id}`} className="flex-1 flex flex-col cursor-pointer">
+                      {/* Restaurant Image */}
+                      <div className="h-48 w-full relative overflow-hidden bg-slate-100">
+                        <img src={rest.imageUrl} alt={rest.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         
-                        {/* Stars & Reviews */}
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                          <span className="font-extrabold text-slate-800">{rest.rating}</span>
-                          <span className="text-slate-400">({rest.reviewsCount} {locale === 'vi' ? 'đánh giá' : 'reviews'})</span>
-                        </div>
-
-                        {/* Location & Distance */}
-                        <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
-                          <span className="truncate">{rest.location}</span>
-                          <span className="text-slate-300">•</span>
-                          <span className="shrink-0">{rest.distance}</span>
-                        </p>
-
-                        {/* Category Badges */}
-                        <div className="flex flex-wrap gap-1 pt-1">
-                          {rest.categories.map((cat, idx) => (
-                            <span key={idx} className="bg-slate-50 text-slate-500 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-slate-100">
-                              {translateCategory(cat)}
-                            </span>
-                          ))}
-                        </div>
+                        {/* Top-Left Badge */}
+                        {badgeText && (
+                          <span className="absolute top-3 left-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md z-10">
+                            {badgeText}
+                          </span>
+                        )}
                       </div>
 
-                      {/* Book Now Button */}
+                      {/* Information Body */}
+                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                        <div className="space-y-2 text-left">
+                          <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                            {rest.name}
+                          </h3>
+                          
+                          {/* Stars & Reviews */}
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                            <span className="font-extrabold text-slate-800">{rest.rating}</span>
+                            <span className="text-slate-400">({rest.reviewsCount} {locale === 'vi' ? 'đánh giá' : 'reviews'})</span>
+                          </div>
+
+                          {/* Location & Distance */}
+                          <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                            <span className="truncate">{rest.location}</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="shrink-0">{rest.distance}</span>
+                          </p>
+
+                          {/* Category Badges */}
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {rest.categories.map((cat, idx) => (
+                              <span key={idx} className="bg-slate-50 text-slate-500 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-slate-100">
+                                {translateCategory(cat)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+
+                    {/* Book Now Button */}
+                    <div className="px-5 pb-5 pt-0">
                       <button
                         onClick={() => router.push('/booking')}
-                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-1.5 group-hover:shadow-md"
+                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-1.5 group-hover:shadow-md cursor-pointer"
                       >
                         <Calendar className="h-4 w-4" />
                         <span>{t.gridBtnBook}</span>
@@ -754,6 +845,97 @@ export default function LandingPage() {
           )}
         </div>
       </section>
+
+      {/* --- FEATURED EVENTS SECTION --- */}
+      {events.length > 0 && (
+        <section id="featured-events-section" className="bg-gradient-to-b from-blue-50/20 to-white py-16 scroll-mt-20 border-b border-blue-100/50">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-8">
+            {/* Section Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🎉</span>
+                <div className="text-left">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-800">
+                    {locale === 'vi' ? 'Sự kiện & Lễ hội nổi bật' : 'Culinary Events & Festivals'}
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {locale === 'vi' 
+                      ? 'Đăng ký tham gia ngay các đêm tiệc ẩm thực, lớp học làm bánh và lễ hội sôi động từ các đối tác.' 
+                      : 'Join exclusive dining nights, masterclasses, and exciting festivals from our partners.'}
+                  </p>
+                </div>
+              </div>
+              <Link 
+                href="/events"
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors"
+              >
+                <span>{locale === 'vi' ? 'Xem tất cả' : 'View All'}</span>
+                <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+
+            {/* Grid of Events */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {translatedEvents.map((evt) => (
+                <div key={evt.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between">
+                  {/* Event Banner */}
+                  <div className="h-44 w-full relative overflow-hidden bg-slate-100">
+                    <img 
+                      src={evt.imageUrl || 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&q=80&w=400'} 
+                      alt={evt.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                    />
+                    <span className="absolute top-3 left-3 bg-blue-600 text-white text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider shadow">
+                      {evt.tag || 'Sự kiện'}
+                    </span>
+                  </div>
+
+                  {/* Body Info */}
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                    <div className="space-y-2 text-left">
+                      <span className="text-[10px] font-extrabold text-blue-600">
+                        {evt.restaurantName}
+                      </span>
+                      <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                        {evt.title}
+                      </h3>
+                      
+                      <div className="space-y-1 text-slate-500 text-[11px]">
+                        <p className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span>{evt.date} - {evt.time}</span>
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{evt.location}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Footer / CTA */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold">
+                          {locale === 'vi' ? 'Giá vé' : 'Ticket Price'}
+                        </span>
+                        <span className="text-xs font-black text-slate-800">
+                          {evt.price}
+                        </span>
+                      </div>
+                      <Link
+                        href={`/events?id=${evt.id}`}
+                        className="bg-blue-600 hover:bg-blue-750 text-white text-xs font-bold py-2 px-3 rounded-lg shadow-sm transition-all"
+                      >
+                        {locale === 'vi' ? 'Đăng ký' : 'Register'}
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* --- EXPLORE PARTNER PAGES SECTION --- */}
       {customPages.length > 0 && (
@@ -801,8 +983,7 @@ export default function LandingPage() {
                     {/* Action button */}
                     <Link
                       href={`/restaurant-page/${page.tenantId}`}
-                      style={{ backgroundColor: page.primaryColor }}
-                      className="w-full text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm hover:brightness-105 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                      className="w-full bg-blue-600 hover:bg-blue-750 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm hover:brightness-105 transition-all flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <span>{locale === 'vi' ? 'Ghé thăm nhà hàng' : 'Visit Restaurant'}</span>
                     </Link>
@@ -973,26 +1154,32 @@ export default function LandingPage() {
           {/* Left Block: Slogan & Mission */}
           <div className="lg:col-span-7 space-y-6">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 border border-blue-100">
-              <span>{t.aboutTag}</span>
+              <span>{aboutUsInfo?.aboutTag || t.aboutTag}</span>
             </div>
             <h2 className="text-3xl font-black text-slate-800 leading-tight">
-              {t.aboutTitle}
+              {aboutUsInfo?.aboutTitle || t.aboutTitle}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              {t.aboutDesc}
+              {aboutUsInfo?.aboutDesc || t.aboutDesc}
             </p>
             {/* Stat indicators */}
             <div className="grid grid-cols-3 gap-4 pt-4 border-t border-blue-100">
               <div>
-                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">50+</span>
+                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">
+                  {aboutUsInfo?.partnerRestaurants || '50+'}
+                </span>
                 <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{t.aboutStat1}</span>
               </div>
               <div>
-                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">10,000+</span>
+                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">
+                  {aboutUsInfo?.happyDiners || '10,000+'}
+                </span>
                 <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{t.aboutStat2}</span>
               </div>
               <div>
-                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">24/7</span>
+                <span className="text-2xl sm:text-3xl font-black text-blue-600 block">
+                  {aboutUsInfo?.dedicatedService || '24/7'}
+                </span>
                 <span className="text-[10px] sm:text-xs text-slate-500 font-medium">{t.aboutStat3}</span>
               </div>
             </div>
@@ -1014,7 +1201,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <span className="text-xs font-bold text-slate-800 block">RMS Platform</span>
-                  <span className="text-[10px] text-slate-500">{t.aboutOverlay}</span>
+                  <span className="text-[10px] text-slate-500">{aboutUsInfo?.aboutOverlay || t.aboutOverlay}</span>
                 </div>
               </div>
             </div>

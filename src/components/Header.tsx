@@ -160,9 +160,17 @@ export default function Header() {
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                 className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-full border border-blue-100/75 transition duration-200 cursor-pointer focus:outline-none shadow-sm"
               >
-                <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
-                  {user.name.charAt(0)}
-                </div>
+                {user.avatarUrl ? (
+                  <img 
+                    src={user.avatarUrl} 
+                    alt={user.name} 
+                    className="h-6.5 w-6.5 rounded-full object-cover shadow-sm border border-blue-200/50"
+                  />
+                ) : (
+                  <div className="h-6.5 w-6.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-black uppercase shadow-sm">
+                    {user.name.charAt(0)}
+                  </div>
+                )}
                 <span className="text-xs font-bold text-blue-900 hidden sm:inline max-w-[120px] truncate select-none">
                   {user.name}
                 </span>

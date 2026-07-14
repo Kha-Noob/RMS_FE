@@ -4,6 +4,7 @@ import "./globals.css";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastContainer } from "@/components/Toast";
+import { Chatbot } from "@/components/Chatbot";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -27,6 +28,7 @@ export default function RootLayout({
           <AuthProvider>
             {children}
             <ToastContainer />
+            <Chatbot />
           </AuthProvider>
         </LanguageProvider>
       </body>

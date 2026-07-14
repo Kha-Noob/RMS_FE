@@ -18,6 +18,7 @@ export interface User {
   birthday?: string | null;
   gender?: string | null;
   dietaryNotes?: string | null;
+  hasDefaultPassword?: boolean;
 }
 
 export interface Branch {
