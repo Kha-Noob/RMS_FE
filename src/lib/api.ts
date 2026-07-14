@@ -72,11 +72,16 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!res.ok) {
     if (res.status === 401) {
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        console.warn("[API] Got 401 Unauthorized, clearing credentials and redirecting to /login");
-        clearCredentials();
-        localStorage.removeItem('rms_active_branch');
-        window.location.href = '/login';
+      if (typeof window !== 'undefined') {
+        const path = window.location.pathname;
+        const publicPaths = ['/login', '/forgot-password', '/oauth2/callback', '/register'];
+        const isPublicPath = publicPaths.includes(path);
+        if (!isPublicPath) {
+          console.warn("[API] Got 401 Unauthorized, clearing credentials and redirecting to /login");
+          clearCredentials();
+          localStorage.removeItem('rms_active_branch');
+          window.location.href = '/login';
+        }
       }
     }
     const text = await res.text().catch(() => 'Request failed');
