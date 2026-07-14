@@ -74,8 +74,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     if (res.status === 401) {
       if (typeof window !== 'undefined') {
         const path = window.location.pathname;
-        const publicPaths = ['/login', '/forgot-password', '/oauth2/callback', '/register'];
-        const isPublicPath = publicPaths.includes(path);
+        const publicExactPaths = ['/', '/login', '/forgot-password', '/oauth2/callback', '/register', '/customer-portal', '/feed', '/events', '/restaurants'];
+        const isExactPublic = publicExactPaths.includes(path);
+        const isDynamicPublic = path.startsWith('/restaurant-page/');
+        const isPublicPath = isExactPublic || isDynamicPublic;
         if (!isPublicPath) {
           console.warn("[API] Got 401 Unauthorized, clearing credentials and redirecting to /login");
           clearCredentials();

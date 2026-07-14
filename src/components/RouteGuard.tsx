@@ -10,11 +10,23 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // List of public pages that do not require authentication
-    const publicPaths = ['/login', '/forgot-password', '/oauth2/callback', '/register'];
+    // List of public exact pages that do not require authentication
+    const publicExactPaths = [
+      '/', 
+      '/login', 
+      '/forgot-password', 
+      '/oauth2/callback', 
+      '/register', 
+      '/customer-portal', 
+      '/feed', 
+      '/events', 
+      '/restaurants'
+    ];
     
-    // Check if the current route is a public path
-    const isPublicPath = publicPaths.includes(pathname);
+    // Check if the current route is a public path or dynamic tenant custom page
+    const isExactPublic = publicExactPaths.includes(pathname);
+    const isDynamicPublic = pathname.startsWith('/restaurant-page/');
+    const isPublicPath = isExactPublic || isDynamicPublic;
 
     if (!loading && !user && !isPublicPath) {
       console.log(`[RouteGuard] Unauthorized access to ${pathname}, redirecting to /login`);
