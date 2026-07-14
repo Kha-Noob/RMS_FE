@@ -22,4 +22,5 @@ export const menuItems: MenuItem[] = [
   { label: 'CMS Khuyến Mãi', href: '/cms-promotions', icon: 'promotion', roles: ['ADMIN', 'MANAGER', 'COOPERATOR'] },
   { label: 'Thiết kế trang AI', href: '/admin-page-builder', icon: 'layout', roles: ['ADMIN', 'COOPERATOR'] },
   { label: 'Cấu hình Chatbot AI', href: '/cms-chatbot', icon: 'sparkles', roles: ['ADMIN', 'MANAGER', 'COOPERATOR'] },
+  { label: 'Bộ lọc từ cấm AI', href: '/admin-profanity', icon: 'shield-alert', roles: ['ADMIN'] },
 ];
