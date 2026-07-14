@@ -14,7 +14,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { login, getDefaultLandingPage } = useAuth();
   const { locale } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -115,7 +115,13 @@ export default function LoginPage() {
     try {
       const loggedUser = await login(email, password);
       toast.success(locale === 'vi' ? 'Đăng nhập thành công!' : 'Logged in successfully');
-      router.push('/');
+      const isStaffOrAdmin = loggedUser.roles.some(r => r !== 'CUSTOMER');
+      if (isStaffOrAdmin) {
+        const defaultPage = getDefaultLandingPage(loggedUser.roles);
+        router.push(defaultPage);
+      } else {
+        router.push('/');
+      }
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : String(err);
       let userFriendlyMsg = rawMsg;
