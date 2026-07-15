@@ -2,39 +2,56 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { toast } from '@/components/Toast';
-import type { FloorPlan, FloorPlanObject, FloorPlanStyle } from '@/types';
+import type { FloorPlan, FloorPlanObject, TableEntity } from '@/types';
+import { BACKGROUND_MODES } from '@/types';
+import { createDefaultObject, getObjectDefinition } from '@/components/object-registry';
+import type { TableStyle } from '@/types';
+import Canvas, { type CanvasHandle } from '@/components/layout-builder/Canvas';
+import Toolbox from '@/components/layout-builder/Toolbox';
+import PropertyPanel from '@/components/layout-builder/PropertyPanel';
+import Toolbar from '@/components/layout-builder/Toolbar';
+import CreateTableModal from '@/components/layout-builder/CreateTableModal';
+import PannellumViewer from '@/components/PannellumViewer';
+import { useCanvasHistory } from '@/hooks/useCanvasHistory';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
-const OBJECT_TYPES = [
-  { type: 'table', label: 'Bàn tròn', shape: 'circle', icon: '🪑', defaults: { width: 80, height: 80 } },
-  { type: 'table', label: 'Bàn vuông', shape: 'rectangle', icon: '🪑', defaults: { width: 80, height: 80 } },
-  { type: 'table', label: 'Bàn dài', shape: 'rectangle', icon: '🪑', defaults: { width: 120, height: 60 } },
-  { type: 'wall', label: 'Tường', shape: 'rectangle', icon: '🧱', defaults: { width: 200, height: 20 } },
-  { type: 'door', label: 'Cửa', shape: 'arc', icon: '🚪', defaults: { width: 100, height: 30 } },
-  { type: 'window', label: 'Cửa sổ', shape: 'rectangle', icon: '🪟', defaults: { width: 100, height: 15 } },
-  { type: 'toilet', label: 'WC', shape: 'rectangle', icon: '🚻', defaults: { width: 80, height: 80 } },
-  { type: 'cashier', label: 'Thu ngân', shape: 'rectangle', icon: '💰', defaults: { width: 150, height: 80 } },
-  { type: 'kitchen', label: 'Bếp', shape: 'rectangle', icon: '🍳', defaults: { width: 200, height: 150 } },
-  { type: 'bar', label: 'Quầy bar', shape: 'rectangle', icon: '🍸', defaults: { width: 200, height: 60 } },
-  { type: 'text', label: 'Nhãn', shape: 'rectangle', icon: '📝', defaults: { width: 150, height: 40 } },
-  { type: 'blocked_area', label: 'Chặn', shape: 'rectangle', icon: '🚫', defaults: { width: 100, height: 100 } },
-];
+/** Maps tableStyle + capacity to the correct floor plan object type for SVG rendering */
+function getTableObjectType(tableStyle: TableStyle | null | undefined, capacity: number): string {
+  switch (tableStyle) {
+    case 'SQUARE':
+      return 'square_table_4';
+    case 'RECTANGLE':
+      return capacity <= 6 ? 'rectangle_table_6' : 'rectangle_table_8';
+    case 'VIP':
+      return 'vip_sofa';
+    case 'ROUND':
+    default:
+      if (capacity <= 2) return 'round_table_2';
+      if (capacity <= 4) return 'round_table_4';
+      if (capacity <= 6) return 'round_table_6';
+      return 'round_table_8';
+  }
+}
 
-const TYPE_COLORS: Record<string, string> = {
-  table: '#22c55e',
-  wall: '#333333',
-  door: '#8B4513',
-  window: '#87CEEB',
-  toilet: '#6B7280',
-  cashier: '#DAA520',
-  kitchen: '#FF6347',
-  bar: '#4A90D9',
-  text: '#666666',
-  decoration: '#228B22',
-  blocked_area: '#94a3b8',
-  stairs: '#78716c',
-};
+function asJsonObject(value: FloorPlanObject['metadataJson']): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) as Record<string, unknown>; } catch { return {}; }
+  }
+  return value;
+}
+
+function withLinkedTableAliases(metadataJson: FloorPlanObject['metadataJson']): Record<string, unknown> {
+  const metadata = asJsonObject(metadataJson);
+  const linkedTableId = metadata.tableEntityId ?? metadata.tableId ?? metadata.linkedTableId;
+  if (linkedTableId != null) {
+    metadata.tableEntityId = linkedTableId;
+    metadata.tableId = linkedTableId;
+  }
+  return metadata;
+}
 
 export default function FloorPlanEditorPage() {
   const params = useParams();
@@ -43,556 +60,569 @@ export default function FloorPlanEditorPage() {
   const floorPlanId = params.floorPlanId as string;
 
   const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(null);
-  const [objects, setObjects] = useState<FloorPlanObject[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingDiagram, setUploadingDiagram] = useState(false);
+  const [editMode, setEditMode] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [gridSize, setGridSize] = useState(20);
+  const [snapToGrid, setSnapToGrid] = useState(true);
   const [zoom, setZoom] = useState(1);
-  const [showGrid, setShowGrid] = useState(true);
-  const [dragging, setDragging] = useState<number | null>(null);
-  const [resizing, setResizing] = useState<{ id: number; handle: string } | null>(null);
-  const [panning, setPanning] = useState(false);
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
-  const dragStart = useRef({ x: 0, y: 0, objX: 0, objY: 0, objW: 0, objH: 0 });
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const [show360Preview, setShow360Preview] = useState(false);
+  const canvasRef = useRef<CanvasHandle>(null);
 
-  const selectedObj = objects.find(o => o.id === selectedId);
+  // Table creation workflow state
+  const [posTables, setPosTables] = useState<TableEntity[]>([]);
+  const [hasExistingPosTables, setHasExistingPosTables] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [pendingDropInfo, setPendingDropInfo] = useState<{ type: string; x: number; y: number } | null>(null);
+
+  const { objects, updateObjects, undo, redo, canUndo, canRedo, reset } = useCanvasHistory();
 
   const loadFloorPlan = useCallback(async () => {
     try {
-      const res = await api.get<FloorPlan>(`/api/floor-plans/${floorPlanId}`);
-      setFloorPlan(res);
-      setObjects(res.floorPlanObjects || []);
-    } catch {
-      toast.error('Không tải được floor plan');
-    } finally {
-      setLoading(false);
+      const plan = await api.get<FloorPlan & { floorPlanObjects?: FloorPlanObject[] }>(`/api/floor-plans/${floorPlanId}`);
+      console.debug('[FloorPlanEditor] GET floor plan response', plan);
+      setFloorPlan(plan);
+      const loadedObjects = plan.floorPlanObjects ?? await api.get<FloorPlanObject[]>(`/api/floor-plans/${floorPlanId}/objects`);
+      console.debug('[FloorPlanEditor] hydrated objects for canvas', loadedObjects);
+      reset(loadedObjects);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to load floor plan'));
     }
-  }, [floorPlanId]);
+  }, [floorPlanId, reset]);
 
-  useEffect(() => { loadFloorPlan(); }, [loadFloorPlan]);
+  useEffect(() => { loadFloorPlan().finally(() => setLoading(false)); }, [loadFloorPlan]);
 
-  const parseStyle = (json: string | null): FloorPlanStyle => {
-    if (!json) return {};
-    try { return JSON.parse(json) as FloorPlanStyle; } catch { return {}; }
-  };
-
-  const parseMeta = (json: string | null): Record<string, unknown> => {
-    if (!json) return {};
-    try { return JSON.parse(json) as Record<string, unknown>; } catch { return {}; }
-  };
-
-  const getObjectColor = (obj: FloorPlanObject) => {
-    const style = parseStyle(obj.styleJson);
-    if (obj.objectType === 'table') return style.fillColor || TYPE_COLORS.table;
-    return style.color || TYPE_COLORS[obj.objectType] || '#94a3b8';
-  };
-
-  const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
-      setPanning(true);
-      dragStart.current = { x: e.clientX, y: e.clientY, objX: panOffset.x, objY: panOffset.y, objW: 0, objH: 0 };
-      e.preventDefault();
-    } else if (e.button === 0 && e.target === canvasRef.current) {
-      setSelectedId(null);
-    }
-  };
-
-  const handleCanvasMouseMove = useCallback((e: MouseEvent) => {
-    if (panning) {
-      setPanOffset({
-        x: dragStart.current.objX + (e.clientX - dragStart.current.x),
-        y: dragStart.current.objY + (e.clientY - dragStart.current.y),
+  // Load POS tables to auto-detect workflow
+  useEffect(() => {
+    api.get<TableEntity[]>('/api/pos/tables', { params: { branchId } })
+      .then(tables => {
+        setPosTables(tables);
+        setHasExistingPosTables(tables.length > 0);
+      })
+      .catch(() => {
+        setHasExistingPosTables(false);
       });
+  }, [branchId]);
+
+  const selectedObj = objects.find(o => o.id === selectedIds[0]) || null;
+  const roomTables = floorPlan?.roomId
+    ? posTables.filter(t => t.room?.id === floorPlan.roomId)
+    : posTables;
+
+  // Unplaced tables: POS tables whose id is NOT in any object's metadataJson.tableEntityId
+  const placedTableIds = new Set(
+    objects
+      .map(o => {
+        const meta = asJsonObject(o.metadataJson);
+        return meta.tableEntityId as number | undefined;
+      })
+      .filter((id): id is number => id != null)
+  );
+  const unplacedTables = roomTables.filter(t => !placedTableIds.has(t.id));
+
+  useKeyboardShortcuts({
+    selectedIds, objects, editMode,
+    onUpdate: updateObjects,
+    onSelectionChange: setSelectedIds,
+    onUndo: undo, onRedo: redo,
+    canUndo, canRedo,
+  });
+
+  // ── Object CRUD ──────────────────────────────────────────
+
+  const handleAddObject = useCallback((type: string) => {
+    const def = getObjectDefinition(type);
+    const isTable = def?.isTable;
+
+    if (isTable && roomTables.length === 0) {
+      // Case 1: New restaurant — show create modal
+      setPendingDropInfo({ type, x: 50, y: 50 });
+      setShowCreateModal(true);
       return;
     }
 
-    if (dragging !== null) {
-      const dx = (e.clientX - dragStart.current.x) / zoom;
-      const dy = (e.clientY - dragStart.current.y) / zoom;
-      setObjects(prev => prev.map(o =>
-        o.id === dragging ? { ...o, x: dragStart.current.objX + dx, y: dragStart.current.objY + dy } : o
-      ));
+    // Non-table object or Case 2 (already has POS tables) — place directly
+    const newObj = createDefaultObject(type, 50, 50);
+    const maxId = Math.max(0, ...objects.map(o => o.id));
+    const id = maxId + 1;
+    updateObjects(prev => [...prev, { ...newObj, id }]);
+    setSelectedIds([id]);
+  }, [objects, updateObjects, roomTables.length]);
+
+  const handleDrop = useCallback((type: string, x: number, y: number, posTableId?: number) => {
+    if (posTableId) {
+      // Case 2: Dragging an existing POS table onto canvas
+      const posTable = roomTables.find(t => t.id === posTableId);
+      if (!posTable) return;
+
+      const tableType = getTableObjectType(posTable.tableStyle, posTable.capacity);
+
+      const newObj = createDefaultObject(tableType, x, y);
+      const meta = asJsonObject(newObj.metadataJson);
+      meta.tableEntityId = posTableId;
+      meta.capacity = posTable.capacity;
+      meta.tableStyle = posTable.tableStyle || 'ROUND';
+      const maxId = Math.max(0, ...objects.map(o => o.id));
+      const id = maxId + 1;
+      updateObjects(prev => [...prev, { ...newObj, id, label: posTable.name, metadataJson: meta }]);
+      setSelectedIds([id]);
       return;
     }
 
-    if (resizing) {
-      const dx = (e.clientX - dragStart.current.x) / zoom;
-      const dy = (e.clientY - dragStart.current.y) / zoom;
-      setObjects(prev => prev.map(o => {
-        if (o.id !== resizing.id) return o;
-        let newX = o.x, newY = o.y, newW = o.width, newH = o.height;
-        const h = resizing.handle;
-        if (h.includes('e')) newW = Math.max(20, dragStart.current.objW + dx);
-        if (h.includes('w')) { newW = Math.max(20, dragStart.current.objW - dx); newX = dragStart.current.objX + dx; }
-        if (h.includes('s')) newH = Math.max(20, dragStart.current.objH + dy);
-        if (h.includes('n')) { newH = Math.max(20, dragStart.current.objH - dy); newY = dragStart.current.objY + dy; }
-        return { ...o, x: newX, y: newY, width: newW, height: newH };
-      }));
-    }
-  }, [dragging, resizing, panning, zoom]);
+    // Case 1: Dropping a table preset — check if we need modal
+    const def = getObjectDefinition(type);
+    const isTable = def?.isTable;
 
-  const handleCanvasMouseUp = useCallback(() => {
-    setDragging(null);
-    setResizing(null);
-    setPanning(false);
+    if (isTable && roomTables.length === 0) {
+      // New restaurant — show create modal
+      setPendingDropInfo({ type, x, y });
+      setShowCreateModal(true);
+      return;
+    }
+
+    // Non-table object — place directly
+    const newObj = createDefaultObject(type, x, y);
+    const maxId = Math.max(0, ...objects.map(o => o.id));
+    const id = maxId + 1;
+    updateObjects(prev => [...prev, { ...newObj, id }]);
+    setSelectedIds([id]);
+  }, [objects, updateObjects, roomTables]);
+
+  // Called when user clicks "Create" in the CreateTableModal
+  const handleCreateTable = useCallback((data: { name: string; capacity: number; zone: string; notes: string; tableStyle: TableStyle }) => {
+    if (!pendingDropInfo) return;
+
+    const tableType = getTableObjectType(data.tableStyle, data.capacity);
+    const newObj = createDefaultObject(tableType, pendingDropInfo.x, pendingDropInfo.y);
+    const meta = asJsonObject(newObj.metadataJson);
+    meta.capacity = data.capacity;
+    meta.zone = data.zone;
+    meta.notes = data.notes;
+    meta.tableStyle = data.tableStyle;
+    const maxId = Math.max(0, ...objects.map(o => o.id));
+    const id = maxId + 1;
+    updateObjects(prev => [...prev, { ...newObj, id, label: data.name, metadataJson: meta }]);
+    setSelectedIds([id]);
+    setShowCreateModal(false);
+    setPendingDropInfo(null);
+  }, [pendingDropInfo, objects, updateObjects]);
+
+  const handlePlaceExistingTable = useCallback((tableId: number) => {
+    const posTable = roomTables.find(t => t.id === tableId);
+    if (!posTable) return;
+
+    const tableType = getTableObjectType(posTable.tableStyle, posTable.capacity);
+
+    const newObj = createDefaultObject(tableType, 50, 50);
+    const meta = asJsonObject(newObj.metadataJson);
+    meta.tableEntityId = tableId;
+    meta.capacity = posTable.capacity;
+    meta.tableStyle = posTable.tableStyle || 'ROUND';
+    const maxId = Math.max(0, ...objects.map(o => o.id));
+    const id = maxId + 1;
+    updateObjects(prev => [...prev, { ...newObj, id, label: posTable.name, metadataJson: meta }]);
+    setSelectedIds([id]);
+  }, [objects, updateObjects, roomTables]);
+
+  const handleObjectMove = useCallback((id: number, x: number, y: number) => {
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, x, y } : o));
+  }, [updateObjects]);
+
+  const handleObjectResize = useCallback((id: number, width: number, height: number) => {
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, width, height } : o));
+  }, [updateObjects]);
+
+  const handleObjectRotate = useCallback((id: number, rotation: number) => {
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, rotation } : o));
+  }, [updateObjects]);
+
+  const handleObjectUpdate = useCallback((id: number, field: string, value: unknown) => {
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, [field]: value } : o));
+  }, [updateObjects]);
+
+  const handleDeleteObject = useCallback((id: number) => {
+    updateObjects(prev => prev.filter(o => o.id !== id));
+    setSelectedIds(prev => prev.filter(i => i !== id));
+  }, [updateObjects]);
+
+  const handleDuplicateObject = useCallback((id: number) => {
+    const obj = objects.find(o => o.id === id);
+    if (!obj) return;
+    const maxId = Math.max(0, ...objects.map(o => o.id));
+    const newId = maxId + 1;
+    updateObjects(prev => [...prev, { ...obj, id: newId, x: obj.x + 2, y: obj.y + 2, label: obj.label ? obj.label + ' copy' : null }]);
+    setSelectedIds([newId]);
+  }, [objects, updateObjects]);
+
+  const handleBringFront = useCallback((id: number) => {
+    const maxZ = Math.max(0, ...objects.map(o => o.zIndex));
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, zIndex: maxZ + 1 } : o));
+  }, [objects, updateObjects]);
+
+  const handleSendBack = useCallback((id: number) => {
+    const minZ = Math.min(0, ...objects.map(o => o.zIndex));
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, zIndex: minZ - 1 } : o));
+  }, [objects, updateObjects]);
+
+  const handleBringForward = useCallback((id: number) => {
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, zIndex: o.zIndex + 1 } : o));
+  }, [updateObjects]);
+
+  const handleSendBackward = useCallback((id: number) => {
+    updateObjects(prev => prev.map(o => o.id === id ? { ...o, zIndex: Math.max(0, o.zIndex - 1) } : o));
+  }, [updateObjects]);
+
+  const setCanvasZoom = useCallback((nextZoom: number) => {
+    const clampedZoom = Math.max(0.05, Math.min(10, nextZoom));
+    canvasRef.current?.zoomTo(clampedZoom);
+    setZoom(clampedZoom);
   }, []);
 
-  useEffect(() => {
-    window.addEventListener('mousemove', handleCanvasMouseMove);
-    window.addEventListener('mouseup', handleCanvasMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleCanvasMouseMove);
-      window.removeEventListener('mouseup', handleCanvasMouseUp);
-    };
-  }, [handleCanvasMouseMove, handleCanvasMouseUp]);
+  const handleFitToScreen = useCallback(() => {
+    const fittedZoom = canvasRef.current?.fitToScreen();
+    setZoom(fittedZoom ?? 1);
+  }, []);
 
-  const handleObjectMouseDown = (e: React.MouseEvent, obj: FloorPlanObject) => {
-    e.stopPropagation();
-    setSelectedId(obj.id);
-    setDragging(obj.id);
-    dragStart.current = { x: e.clientX, y: e.clientY, objX: obj.x, objY: obj.y, objW: obj.width, objH: obj.height };
-  };
-
-  const handleResizeMouseDown = (e: React.MouseEvent, obj: FloorPlanObject, handle: string) => {
-    e.stopPropagation();
-    setSelectedId(obj.id);
-    setResizing({ id: obj.id, handle });
-    dragStart.current = { x: e.clientX, y: e.clientY, objX: obj.x, objY: obj.y, objW: obj.width, objH: obj.height };
-  };
-
-  const addObject = (toolIdx: number) => {
-    const tool = OBJECT_TYPES[toolIdx];
-    const canvasRect = canvasRef.current?.getBoundingClientRect();
-    if (!canvasRect || !floorPlan) return;
-
-    const newObj: FloorPlanObject = {
-      id: Date.now(),
-      floorPlan: floorPlan,
-      objectType: tool.type,
-      label: `${tool.type === 'table' ? 'T' : tool.type.charAt(0).toUpperCase() + tool.type.slice(1)}${objects.length + 1}`,
-      x: (canvasRect.width / 2 - panOffset.x) / zoom - tool.defaults.width / 2,
-      y: (canvasRect.height / 2 - panOffset.y) / zoom - tool.defaults.height / 2,
-      width: tool.defaults.width,
-      height: tool.defaults.height,
-      rotation: 0,
-      shape: tool.shape,
-      zIndex: tool.type === 'table' ? 10 : tool.type === 'wall' ? 1 : 5,
-      styleJson: JSON.stringify({ fillColor: TYPE_COLORS[tool.type] || '#94a3b8' }),
-      metadataJson: tool.type === 'table' ? JSON.stringify({ tableCode: `T${objects.length + 1}`, capacity: 4, zone: '' }) : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setObjects(prev => [...prev, newObj]);
-    setSelectedId(newObj.id);
-  };
-
-  const deleteSelected = () => {
-    if (selectedId === null) return;
-    setObjects(prev => prev.filter(o => o.id !== selectedId));
-    setSelectedId(null);
-  };
-
-  const duplicateSelected = () => {
-    if (!selectedObj) return;
-    const dup = { ...selectedObj, id: Date.now(), x: selectedObj.x + 30, y: selectedObj.y + 30, label: selectedObj.label + ' copy' };
-    setObjects(prev => [...prev, dup]);
-    setSelectedId(dup.id);
-  };
-
-  const updateSelected = (field: string, value: unknown) => {
-    if (selectedId === null) return;
-    setObjects(prev => prev.map(o => o.id === selectedId ? { ...o, [field]: value } : o));
-  };
-
-  const updateSelectedStyle = (key: string, value: string) => {
-    if (selectedId === null) return;
-    setObjects(prev => prev.map(o => {
-      if (o.id !== selectedId) return o;
-      const style = parseStyle(o.styleJson);
-      style[key] = value;
-      return { ...o, styleJson: JSON.stringify(style) };
-    }));
-  };
-
-  const updateSelectedMeta = (key: string, value: unknown) => {
-    if (selectedId === null) return;
-    setObjects(prev => prev.map(o => {
-      if (o.id !== selectedId) return o;
-      const meta = parseMeta(o.metadataJson);
-      meta[key] = value;
-      return { ...o, metadataJson: JSON.stringify(meta) };
-    }));
-  };
+  // ── Save / Publish ──────────────────────────────────────
 
   const handleSave = async () => {
-    if (!floorPlan) return;
+    if (!floorPlan) return false;
+    if (uploadingDiagram) {
+      toast.warning('Please wait for the floor plan image upload to finish before saving.');
+      return false;
+    }
+
     setSaving(true);
     try {
-      const payload = objects.map(o => ({
-        objectType: o.objectType,
-        label: o.label,
-        x: Math.round(o.x * 10) / 10,
-        y: Math.round(o.y * 10) / 10,
-        width: Math.round(o.width * 10) / 10,
-        height: Math.round(o.height * 10) / 10,
-        rotation: Math.round(o.rotation * 10) / 10,
-        shape: o.shape,
-        zIndex: o.zIndex,
-        styleJson: o.styleJson,
-        metadataJson: o.metadataJson,
-      }));
-      await api.put(`/api/floor-plans/${floorPlanId}/objects/bulk`, payload);
-      toast.success('Lưu thành công');
-    } catch {
-      toast.error('Lưu thất bại');
+      console.debug('[FloorPlanEditor] objects state before Save', objects);
+
+      const updatedPlan = await api.patch<FloorPlan>(`/api/floor-plans/${floorPlanId}`, {
+        backgroundMode: floorPlan.backgroundMode,
+        floorDiagramImageUrl: floorPlan.floorDiagramImageUrl,
+        floorDiagramImageKey: floorPlan.floorDiagramImageKey ?? null,
+        floorDiagramFitMode: floorPlan.floorDiagramFitMode ?? 'contain',
+        floorDiagramX: floorPlan.floorDiagramX ?? 0,
+        floorDiagramY: floorPlan.floorDiagramY ?? 0,
+        floorDiagramWidth: floorPlan.floorDiagramWidth ?? 100,
+        floorDiagramHeight: floorPlan.floorDiagramHeight ?? 100,
+        floorDiagramScale: floorPlan.floorDiagramScale ?? 1,
+        floorDiagramRotation: floorPlan.floorDiagramRotation ?? 0,
+      });
+      setFloorPlan(updatedPlan);
+
+      const objectPayload = objects.map(o => {
+        const metadataJson = withLinkedTableAliases(o.metadataJson);
+        const linkedTableId = metadataJson.tableEntityId ?? metadataJson.tableId ?? metadataJson.linkedTableId ?? null;
+        return {
+          id: o.id,
+          tableId: linkedTableId,
+          objectType: o.objectType,
+          label: o.label,
+          x: Math.round(o.x * 10) / 10,
+          y: Math.round(o.y * 10) / 10,
+          width: Math.round(o.width),
+          height: Math.round(o.height),
+          rotation: Math.round(o.rotation),
+          shape: o.shape,
+          zIndex: o.zIndex,
+          styleJson: asJsonObject(o.styleJson),
+          metadataJson,
+          isVisible: o.isVisible !== false,
+          isLocked: !!o.isLocked,
+        };
+      });
+      console.debug('[FloorPlanEditor] Save objects request payload', objectPayload);
+
+      const savedObjects = await api.put<FloorPlanObject[]>(`/api/floor-plans/${floorPlanId}/objects/bulk`, objectPayload);
+      console.debug('[FloorPlanEditor] Save objects API response', savedObjects);
+      reset(savedObjects);
+      toast.success('Draft saved');
+      return true;
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Save failed'));
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
   const handlePublish = async () => {
-    if (!floorPlan) return;
     try {
-      await handleSave();
+      const saved = await handleSave();
+      if (!saved) return;
       await api.post(`/api/floor-plans/${floorPlanId}/publish`);
-      toast.success('Đã publish');
-      await loadFloorPlan();
-    } catch {
-      toast.error('Publish thất bại');
+      setFloorPlan(prev => prev ? { ...prev, status: 'published' } : null);
+      toast.success('Published! POS will now use this layout.');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Publish failed'));
     }
   };
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
-    if (e.key === 'd' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); duplicateSelected(); }
-    if (e.key === 's' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleSave(); }
-  }, [selectedId, objects]);
+  // ── Background management ────────────────────────────────
 
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyDown]);
+  const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-120px)]">
-        <div className="w-8 h-8 border-3 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+  const validateImageFile = (file: File): string | null => {
+    if (file.size <= 0) {
+      return 'Selected file is empty';
+    }
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      return 'Chỉ chấp nhận file ảnh: PNG, JPG, WebP, SVG';
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      return 'File size must be <= 10MB';
+    }
+    return null;
+  };
+
+  const resetDiagramTransform = {
+    floorDiagramFitMode: 'contain' as const,
+    floorDiagramX: 0,
+    floorDiagramY: 0,
+    floorDiagramWidth: 100,
+    floorDiagramHeight: 100,
+    floorDiagramScale: 1,
+    floorDiagramRotation: 0,
+  };
+
+  const updateDiagramTransform = async (updates: Partial<FloorPlan>) => {
+    setFloorPlan(prev => prev ? { ...prev, ...updates, backgroundMode: 'CUSTOM_IMAGE' } : prev);
+    try {
+      const updated = await api.patch<FloorPlan>(`/api/floor-plans/${floorPlanId}`, {
+        ...updates,
+        backgroundMode: 'CUSTOM_IMAGE',
+      });
+      setFloorPlan(updated);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to update floor image settings'));
+      await loadFloorPlan();
+    }
+  };
+
+  const handleUploadDiagram = async (file: File) => {
+    const error = validateImageFile(file);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    setUploadingDiagram(true);
+    try {
+      const updated = await api.uploadFile<FloorPlan>(
+        `/api/floor-plans/${floorPlanId}/upload-diagram`,
+        file
+      );
+      setFloorPlan({ ...updated, ...resetDiagramTransform, backgroundMode: 'CUSTOM_IMAGE' });
+      handleFitToScreen();
+      toast.success('Floor plan uploaded successfully');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Unable to upload floor plan image.'));
+      await loadFloorPlan();
+    } finally {
+      setUploadingDiagram(false);
+    }
+  };
+
+  const handleUpload360 = async (file: File) => {
+    const error = validateImageFile(file);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    try {
+      const updated = await api.uploadFile<FloorPlan>(
+        `/api/floor-plans/${floorPlanId}/upload-360`,
+        file
+      );
+      setFloorPlan(updated);
+      setShow360Preview(true);
+      toast.success('360 panorama uploaded successfully');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Unable to upload 360 panorama.'));
+    }
+  };
+
+  const handleRemoveDiagram = async () => {
+    try {
+      await api.patch(`/api/floor-plans/${floorPlanId}`, {
+        floorDiagramImageUrl: null,
+        floorDiagramImageKey: null,
+        backgroundMode: 'DEFAULT_WOOD',
+      });
+      setFloorPlan(prev => prev ? {
+        ...prev,
+        floorDiagramImageUrl: null,
+        floorDiagramImageKey: null,
+        backgroundMode: 'DEFAULT_WOOD',
+      } : null);
+      toast.success('Floor plan removed');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to remove floor plan'));
+    }
+  };
+
+  const handleChangeBackground = async (mode: string) => {
+    try {
+      await api.patch(`/api/floor-plans/${floorPlanId}`, { backgroundMode: mode });
+      setFloorPlan(prev => prev ? { ...prev, backgroundMode: mode as FloorPlan['backgroundMode'] } : null);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to change background'));
+    }
+  };
+
+  // ── Render ──────────────────────────────────────────────
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-screen">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+        <span className="text-xs text-slate-400">Loading floor plan...</span>
       </div>
-    );
-  }
-
-  if (!floorPlan) {
-    return <div className="text-center py-12 text-slate-500">Floor plan không tồn tại</div>;
-  }
+    </div>
+  );
+  if (!floorPlan) return <div className="text-center py-12 text-slate-500">Floor plan not found</div>;
 
   return (
-    <div className="flex h-[calc(100vh-100px)] gap-0 bg-slate-50 -m-4 lg:-m-6 rounded-lg overflow-hidden">
-      {/* Left: Toolbox */}
-      <div className="w-48 bg-white border-r border-slate-200 flex flex-col overflow-hidden">
-        <div className="p-3 border-b border-slate-200">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase">Toolbox</h3>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {OBJECT_TYPES.map((tool, idx) => (
-            <button
-              key={idx}
-              onClick={() => addObject(idx)}
-              className="w-full flex items-center gap-2 px-2.5 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors text-left"
-              title={`Thêm ${tool.label}`}
-            >
-              <span className="text-base">{tool.icon}</span>
-              <span>{tool.label}</span>
-            </button>
-          ))}
-        </div>
-        <div className="p-2 border-t border-slate-200 space-y-1">
-          <button onClick={() => { setZoom(z => Math.min(3, z + 0.1)); }} className="w-full px-2 py-1.5 text-xs bg-slate-100 rounded hover:bg-slate-200">Zoom +</button>
-          <button onClick={() => { setZoom(z => Math.max(0.2, z - 0.1)); }} className="w-full px-2 py-1.5 text-xs bg-slate-100 rounded hover:bg-slate-200">Zoom −</button>
-          <button onClick={() => { setZoom(1); setPanOffset({ x: 0, y: 0 }); }} className="w-full px-2 py-1.5 text-xs bg-slate-100 rounded hover:bg-slate-200">Reset View</button>
-          <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-600 cursor-pointer">
-            <input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} className="rounded" />
-            Grid
-          </label>
-        </div>
-      </div>
+    <div className="flex flex-col h-[calc(100vh-2rem)] lg:h-[calc(100vh-3rem)] bg-slate-50">
+      <Toolbar
+        floorPlanName={floorPlan.name}
+        floorNumber={floorPlan.floorNumber}
+        roomName={floorPlan.room?.name}
+        status={floorPlan.status}
+        objectCount={objects.length}
+        editMode={editMode}
+        gridSize={gridSize}
+        snapToGrid={snapToGrid}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onToggleEditMode={() => setEditMode(!editMode)}
+        onToggleGrid={() => setGridSize(gridSize > 0 ? 0 : 20)}
+        onToggleSnap={() => setSnapToGrid(!snapToGrid)}
+        onGridSizeChange={setGridSize}
+        onZoomIn={() => setCanvasZoom((canvasRef.current?.getZoom() ?? zoom) + 0.1)}
+        onZoomOut={() => setCanvasZoom((canvasRef.current?.getZoom() ?? zoom) - 0.1)}
+        onZoomReset={() => setCanvasZoom(1)}
+        onFitToScreen={handleFitToScreen}
+        zoom={zoom}
+        onUndo={undo}
+        onRedo={redo}
+        onBack={() => router.push(`/branches/${branchId}/floor-plans`)}
+        onSave={handleSave}
+        saving={saving}
+        onPublish={floorPlan.status === 'draft' ? handlePublish : undefined}
+      />
 
-      {/* Center: Canvas */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Toolbar */}
-        <div className="h-10 bg-white border-b border-slate-200 flex items-center px-3 gap-2">
-          <button onClick={() => router.push(`/branches/${branchId}/floor-plans`)} className="text-sm text-slate-500 hover:text-slate-700">← Quay lại</button>
-          <div className="w-px h-5 bg-slate-200 mx-1" />
-          <span className="text-sm font-medium text-slate-700">{floorPlan.name}</span>
-          <span className="text-xs text-slate-400">· Tầng {floorPlan.floorNumber}</span>
-          <span className={`text-xs px-2 py-0.5 rounded ${floorPlan.status === 'published' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-            {floorPlan.status}
-          </span>
-          <div className="flex-1" />
-          <span className="text-xs text-slate-400">{Math.round(zoom * 100)}%</span>
-          <span className="text-xs text-slate-400">· {objects.length} objects</span>
-          <div className="w-px h-5 bg-slate-200 mx-1" />
-          <button onClick={handlePublish} className="px-3 py-1.5 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">Publish</button>
-          <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-xs bg-[#25439b] text-white rounded-lg hover:bg-[#1c3580] disabled:opacity-50">
-            {saving ? 'Lưu...' : 'Lưu (Ctrl+S)'}
-          </button>
-        </div>
-
-        {/* Canvas Area */}
-        <div
-          ref={canvasRef}
-          className="flex-1 overflow-hidden relative cursor-crosshair"
-          style={{ background: showGrid ? 'repeating-conic-gradient(#e5e7eb 0% 25%, transparent 0% 50%) 50% / 20px 20px' : '#f8fafc' }}
-          onMouseDown={handleCanvasMouseDown}
-        >
-          <div
-            style={{
-              transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-              transformOrigin: '0 0',
-              width: floorPlan.width,
-              height: floorPlan.height,
-              position: 'relative',
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {editMode && (
+          <Toolbox
+            onAddObject={handleAddObject}
+            floorPlan={floorPlan}
+            onChangeBackground={handleChangeBackground}
+            onUploadDiagram={handleUploadDiagram}
+            onRemoveDiagram={handleRemoveDiagram}
+            onSetDiagramFit={(mode) => updateDiagramTransform({ ...resetDiagramTransform, floorDiagramFitMode: mode })}
+            onResetDiagramTransform={() => updateDiagramTransform(resetDiagramTransform)}
+            onUpload360={handleUpload360}
+            onPreview360={() => {
+              if (floorPlan.panoramaUrl) setShow360Preview(true);
+              else toast.warning('Upload a 360 image first');
             }}
-          >
-            {/* Background image */}
-            {floorPlan.backgroundImageUrl && (
-              <img
-                src={floorPlan.backgroundImageUrl}
-                alt="Background"
-                className="absolute inset-0 pointer-events-none"
-                style={{ width: floorPlan.width, height: floorPlan.height, objectFit: 'contain' }}
-                draggable={false}
-              />
-            )}
+            hasExistingPosTables={roomTables.length > 0}
+            unplacedTables={unplacedTables}
+            onPlaceExistingTable={handlePlaceExistingTable}
+          />
+        )}
 
-            {/* Objects */}
-            {objects.map(obj => {
-              const isSelected = selectedId === obj.id;
-              const color = getObjectColor(obj);
-              const style = parseStyle(obj.styleJson);
-              const meta = parseMeta(obj.metadataJson);
-              const isTable = obj.objectType === 'table';
+        <Canvas
+          ref={canvasRef}
+          floorPlan={floorPlan}
+          objects={objects}
+          selectedIds={selectedIds}
+          editMode={editMode}
+          gridSize={gridSize || 20}
+          snapToGrid={snapToGrid}
+          onSelectionChange={setSelectedIds}
+          onObjectMove={handleObjectMove}
+          onObjectResize={handleObjectResize}
+          onObjectRotate={handleObjectRotate}
+          onDrop={handleDrop}
+          onZoomChange={setZoom}
+        />
 
-              return (
-                <div
-                  key={obj.id}
-                  onMouseDown={(e) => handleObjectMouseDown(e, obj)}
-                  className="absolute group"
-                  style={{
-                    left: obj.x,
-                    top: obj.y,
-                    width: obj.width,
-                    height: obj.height,
-                    transform: `rotate(${obj.rotation}deg)`,
-                    zIndex: obj.zIndex,
-                    cursor: 'move',
-                  }}
-                >
-                  <div
-                    className={`w-full h-full transition-all ${isSelected ? 'ring-2 ring-[#25439b]' : 'hover:ring-1 hover:ring-blue-300'}`}
-                    style={{
-                      borderRadius: obj.shape === 'circle' ? '50%' : obj.shape === 'arc' ? '50% 50% 0 0' : '4px',
-                      backgroundColor: color,
-                      opacity: style.opacity || 0.85,
-                      border: obj.objectType === 'window' ? '2px solid #5B9BD5' : obj.objectType === 'wall' ? 'none' : undefined,
-                    }}
-                  >
-                    {/* Label */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <span className="text-white text-[10px] font-bold text-center drop-shadow-sm leading-tight px-1">
-                        {obj.label}
-                        {isTable && meta.capacity ? <><br />{String(meta.capacity)} chỗ</> : null}
-                      </span>
-                    </div>
-                  </div>
+        {editMode && (
+          <PropertyPanel
+            object={selectedObj}
+            objects={objects}
+            floorPlanStatus={floorPlan.status}
+            onUpdate={handleObjectUpdate}
+            onDelete={handleDeleteObject}
+            onDuplicate={handleDuplicateObject}
+            onBringFront={handleBringFront}
+            onSendBack={handleSendBack}
+            onBringForward={handleBringForward}
+            onSendBackward={handleSendBackward}
+          />
+        )}
 
-                  {/* Resize handles */}
-                  {isSelected && (
-                    <>
-                      {['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'].map(h => (
-                        <div
-                          key={h}
-                          onMouseDown={(e) => handleResizeMouseDown(e, obj, h)}
-                          className="absolute w-2.5 h-2.5 bg-white border-2 border-[#25439b] rounded-sm z-20"
-                          style={{
-                            top: h.includes('n') ? -5 : h.includes('s') ? 'auto' : '50%',
-                            bottom: h.includes('s') ? -5 : 'auto',
-                            left: h.includes('w') ? -5 : h.includes('e') ? 'auto' : '50%',
-                            right: h.includes('e') ? -5 : 'auto',
-                            transform: (!h.includes('n') && !h.includes('s') && !h.includes('w') && !h.includes('e')) ? 'translate(-50%,-50%)' : undefined,
-                            cursor: h === 'nw' || h === 'se' ? 'nwse-resize' : h === 'ne' || h === 'sw' ? 'nesw-resize' : h === 'n' || h === 's' ? 'ns-resize' : 'ew-resize',
-                          }}
-                        />
-                      ))}
-                    </>
+        {!editMode && !selectedObj && (
+          <div className="w-72 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-slate-100">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Settings</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              <div>
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Floor Plan Image</h4>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  {floorPlan.floorDiagramImageUrl ? (
+                    <img src={floorPlan.floorDiagramImageUrl} alt="Floor plan" className="w-full h-32 object-contain" />
+                  ) : (
+                    <div className="py-6 text-center text-xs text-slate-400">No floor plan uploaded</div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Right: Property Panel */}
-      <div className="w-64 bg-white border-l border-slate-200 flex flex-col overflow-hidden">
-        <div className="p-3 border-b border-slate-200">
-          <h3 className="text-xs font-semibold text-slate-500 uppercase">Properties</h3>
-        </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          {selectedObj ? (
-            <>
-              <div>
-                <label className="text-xs text-slate-500 mb-1 block">Loại</label>
-                <div className="text-sm font-medium text-slate-700">{selectedObj.objectType}</div>
               </div>
               <div>
-                <label className="text-xs text-slate-500 mb-1 block">Label</label>
-                <input
-                  type="text"
-                  value={selectedObj.label || ''}
-                  onChange={e => updateSelected('label', e.target.value)}
-                  className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">X</label>
-                  <input type="number" value={Math.round(selectedObj.x)} onChange={e => updateSelected('x', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Y</label>
-                  <input type="number" value={Math.round(selectedObj.y)} onChange={e => updateSelected('y', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Width</label>
-                  <input type="number" value={Math.round(selectedObj.width)} onChange={e => updateSelected('width', parseFloat(e.target.value) || 20)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Height</label>
-                  <input type="number" value={Math.round(selectedObj.height)} onChange={e => updateSelected('height', parseFloat(e.target.value) || 20)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]" />
+                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Floor Background</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {BACKGROUND_MODES.map(mode => (
+                    <div key={mode.value}
+                      className={`flex items-center gap-2 p-2.5 rounded-xl text-xs border ${floorPlan.backgroundMode === mode.value ? 'border-[#25439b] bg-[#25439b]/[0.06] text-[#25439b] font-medium' : 'border-slate-100 bg-white text-slate-600'}`}>
+                      <span className="text-base">{mode.icon}</span>
+                      <span>{mode.label}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Rotation</label>
-                  <input type="number" value={Math.round(selectedObj.rotation)} onChange={e => updateSelected('rotation', parseFloat(e.target.value) || 0)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1 block">Z-Index</label>
-                  <input type="number" value={selectedObj.zIndex} onChange={e => updateSelected('zIndex', parseInt(e.target.value) || 0)} className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-slate-500 mb-1 block">Shape</label>
-                <select
-                  value={selectedObj.shape || 'rectangle'}
-                  onChange={e => updateSelected('shape', e.target.value)}
-                  className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]"
-                >
-                  <option value="circle">Circle</option>
-                  <option value="rectangle">Rectangle</option>
-                  <option value="arc">Arc</option>
-                  <option value="line">Line</option>
-                </select>
-              </div>
-
-              {/* Color */}
-              <div>
-                <label className="text-xs text-slate-500 mb-1 block">Màu</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={getObjectColor(selectedObj)}
-                    onChange={e => {
-                      const key = selectedObj.objectType === 'table' ? 'fillColor' : 'color';
-                      updateSelectedStyle(key, e.target.value);
-                    }}
-                    className="w-8 h-8 rounded border border-slate-200 cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-500">{getObjectColor(selectedObj)}</span>
-                </div>
-              </div>
-
-              {/* Table-specific fields */}
-              {selectedObj.objectType === 'table' && (
-                <>
-                  <div className="border-t border-slate-100 pt-3">
-                    <label className="text-xs text-slate-500 mb-1 block">Mã bàn</label>
-                    <input
-                      type="text"
-                      value={String(parseMeta(selectedObj.metadataJson).tableCode || '')}
-                      onChange={e => updateSelectedMeta('tableCode', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Số chỗ ngồi</label>
-                    <input
-                      type="number"
-                      value={Number(parseMeta(selectedObj.metadataJson).capacity) || 4}
-                      onChange={e => updateSelectedMeta('capacity', parseInt(e.target.value) || 4)}
-                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Khu vực</label>
-                    <input
-                      type="text"
-                      value={String(parseMeta(selectedObj.metadataJson).zone || '')}
-                      onChange={e => updateSelectedMeta('zone', e.target.value)}
-                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 mb-1 block">Linked POS Table ID</label>
-                    <input
-                      type="text"
-                      value={String(parseMeta(selectedObj.metadataJson).tableId || '')}
-                      onChange={e => updateSelectedMeta('tableId', e.target.value)}
-                      placeholder="VD: 123"
-                      className="w-full px-2 py-1.5 border border-slate-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-[#25439b]"
-                    />
-                  </div>
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={!!parseMeta(selectedObj.metadataJson).isMergeable}
-                      onChange={e => updateSelectedMeta('isMergeable', e.target.checked)}
-                      className="rounded"
-                    />
-                    Có thể gộp bàn
-                  </label>
-                </>
-              )}
-
-              {/* AI Draft placeholder */}
-              <div className="border-t border-slate-100 pt-3">
-                <button
-                  disabled
-                  className="w-full py-2 px-3 text-xs bg-slate-100 text-slate-400 rounded-lg cursor-not-allowed"
-                >
-                  🤖 Generate Draft from Image (Coming Soon)
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="text-sm text-slate-400 text-center mt-8">
-              Chọn một object để xem properties
             </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        {selectedObj && (
-          <div className="p-3 border-t border-slate-200 flex gap-1">
-            <button onClick={duplicateSelected} className="flex-1 px-2 py-1.5 text-xs bg-slate-100 rounded hover:bg-slate-200">Nhân bản</button>
-            <button onClick={() => updateSelected('zIndex', (selectedObj.zIndex || 0) + 1)} className="px-2 py-1.5 text-xs bg-slate-100 rounded hover:bg-slate-200">↑</button>
-            <button onClick={() => updateSelected('zIndex', Math.max(0, (selectedObj.zIndex || 0) - 1))} className="px-2 py-1.5 text-xs bg-slate-100 rounded hover:bg-slate-200">↓</button>
-            <button onClick={deleteSelected} className="px-2 py-1.5 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">🗑</button>
           </div>
         )}
       </div>
+
+      {show360Preview && floorPlan.panoramaUrl && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center" onClick={() => setShow360Preview(false)}>
+          <button
+            onClick={() => setShow360Preview(false)}
+            className="absolute top-4 right-4 text-white text-xl z-10 bg-white/10 hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center"
+          >
+            x
+          </button>
+          <div className="w-[95vw] h-[90vh] rounded-xl overflow-hidden bg-slate-950" onClick={e => e.stopPropagation()}>
+            <PannellumViewer imageUrl={floorPlan.panoramaUrl} className="w-full h-full rounded-xl" />
+          </div>
+        </div>
+      )}
+
+      <CreateTableModal
+        isOpen={showCreateModal}
+        onClose={() => { setShowCreateModal(false); setPendingDropInfo(null); }}
+        onCreate={handleCreateTable}
+        defaultName={`Bàn ${objects.filter(o => getObjectDefinition(o.objectType)?.isTable).length + 1}`}
+        defaultCapacity={pendingDropInfo ? (getObjectDefinition(pendingDropInfo.type)?.defaultMetadata as Record<string, unknown>)?.capacity as number || 4 : 4}
+        defaultStyle="ROUND"
+      />
     </div>
   );
 }
