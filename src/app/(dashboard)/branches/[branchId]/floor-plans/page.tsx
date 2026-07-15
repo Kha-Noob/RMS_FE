@@ -2,28 +2,25 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
-import { useAuth } from '@/contexts/AuthContext';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { toast } from '@/components/Toast';
-import type { FloorPlan } from '@/types';
+import type { FloorPlan, Room } from '@/types';
 
 export default function FloorPlansListPage() {
   const params = useParams();
   const router = useRouter();
   const branchId = params.branchId as string;
-  const { activeBranchId } = useAuth();
 
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | ''>('');
   const [newName, setNewName] = useState('');
-  const [newFloorNumber, setNewFloorNumber] = useState(1);
   const [newWidth, setNewWidth] = useState(1200);
   const [newHeight, setNewHeight] = useState(800);
-  const [uploadingId, setUploadingId] = useState<number | null>(null);
-  const bgInputRef = useState<Record<number, HTMLInputElement | null>>({});
-  const panoramaInputRef = useState<Record<number, HTMLInputElement | null>>({});
 
   const loadFloorPlans = useCallback(async () => {
     if (!branchId) return;
@@ -31,8 +28,8 @@ export default function FloorPlansListPage() {
     try {
       const res = await api.get<FloorPlan[]>(`/api/branches/${branchId}/floor-plans`);
       setFloorPlans(res);
-    } catch {
-      toast.error('Không tải được danh sách floor plan');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Không tải được danh sách sơ đồ tầng'));
     } finally {
       setLoading(false);
     }
@@ -40,38 +37,38 @@ export default function FloorPlansListPage() {
 
   useEffect(() => { loadFloorPlans(); }, [loadFloorPlans]);
 
+  useEffect(() => {
+    api.get<Room[]>('/api/pos/rooms', { params: { branchId } })
+      .then(setRooms)
+      .catch(() => setRooms([]));
+  }, [branchId]);
+
+  const resetCreateForm = () => {
+    setSelectedRoomId('');
+    setNewName('');
+    setNewWidth(1200);
+    setNewHeight(800);
+  };
+
   const handleCreate = async () => {
-    if (!newName.trim()) { toast.warning('Nhập tên floor plan'); return; }
+    if (!selectedRoomId) { toast.warning('Chọn phòng/khu vực'); return; }
+    if (!newName.trim()) { toast.warning('Nhập tên sơ đồ tầng'); return; }
     setCreating(true);
     try {
       await api.post(`/api/branches/${branchId}/floor-plans`, {
+        roomId: selectedRoomId,
         name: newName.trim(),
-        floorNumber: newFloorNumber,
         width: newWidth,
         height: newHeight,
       });
-      toast.success('Tạo floor plan thành công');
+      toast.success('Tạo sơ đồ tầng thành công');
       setShowCreateModal(false);
-      setNewName('');
-      setNewFloorNumber(1);
-      setNewWidth(1200);
-      setNewHeight(800);
+      resetCreateForm();
       await loadFloorPlans();
-    } catch {
-      toast.error('Tạo floor plan thất bại');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Tạo sơ đồ tầng thất bại'));
     } finally {
       setCreating(false);
-    }
-  };
-
-  const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Xóa floor plan "${name}"?`)) return;
-    try {
-      await api.delete(`/api/floor-plans/${id}`);
-      toast.success('Đã xóa floor plan');
-      await loadFloorPlans();
-    } catch {
-      toast.error('Xóa thất bại');
     }
   };
 
@@ -80,8 +77,8 @@ export default function FloorPlansListPage() {
       await api.post(`/api/floor-plans/${id}/publish`);
       toast.success('Đã publish');
       await loadFloorPlans();
-    } catch {
-      toast.error('Publish thất bại');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Publish thất bại'));
     }
   };
 
@@ -90,34 +87,23 @@ export default function FloorPlansListPage() {
       await api.post(`/api/floor-plans/${id}/unpublish`);
       toast.success('Đã unpublish');
       await loadFloorPlans();
-    } catch {
-      toast.error('Unpublish thất bại');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Unpublish thất bại'));
     }
   };
 
-  const handleUploadBackground = async (id: number, file: File) => {
-    setUploadingId(id);
+  const handleDelete = async (id: number) => {
+    if (!confirm('Xóa sơ đồ tầng này? Các đối tượng trong sơ đồ cũng sẽ bị xóa, nhưng phòng và bàn POS sẽ được giữ lại.')) return;
+    setDeletingId(id);
     try {
-      await api.uploadFile(`/api/floor-plans/${id}/upload-background`, file);
-      toast.success('Upload background thành công');
+      await api.delete(`/api/floor-plans/${id}`);
+      toast.success('Xóa sơ đồ tầng thành công');
       await loadFloorPlans();
-    } catch {
-      toast.error('Upload background thất bại');
+    } catch (err) {
+      console.error('Delete floor plan failed', err);
+      toast.error(getApiErrorMessage(err, 'Xóa sơ đồ tầng thất bại'));
     } finally {
-      setUploadingId(null);
-    }
-  };
-
-  const handleUpload360 = async (id: number, file: File) => {
-    setUploadingId(id);
-    try {
-      await api.uploadFile(`/api/floor-plans/${id}/upload-360`, file);
-      toast.success('Upload 360 thành công');
-      await loadFloorPlans();
-    } catch {
-      toast.error('Upload 360 thất bại');
-    } finally {
-      setUploadingId(null);
+      setDeletingId(null);
     }
   };
 
@@ -148,10 +134,9 @@ export default function FloorPlansListPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {floorPlans.map(fp => (
             <div key={fp.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
-              {/* Preview */}
               <div className="h-40 bg-slate-100 relative overflow-hidden">
-                {fp.backgroundImageUrl ? (
-                  <img src={fp.backgroundImageUrl} alt={fp.name} className="w-full h-full object-cover" />
+                {fp.floorDiagramImageUrl ? (
+                  <img src={fp.floorDiagramImageUrl} alt={fp.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="flex items-center justify-center h-full text-slate-400 text-sm">
                     Chưa có background
@@ -164,18 +149,15 @@ export default function FloorPlansListPage() {
                 </div>
               </div>
 
-              {/* Info */}
               <div className="p-4">
                 <h3 className="font-semibold text-slate-800">{fp.name}</h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  Tầng {fp.floorNumber} · {fp.width}×{fp.height}px
-                  {fp.isTableSelectionEnabled ? ' · Chọn bàn ON' : ''}
+                  {fp.room?.name || 'No linked room'} · {fp.width}×{fp.height}px
                 </p>
-                {fp.panorama360Url && (
-                  <p className="text-xs text-amber-600 mt-1">🌐 Có ảnh 360</p>
+                {fp.panoramaUrl && (
+                  <p className="text-xs text-amber-600 mt-1">Có ảnh 360°</p>
                 )}
 
-                {/* Actions */}
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   <button
                     onClick={() => router.push(`/branches/${branchId}/floor-plans/${fp.id}/edit`)}
@@ -199,51 +181,18 @@ export default function FloorPlansListPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => {
-                      const input = document.createElement('input');
-                      input.type = 'file';
-                      input.accept = 'image/*';
-                      input.onchange = (e) => {
-                        const file = (e.target as HTMLInputElement).files?.[0];
-                        if (file) handleUploadBackground(fp.id, file);
-                      };
-                      input.click();
-                    }}
-                    disabled={uploadingId === fp.id}
-                    className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
-                  >
-                    {uploadingId === fp.id ? '...' : 'Background'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      const input = document.createElement('input');
-                      input.type = 'file';
-                      input.accept = 'image/*';
-                      input.onchange = (e) => {
-                        const file = (e.target as HTMLInputElement).files?.[0];
-                        if (file) handleUpload360(fp.id, file);
-                      };
-                      input.click();
-                    }}
-                    disabled={uploadingId === fp.id}
-                    className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
-                  >
-                    360°
-                  </button>
-                  <button
                     onClick={() => window.open(`/restaurants/r1/branches/${branchId}/floor-plan?fpId=${fp.id}`, '_blank')}
                     className="px-3 py-1.5 text-xs bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
                   >
                     Preview
                   </button>
-                  {fp.status === 'draft' && (
-                    <button
-                      onClick={() => handleDelete(fp.id, fp.name)}
-                      className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                    >
-                      Xóa
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDelete(fp.id)}
+                    disabled={deletingId === fp.id}
+                    className="px-3 py-1.5 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50"
+                  >
+                    {deletingId === fp.id ? 'Đang xóa...' : 'Xóa'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -251,17 +200,34 @@ export default function FloorPlansListPage() {
         </div>
       )}
 
-      {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreateModal(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="text-lg font-semibold text-slate-800">Tạo Floor Plan mới</h3>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
             </div>
             <div className="p-4 space-y-3">
               <div>
-                <label className="text-sm text-slate-600 mb-1 block">Tên *</label>
+                <label className="text-sm text-slate-600 mb-1 block">Room/Area *</label>
+                <select
+                  value={selectedRoomId}
+                  onChange={e => {
+                    const roomId = e.target.value ? Number(e.target.value) : '';
+                    setSelectedRoomId(roomId);
+                    const room = rooms.find(r => r.id === roomId);
+                    if (room && !newName.trim()) setNewName(room.name);
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b]"
+                >
+                  <option value="">Select room/area</option>
+                  {rooms.map(room => (
+                    <option key={room.id} value={room.id}>{room.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600 mb-1 block">Floor Plan name *</label>
                 <input
                   type="text"
                   value={newName}
@@ -271,11 +237,7 @@ export default function FloorPlansListPage() {
                   autoFocus
                 />
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-sm text-slate-600 mb-1 block">Tầng</label>
-                  <input type="number" value={newFloorNumber} onChange={e => setNewFloorNumber(parseInt(e.target.value) || 1)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b]" />
-                </div>
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-sm text-slate-600 mb-1 block">Width</label>
                   <input type="number" value={newWidth} onChange={e => setNewWidth(parseInt(e.target.value) || 1200)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#25439b]" />
@@ -290,7 +252,7 @@ export default function FloorPlansListPage() {
               <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Hủy</button>
               <button
                 onClick={handleCreate}
-                disabled={creating || !newName.trim()}
+                disabled={creating || !selectedRoomId || !newName.trim()}
                 className="px-4 py-2 text-sm bg-[#25439b] hover:bg-[#1c3580] text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
               >
                 {creating ? 'Đang tạo...' : 'Tạo'}

@@ -44,6 +44,19 @@ export interface Employee {
   branch: Branch | null;
 }
 
+export type TableStyle = 'ROUND' | 'SQUARE' | 'RECTANGLE' | 'VIP';
+
+export const TABLE_STYLE_OPTIONS: { value: TableStyle; label: string; icon: string }[] = [
+  { value: 'ROUND', label: 'Ban tron', icon: 'o' },
+  { value: 'SQUARE', label: 'Ban vuong', icon: '[]' },
+  { value: 'RECTANGLE', label: 'Ban chu nhat', icon: '[ ]' },
+  { value: 'VIP', label: 'VIP Booth', icon: 'VIP' },
+];
+
+export function getTableStyleLabel(style?: TableStyle | null): string {
+  return TABLE_STYLE_OPTIONS.find(s => s.value === style)?.label ?? 'Tron';
+}
+
 export interface TableEntity {
   id: number;
   name: string;
@@ -51,6 +64,7 @@ export interface TableEntity {
   status: string;
   guestCount: number;
   room: Room;
+  tableStyle?: TableStyle | null;
   layoutX?: number | null;
   layoutY?: number | null;
   layoutWidth?: number | null;
@@ -58,6 +72,7 @@ export interface TableEntity {
   layoutRotation?: number | null;
   layoutRadius?: number | null;
   displayLabel?: string | null;
+  shape?: 'circle' | 'rectangle' | null;
 }
 
 export interface Room {
@@ -65,6 +80,7 @@ export interface Room {
   name: string;
   branch: Branch;
   floorPlanImageUrl?: string | null;
+  backgroundMode?: BackgroundMode;
   panoramaUrl?: string | null;
   panoramaType?: string | null;
   displayOrder?: number;
@@ -116,6 +132,7 @@ export interface CartItem {
   detailId: number;
   productName: string;
   variantName: string;
+  sizeName?: string;
   price: number;
   quantity: number;
   status: string;
@@ -201,19 +218,45 @@ export interface PurchaseOrder {
   totalAmount: number;
 }
 
-// ─── Floor Plan Types ─────────────────────────────────────────────────
+export const BACKGROUND_MODES = [
+  { value: 'DEFAULT_WOOD', label: 'Wood Floor', icon: 'wood' },
+  { value: 'DEFAULT_MARBLE', label: 'Luxury Marble', icon: 'marble' },
+  { value: 'DEFAULT_DARK', label: 'Dark Restaurant', icon: 'dark' },
+  { value: 'DEFAULT_OUTDOOR', label: 'Outdoor Grass', icon: 'outdoor' },
+  { value: 'DEFAULT_TILE', label: 'Tile Floor', icon: 'tile' },
+  { value: 'DEFAULT_GRID', label: 'Grid Only', icon: 'grid' },
+  { value: 'CUSTOM_IMAGE', label: 'Custom Image', icon: 'image' },
+] as const;
+
+export type BackgroundMode = typeof BACKGROUND_MODES[number]['value'];
+export type JsonObject = Record<string, unknown>;
 
 export interface FloorPlan {
   id: number;
   branch: Branch;
+  roomId?: number | null;
+  room?: Room | null;
   name: string;
   floorNumber: number;
   width: number;
   height: number;
-  backgroundImageUrl: string | null;
-  panorama360Url: string | null;
+  floorDiagramImageUrl: string | null;
+  floorDiagramImageKey?: string | null;
+  floorDiagramFitMode?: 'contain' | 'cover' | 'fill' | null;
+  floorDiagramX?: number | null;
+  floorDiagramY?: number | null;
+  floorDiagramWidth?: number | null;
+  floorDiagramHeight?: number | null;
+  floorDiagramScale?: number | null;
+  floorDiagramRotation?: number | null;
+  backgroundMode: BackgroundMode;
+  backgroundImageUrl?: string | null;
+  panoramaUrl: string | null;
+  panoramaKey?: string | null;
+  panoramaType: string | null;
+  panorama360Url?: string | null;
   status: 'draft' | 'published';
-  isTableSelectionEnabled: boolean;
+  isTableSelectionEnabled?: boolean;
   createdBy: User | null;
   updatedBy: User | null;
   createdAt: string;
@@ -223,7 +266,8 @@ export interface FloorPlan {
 
 export interface FloorPlanObject {
   id: number;
-  floorPlan: FloorPlan;
+  floorPlan?: FloorPlan;
+  tableId?: number | null;
   objectType: string;
   label: string | null;
   x: number;
@@ -233,10 +277,13 @@ export interface FloorPlanObject {
   rotation: number;
   shape: string | null;
   zIndex: number;
-  styleJson: string | null;
-  metadataJson: string | null;
-  createdAt: string;
-  updatedAt: string;
+  styleJson: JsonObject | string | null;
+  metadataJson: JsonObject | string | null;
+  isLocked?: boolean;
+  isVisible?: boolean;
+  linkedTableId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FloorPlanStyle {
@@ -266,18 +313,18 @@ export const OBJECT_TYPES = [
 export type ObjectType = typeof OBJECT_TYPES[number];
 
 export const OBJECT_TYPE_LABELS: Record<string, string> = {
-  table: 'Bàn',
-  wall: 'Tường',
-  door: 'Cửa',
-  window: 'Cửa sổ',
+  table: 'Ban',
+  wall: 'Tuong',
+  door: 'Cua',
+  window: 'Cua so',
   toilet: 'WC',
-  cashier: 'Quầy thu ngân',
-  kitchen: 'Bếp',
-  bar: 'Quầy bar',
-  stairs: 'Cầu thang',
-  text: 'Nhãn chữ',
-  decoration: 'Trang trí',
-  blocked_area: 'Khu vực chặn',
+  cashier: 'Quay thu ngan',
+  kitchen: 'Bep',
+  bar: 'Quay bar',
+  stairs: 'Cau thang',
+  text: 'Nhan chu',
+  decoration: 'Trang tri',
+  blocked_area: 'Khu vuc chan',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
@@ -294,7 +341,7 @@ export interface Booking {
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
-  bookingTime: string; // ISO DateTime string
+  bookingTime: string;
   guests: number;
   status?: string;
   source?: string;

@@ -9,7 +9,7 @@ import { Chatbot } from "@/components/Chatbot";
 
 const inter = Inter({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "vietnamese"],
 });
 
 export const metadata: Metadata = {
@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`} suppressHydrationWarning>
+    <html lang="vi" className={`${inter.variable} h-full`} suppressHydrationWarning>
       <body className="min-h-full bg-[#f8f9fc] text-slate-800 antialiased">
         <LanguageProvider>
           <AuthProvider>

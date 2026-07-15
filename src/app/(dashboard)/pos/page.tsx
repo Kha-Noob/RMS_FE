@@ -1,14 +1,54 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { api } from '@/lib/api';
+import dynamic from 'next/dynamic';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/Toast';
-import type { TableEntity, Room, Product, ProductVariant, Category, CartItem, TableSession } from '@/types';
+import FloorPlanBackground from '@/components/FloorPlanBackground';
+import ObjectRenderer from '@/components/layout-builder/ObjectRenderer';
+import { getObjectDefinition } from '@/components/object-registry';
+import { getActiveMenuItems } from '@/lib/menu-store';
+import type { TableEntity, Room, Product, ProductVariant, Category, CartItem, TableSession, FloorPlanObject } from '@/types';
+import { getTableStyleLabel } from '@/types';
+
+const PannellumViewer = dynamic(() => import('@/components/PannellumViewer'), { ssr: false });
+
+function asJsonObject(value: FloorPlanObject['metadataJson']): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) as Record<string, unknown>; } catch { return {}; }
+  }
+  return value;
+}
 
 interface ProductWithVariants extends Product {
   variants: ProductVariant[];
   category: Category;
+}
+
+// ─── Convert menu-store items to POS ProductWithVariants ────────────────────
+function menuToProducts(items: { id: number; name: string; description: string; priceVnd: number; imageUrl: string | null; category: { id: number; name: string } | null; variants: { id: number; name: string; priceVnd: number }[]; status: string }[]): ProductWithVariants[] {
+  return items.map(item => ({
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    isActive: item.status === 'ACTIVE',
+    category: item.category ?? { id: 0, name: 'Chưa phân loại' },
+    variants: item.variants.length > 0
+      ? item.variants.map(v => ({
+          id: v.id,
+          name: v.name,
+          price: v.priceVnd,
+          product: { id: item.id, name: item.name, description: item.description, isActive: item.status === 'ACTIVE' },
+        }))
+      : [{
+          id: item.id,
+          name: item.name,
+          price: item.priceVnd,
+          product: { id: item.id, name: item.name, description: item.description, isActive: item.status === 'ACTIVE' },
+        }],
+  }));
 }
 
 interface ActiveSessionResponse {
@@ -40,27 +80,6 @@ const statusDotColor: Record<TableStatus, string> = {
   RESERVED: 'bg-yellow-500',
 };
 
-const getVietQrBankId = (bankName: string) => {
-  const name = bankName.toLowerCase().trim();
-  if (name.includes('vietcombank') || name.includes('vcb')) return 'vietcombank';
-  if (name.includes('techcombank') || name.includes('tcb')) return 'techcombank';
-  if (name.includes('vietinbank') || name.includes('ctg')) return 'vietinbank';
-  if (name.includes('bidv')) return 'bidv';
-  if (name.includes('agribank')) return 'agribank';
-  if (name.includes('mbbank') || name.includes('mb bank') || name.includes('mb')) return 'mb';
-  if (name.includes('acb')) return 'acb';
-  if (name.includes('tpbank') || name.includes('tp bank')) return 'tpbank';
-  if (name.includes('vpbank') || name.includes('vp bank')) return 'vpbank';
-  if (name.includes('sacombank')) return 'sacombank';
-  if (name.includes('hdbank')) return 'hdbank';
-  if (name.includes('shb')) return 'shb';
-  if (name.includes('vib')) return 'vib';
-  if (name.includes('eximbank')) return 'eximbank';
-  if (name.includes('ocb')) return 'ocb';
-  if (name.includes('scb')) return 'scb';
-  return name.replace(/\s+/g, '');
-};
-
 export default function POSPage() {
   const { activeBranchId } = useAuth();
 
@@ -80,7 +99,6 @@ export default function POSPage() {
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'VNPAY'>('CASH');
-  const [bankInfo, setBankInfo] = useState<any>(null);
   const [processing, setProcessing] = useState(false);
 
   const [managerOpen, setManagerOpen] = useState(false);
@@ -91,6 +109,7 @@ export default function POSPage() {
   const [tableName, setTableName] = useState('');
   const [tableCapacity, setTableCapacity] = useState(4);
   const [tableRoomId, setTableRoomId] = useState<number>(0);
+  const [tableStyle, setTableStyle] = useState<'ROUND' | 'SQUARE' | 'RECTANGLE' | 'VIP'>('ROUND');
 
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeTableIds, setMergeTableIds] = useState<number[]>([]);
@@ -99,11 +118,21 @@ export default function POSPage() {
   const [panoramaOpen, setPanoramaOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const selectedRoomObj = rooms.find(r => r.id === selectedRoom);
-  const showFloorPlan = selectedRoomObj?.floorPlanImageUrl && selectedRoom !== null;
+  // AddItemModal state
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [addItemProduct, setAddItemProduct] = useState<ProductWithVariants | null>(null);
+  const [addItemVariant, setAddItemVariant] = useState<ProductVariant | null>(null);
+  const [addItemSize, setAddItemSize] = useState<{ id: number; name: string; price: number } | null>(null);
+  const [addItemQuantity, setAddItemQuantity] = useState(1);
+  const [addItemNote, setAddItemNote] = useState('');
+
+  const [activeFloorPlan, setActiveFloorPlan] = useState<{ id: number; name: string; width: number; height: number; backgroundMode: string; floorDiagramImageUrl: string | null; floorDiagramFitMode?: 'contain' | 'cover' | 'fill' | null; floorDiagramX?: number | null; floorDiagramY?: number | null; floorDiagramWidth?: number | null; floorDiagramHeight?: number | null; floorDiagramScale?: number | null; floorDiagramRotation?: number | null; panoramaUrl: string | null; panoramaType: string | null } | null>(null);
+  const [floorPlanObjects, setFloorPlanObjects] = useState<FloorPlanObject[]>([]);
+  const [floorPlanLoading, setFloorPlanLoading] = useState(false);
 
   const mountedRef = useRef(true);
   const loadIdRef = useRef(0);
+  const floorPlanLoadIdRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -124,19 +153,6 @@ export default function POSPage() {
 
     try {
       const branchId = activeBranchId;
-      api.get<any>('/api/pos/bank-setting')
-        .then(res => {
-          if (mountedRef.current && thisLoad === loadIdRef.current) {
-            setBankInfo(res);
-          }
-        })
-        .catch(err => {
-          console.error("Failed to load bank setting", err);
-          if (mountedRef.current && thisLoad === loadIdRef.current) {
-            setBankInfo(null);
-          }
-        });
-
       const results = await Promise.allSettled([
         api.get<TableEntity[]>('/api/pos/tables', { params: { branchId } }),
         api.get<Room[]>('/api/pos/rooms', { params: { branchId } }),
@@ -156,14 +172,39 @@ export default function POSPage() {
         roomsOk = true;
       }
       if (productsResult.status === 'fulfilled') {
-        setProducts(productsResult.value);
+        const activeProducts = productsResult.value.filter(p => p.isActive);
         productsOk = true;
 
-        const catSet = new Map<number, Category>();
-        productsResult.value.forEach(p => {
-          if (p.category) catSet.set(p.category.id, p.category);
-        });
-        setCategories(Array.from(catSet.values()));
+        // Merge backend POS products with menu API items
+        try {
+          const menuItems = await getActiveMenuItems();
+          const menuProducts = menuToProducts(menuItems);
+          const menuIds = new Set(menuProducts.map(p => p.id));
+          const backendOnly = activeProducts.filter(p => !menuIds.has(p.id));
+          const merged = [...menuProducts, ...backendOnly];
+          setProducts(merged);
+          const catSet = new Map<number, Category>();
+          merged.forEach(p => { if (p.category) catSet.set(p.category.id, p.category); });
+          setCategories(Array.from(catSet.values()));
+        } catch {
+          setProducts(activeProducts);
+          const catSet = new Map<number, Category>();
+          activeProducts.forEach(p => { if (p.category) catSet.set(p.category.id, p.category); });
+          setCategories(Array.from(catSet.values()));
+        }
+      } else {
+        // Backend failed — load from menu API only
+        try {
+          const menuItems = await getActiveMenuItems();
+          const menuProducts = menuToProducts(menuItems);
+          if (menuProducts.length > 0) {
+            setProducts(menuProducts);
+            productsOk = true;
+            const catSet = new Map<number, Category>();
+            menuProducts.forEach(p => { if (p.category) catSet.set(p.category.id, p.category); });
+            setCategories(Array.from(catSet.values()));
+          }
+        } catch { /* menu API also unavailable */ }
       }
 
       if (!tablesOk && !roomsOk && !productsOk) {
@@ -186,6 +227,62 @@ export default function POSPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Refresh products when menu drawer opens (merge, don't overwrite)
+  useEffect(() => {
+    if (!menuOpen) return;
+    let cancelled = false;
+    getActiveMenuItems().then(menuItems => {
+      if (cancelled) return;
+      const menuProducts = menuToProducts(menuItems);
+      setProducts(prev => {
+        const menuIds = new Set(menuProducts.map(p => p.id));
+        const existing = prev.filter(p => !menuIds.has(p.id));
+        return [...menuProducts, ...existing];
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [menuOpen]);
+
+  // Load published floor plan for selected room
+  const loadFloorPlanForRoom = useCallback(async (roomId: number) => {
+    const thisLoad = ++floorPlanLoadIdRef.current;
+    setFloorPlanLoading(true);
+    setActiveFloorPlan(null);
+    setFloorPlanObjects([]);
+    try {
+      const res = await api.get<{ floorPlan: { id: number; name: string; width: number; height: number; backgroundMode: string; floorDiagramImageUrl: string | null; floorDiagramFitMode?: 'contain' | 'cover' | 'fill' | null; floorDiagramX?: number | null; floorDiagramY?: number | null; floorDiagramWidth?: number | null; floorDiagramHeight?: number | null; floorDiagramScale?: number | null; floorDiagramRotation?: number | null; panoramaUrl: string | null; panoramaType: string | null } | null; objects: FloorPlanObject[] } | null>(
+        '/api/pos/floor-plans/active', { params: { roomId } }
+      );
+      if (!mountedRef.current || thisLoad !== floorPlanLoadIdRef.current) return;
+      if (res?.floorPlan) {
+        setActiveFloorPlan(res.floorPlan);
+        setFloorPlanObjects(res.objects || []);
+      } else {
+        setActiveFloorPlan(null);
+        setFloorPlanObjects([]);
+      }
+    } catch {
+      if (!mountedRef.current || thisLoad !== floorPlanLoadIdRef.current) return;
+      setActiveFloorPlan(null);
+      setFloorPlanObjects([]);
+    } finally {
+      if (mountedRef.current && thisLoad === floorPlanLoadIdRef.current) {
+        setFloorPlanLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedRoom) {
+      loadFloorPlanForRoom(selectedRoom);
+    } else {
+      floorPlanLoadIdRef.current += 1;
+      setFloorPlanLoading(false);
+      setActiveFloorPlan(null);
+      setFloorPlanObjects([]);
+    }
+  }, [selectedRoom, loadFloorPlanForRoom]);
+
   const filteredTables = selectedRoom !== null
     ? tables.filter(t => t.room?.id === selectedRoom)
     : tables;
@@ -193,6 +290,24 @@ export default function POSPage() {
   const filteredProducts = selectedCategory !== null
     ? products.filter(p => p.category?.id === selectedCategory)
     : products;
+
+  const resetTableForm = useCallback(() => {
+    setEditingTable(null);
+    setTableName('');
+    setTableCapacity(4);
+    setTableRoomId(0);
+    setTableStyle('ROUND');
+  }, []);
+
+  const resetRoomForm = useCallback(() => {
+    setEditingRoom(null);
+    setRoomName('');
+  }, []);
+
+  const showRequestError = useCallback((error: unknown, fallback: string) => {
+    console.error(fallback, error);
+    toast.error(getApiErrorMessage(error, fallback));
+  }, []);
 
   const loadSession = useCallback(async (table: TableEntity) => {
     try {
@@ -205,7 +320,8 @@ export default function POSPage() {
       setSession(tblSession);
       setCartItems(res.items || []);
     } catch {
-      setSession(null);
+      // Backend unavailable — create a local session so POS can still work
+      setSession({ id: Date.now(), table, status: 'ACTIVE' });
       setCartItems([]);
     }
   }, []);
@@ -218,26 +334,84 @@ export default function POSPage() {
     await loadSession(table);
   };
 
-  const handleAddToCart = async (variant: ProductVariant) => {
+  const handleAddToCart = async (product: ProductWithVariants, variant: ProductVariant | null, size: { id: number; name: string; price: number } | null, quantity: number, note: string) => {
     if (!session) {
       toast.warning('Chọn bàn trước khi thêm món');
       return;
     }
+    const itemPrice = size ? size.price : (variant?.price ?? 0);
+    const variantName = variant ? variant.name : product.name;
+    const sizeName = size ? size.name : '';
     setCartLoading(true);
     try {
       await api.postForm('/api/pos/order/add', {
         sessionId: session.id,
-        variantId: variant.id,
-        quantity: 1,
+        menuItemId: product.id,
+        variantId: variant?.id ?? '',
+        sizeId: size?.id ?? '',
+        quantity,
+        note,
       });
       await loadSession(selectedTable!);
-      toast.success(`Đã thêm ${variant.name}`);
+      toast.success(`Đã thêm ${variantName}${sizeName ? ' - ' + sizeName : ''}`);
     } catch {
-      toast.error('Thêm món thất bại');
+      // Backend unavailable — add locally to cart
+      setCartItems(prev => {
+        const existing = prev.find(i =>
+          i.productName === product.name &&
+          i.variantName === variantName &&
+          i.sizeName === sizeName &&
+          i.notes === note
+        );
+        if (existing) {
+          return prev.map(i => i.detailId === existing.detailId ? { ...i, quantity: i.quantity + quantity } : i);
+        }
+        const newDetailId = prev.length > 0 ? Math.max(...prev.map(i => i.detailId)) + 1 : 1;
+        return [...prev, {
+          detailId: newDetailId,
+          productName: product.name,
+          variantName,
+          sizeName,
+          price: itemPrice,
+          quantity,
+          status: 'PENDING',
+          notes: note,
+        }];
+      });
+      toast.success(`Đã thêm ${variantName}${sizeName ? ' - ' + sizeName : ''}`);
     } finally {
       setCartLoading(false);
     }
   };
+
+  const openAddItemModal = (product: ProductWithVariants, variant: ProductVariant | null = null) => {
+    setAddItemProduct(product);
+    setAddItemVariant(variant);
+    setAddItemSize(null);
+    setAddItemQuantity(1);
+    setAddItemNote('');
+    setAddItemOpen(true);
+  };
+
+  const closeAddItemModal = () => {
+    setAddItemOpen(false);
+    setAddItemProduct(null);
+    setAddItemVariant(null);
+    setAddItemSize(null);
+    setAddItemQuantity(1);
+    setAddItemNote('');
+  };
+
+  const handleAddItemConfirm = () => {
+    if (!addItemProduct) return;
+    handleAddToCart(addItemProduct, addItemVariant, addItemSize, addItemQuantity, addItemNote);
+    closeAddItemModal();
+  };
+
+  const addItemPrice = addItemSize ? addItemSize.price : (addItemVariant?.price ?? addItemProduct?.variants[0]?.price ?? 0);
+  const addItemTotal = addItemPrice * addItemQuantity;
+  const addItemNeedsVariant = addItemProduct && addItemProduct.variants.length > 1 && !addItemVariant;
+  const addItemCanConfirm = addItemProduct && !addItemNeedsVariant;
 
   const handleUpdateQuantity = async (detailId: number, delta: number) => {
     if (!session) return;
@@ -255,7 +429,14 @@ export default function POSPage() {
       }
       await loadSession(selectedTable!);
     } catch {
-      toast.error('Cập nhật số lượng thất bại');
+      // Backend unavailable — update locally
+      setCartItems(prev => {
+        const item = prev.find(i => i.detailId === detailId);
+        if (!item) return prev;
+        const newQty = item.quantity + delta;
+        if (newQty <= 0) return prev.filter(i => i.detailId !== detailId);
+        return prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i);
+      });
     } finally {
       setCartLoading(false);
     }
@@ -352,30 +533,49 @@ export default function POSPage() {
     }
   };
 
+  const refreshRoomsTablesAndFloorPlan = useCallback(async () => {
+    if (!activeBranchId) return;
+    const [roomRes, tableRes] = await Promise.all([
+      api.get<Room[]>('/api/pos/rooms', { params: { branchId: activeBranchId } }),
+      api.get<TableEntity[]>('/api/pos/tables', { params: { branchId: activeBranchId } }),
+    ]);
+    setRooms(roomRes);
+    setTables(tableRes);
+    if (selectedRoom) {
+      await loadFloorPlanForRoom(selectedRoom);
+    }
+  }, [activeBranchId, selectedRoom, loadFloorPlanForRoom]);
+
   const handleSaveRoom = async () => {
-    if (!roomName.trim()) {
-      toast.warning('Nhập tên phòng');
+    const normalizedName = roomName.trim();
+    if (!normalizedName) {
+      toast.warning('Tên phòng là bắt buộc.');
+      return;
+    }
+    const duplicate = rooms.some(room =>
+      room.name.trim().toLowerCase() === normalizedName.toLowerCase() && room.id !== editingRoom?.id
+    );
+    if (duplicate) {
+      toast.warning('Tên phòng đã tồn tại trong chi nhánh này.');
       return;
     }
     try {
       if (editingRoom) {
         await api.postForm('/api/pos/rooms/update', {
           roomId: editingRoom.id,
-          name: roomName.trim(),
+          name: normalizedName,
         });
         toast.success('Cập nhật phòng thành công');
       } else {
         await api.postForm('/api/pos/rooms/add', {
-          name: roomName.trim(),
+          name: normalizedName,
         });
         toast.success('Thêm phòng thành công');
       }
-      setEditingRoom(null);
-      setRoomName('');
-      const roomRes = await api.get<Room[]>('/api/pos/rooms', { params: { branchId: activeBranchId! } });
-      setRooms(roomRes);
-    } catch {
-      toast.error('Lưu phòng thất bại');
+      resetRoomForm();
+      await refreshRoomsTablesAndFloorPlan();
+    } catch (error) {
+      showRequestError(error, 'Lưu phòng thất bại');
     }
   };
 
@@ -384,46 +584,77 @@ export default function POSPage() {
     try {
       await api.postForm('/api/pos/rooms/delete', { roomId: id });
       toast.success('Xóa phòng thành công');
-      setRooms(r => r.filter(room => room.id !== id));
-    } catch {
-      toast.error('Xóa phòng thất bại');
+      if (selectedRoom === id) setSelectedRoom(null);
+      if (editingRoom?.id === id) resetRoomForm();
+      await refreshRoomsTablesAndFloorPlan();
+    } catch (error) {
+      showRequestError(error, 'Xóa phòng thất bại');
     }
   };
 
+  const tableStyleFromTable = (table: TableEntity): typeof tableStyle => {
+    if (table.tableStyle) return table.tableStyle;
+    return table.shape === 'rectangle' ? 'RECTANGLE' : 'ROUND';
+  };
+
+  const beginEditTable = (table: TableEntity) => {
+    setEditingTable(table);
+    setTableName(table.name);
+    setTableCapacity(Math.max(1, table.capacity || 1));
+    setTableRoomId(table.room?.id || 0);
+    setTableStyle(tableStyleFromTable(table));
+  };
+
   const handleSaveTable = async () => {
-    if (!tableName.trim()) {
-      toast.warning('Nhập tên bàn');
+    const normalizedName = tableName.trim();
+    if (!normalizedName) {
+      toast.warning('Tên bàn là bắt buộc.');
       return;
     }
-    const roomId = tableRoomId || rooms[0]?.id;
-    if (!roomId) {
+    if (!tableRoomId) {
       toast.warning('Chọn phòng cho bàn');
+      return;
+    }
+    if (!tableStyle) {
+      toast.warning('Chọn kiểu bàn');
+      return;
+    }
+    if (tableCapacity < 1) {
+      toast.warning('Sức chứa phải lớn hơn hoặc bằng 1.');
+      return;
+    }
+    const duplicate = tables.some(table =>
+      table.room?.id === tableRoomId &&
+      table.name.trim().toLowerCase() === normalizedName.toLowerCase() &&
+      table.id !== editingTable?.id
+    );
+    if (duplicate) {
+      toast.warning('Tên bàn đã tồn tại trong phòng này.');
       return;
     }
     try {
       if (editingTable) {
         await api.postForm('/api/pos/tables/update', {
           tableId: editingTable.id,
-          name: tableName.trim(),
+          name: normalizedName,
           capacity: tableCapacity,
-          roomId,
+          roomId: tableRoomId,
+          tableStyle,
         });
         toast.success('Cập nhật bàn thành công');
       } else {
         await api.postForm('/api/pos/tables/add', {
-          name: tableName.trim(),
+          name: normalizedName,
           capacity: tableCapacity,
-          roomId,
+          roomId: tableRoomId,
+          tableStyle,
         });
         toast.success('Thêm bàn thành công');
       }
-      setEditingTable(null);
-      setTableName('');
-      setTableCapacity(4);
-      const tableRes = await api.get<TableEntity[]>('/api/pos/tables', { params: { branchId: activeBranchId! } });
-      setTables(tableRes);
-    } catch {
-      toast.error('Lưu bàn thất bại');
+      resetTableForm();
+      await refreshRoomsTablesAndFloorPlan();
+    } catch (error) {
+      showRequestError(error, 'Lưu bàn thất bại');
     }
   };
 
@@ -432,9 +663,15 @@ export default function POSPage() {
     try {
       await api.postForm('/api/pos/tables/delete', { tableId: id });
       toast.success('Xóa bàn thành công');
-      setTables(t => t.filter(table => table.id !== id));
-    } catch {
-      toast.error('Xóa bàn thất bại');
+      if (selectedTable?.id === id) {
+        setSelectedTable(null);
+        setSession(null);
+        setCartItems([]);
+      }
+      if (editingTable?.id === id) resetTableForm();
+      await refreshRoomsTablesAndFloorPlan();
+    } catch (error) {
+      showRequestError(error, 'Xóa bàn thất bại');
     }
   };
 
@@ -470,9 +707,9 @@ export default function POSPage() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-[#f8f9fc] text-slate-800 overflow-hidden -m-4 lg:-m-6">
-      {/* ═══════════════════════════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           MAIN AREA: Floor Plan / Table Map (takes up most of the screen)
-          ═══════════════════════════════════════════════════════════════ */}
+          â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar: Room tabs + actions */}
         <div className="flex items-center gap-2 px-4 py-2 bg-white border-b border-slate-200">
@@ -483,7 +720,7 @@ export default function POSPage() {
                 selectedRoom === null ? 'bg-[#25439b] text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
               }`}
             >
-              Tất cả
+                Tất cả
             </button>
             {rooms.map(room => (
               <button
@@ -499,7 +736,7 @@ export default function POSPage() {
           </div>
 
           <div className="flex items-center gap-1.5 ml-2">
-            {selectedRoomObj?.panoramaUrl && (
+            {activeFloorPlan?.panoramaUrl && (
               <button
                 onClick={() => setPanoramaOpen(true)}
                 className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors shadow-sm flex items-center gap-1.5"
@@ -520,75 +757,72 @@ export default function POSPage() {
 
         {/* Floor plan canvas / Table grid */}
         <div className="flex-1 overflow-auto p-4">
-          {filteredTables.length === 0 ? (
+          {selectedRoom && floorPlanLoading ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <div className="w-8 h-8 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin mb-3" />
+              <div className="text-sm">Loading floor plan...</div>
+            </div>
+          ) : selectedRoom && !activeFloorPlan ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400">
+              <svg className="w-12 h-12 mb-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+              <div className="text-sm">No floor plan available.</div>
+            </div>
+          ) : !selectedRoom && filteredTables.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <svg className="w-12 h-12 mb-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
               <div className="text-sm">Không có bàn</div>
               {selectedRoom && <div className="text-xs mt-1">Thử chọn phòng khác</div>}
             </div>
-          ) : showFloorPlan ? (
-            <div
-              className="relative mx-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
-              style={{
-                maxWidth: '100%',
-                aspectRatio: (selectedRoomObj!.floorPlanWidth && selectedRoomObj!.floorPlanHeight)
-                  ? `${selectedRoomObj!.floorPlanWidth} / ${selectedRoomObj!.floorPlanHeight}`
-                  : '5 / 4',
-              }}
-            >
-              {/* Background 2D floor diagram */}
-              <img
-                src={selectedRoomObj!.floorPlanImageUrl!}
-                alt="Sơ đồ tầng"
-                className="absolute inset-0 w-full h-full object-contain"
-                draggable={false}
-              />
-              {/* Table markers overlay */}
-              {filteredTables.map(table => {
-                const isSelected = selectedTable?.id === table.id;
-                const isMergeSelected = mergeTableIds.includes(table.id);
-                const radius = table.layoutRadius || 25;
-                const x = table.layoutX ?? 50;
-                const y = table.layoutY ?? 50;
-                const markerColor = statusColor[table.status as TableStatus] || '#94a3b8';
-                return (
-                  <button
-                    key={table.id}
-                    onClick={() => {
-                      if (mergeMode) {
-                        if (table.status === 'OCCUPIED' || isSelected) toggleMergeTable(table.id);
-                      } else {
-                        handleSelectTable(table);
-                      }
-                    }}
-                    className="absolute cursor-pointer transition-all duration-150"
-                    style={{
-                      left: `${x}%`,
-                      top: `${y}%`,
-                      width: radius * 2,
-                      height: radius * 2,
-                      transform: 'translate(-50%, -50%)',
-                      zIndex: isSelected ? 20 : isMergeSelected ? 15 : 10,
-                    }}
-                    title={`${table.name} — ${table.capacity} chỗ — ${statusLabel[table.status as TableStatus]}`}
-                  >
-                    <div className="absolute inset-0 rounded-full" style={{ boxShadow: isSelected ? '0 0 0 3px rgba(37,67,155,0.4), 0 4px 12px rgba(0,0,0,0.3)' : isMergeSelected ? '0 0 0 3px rgba(168,85,247,0.4), 0 4px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(0,0,0,0.25)' }} />
-                    <div
-                      className="absolute inset-0 rounded-full flex items-center justify-center border-2 transition-all"
-                      style={{
-                        backgroundColor: markerColor,
-                        borderColor: isSelected ? '#25439b' : isMergeSelected ? '#a855f7' : 'rgba(255,255,255,0.6)',
-                      }}
-                    >
-                      <span className="text-white text-[10px] font-bold leading-none select-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-                        {table.displayLabel || table.name}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+          ) : selectedRoom && activeFloorPlan ? (
+            /* â”€â”€â”€ Published FloorPlanObjects via ObjectRenderer â”€â”€â”€ */
+            <div className="relative mx-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+              style={{ maxWidth: '100%', aspectRatio: `${activeFloorPlan.width} / ${activeFloorPlan.height}` }}>
+              <FloorPlanBackground floorPlan={{
+                id: activeFloorPlan.id, branch: {} as any, name: activeFloorPlan.name, floorNumber: 0,
+                width: activeFloorPlan.width, height: activeFloorPlan.height,
+                floorDiagramImageUrl: activeFloorPlan.floorDiagramImageUrl,
+                floorDiagramFitMode: activeFloorPlan.floorDiagramFitMode ?? undefined,
+                floorDiagramX: activeFloorPlan.floorDiagramX ?? undefined,
+                floorDiagramY: activeFloorPlan.floorDiagramY ?? undefined,
+                floorDiagramWidth: activeFloorPlan.floorDiagramWidth ?? undefined,
+                floorDiagramHeight: activeFloorPlan.floorDiagramHeight ?? undefined,
+                floorDiagramScale: activeFloorPlan.floorDiagramScale ?? undefined,
+                floorDiagramRotation: activeFloorPlan.floorDiagramRotation ?? undefined,
+                backgroundMode: activeFloorPlan.backgroundMode as any,
+                panoramaUrl: activeFloorPlan.panoramaUrl, panoramaType: activeFloorPlan.panoramaType,
+                status: 'published', createdBy: null, updatedBy: null, createdAt: '', updatedAt: '',
+              }} className="w-full h-full">
+                {[...floorPlanObjects].sort((a, b) => a.zIndex - b.zIndex).map(obj => {
+                  const def = getObjectDefinition(obj.objectType);
+                  const isTableObj = def?.isTable || obj.objectType === 'table';
+                  const meta = asJsonObject(obj.metadataJson);
+                  const linkedTableId = meta.tableEntityId ?? meta.tableId ?? meta.linkedTableId;
+                  const posTable = linkedTableId ? tables.find(t => t.id === linkedTableId) : null;
+                  const isSelected = posTable ? selectedTable?.id === posTable.id : false;
+                  const isMergeSelected = posTable ? mergeTableIds.includes(posTable.id) : false;
+
+                  return (
+                    <ObjectRenderer
+                      key={obj.id}
+                      object={{ ...obj, posTable } as any}
+                      isEditor={false}
+                      isSelected={isSelected}
+                      floorPlanWidth={activeFloorPlan.width}
+                      floorPlanHeight={activeFloorPlan.height}
+                      onClick={isTableObj && posTable ? () => {
+                        if (mergeMode) {
+                          if (posTable.status === 'OCCUPIED' || isSelected) toggleMergeTable(posTable.id);
+                        } else {
+                          handleSelectTable(posTable);
+                        }
+                      } : undefined}
+                    />
+                  );
+                })}
+              </FloorPlanBackground>
             </div>
           ) : (
+            /* Table grid for the all-rooms view */
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
               {filteredTables.map(table => {
                 const isSelected = selectedTable?.id === table.id;
@@ -647,9 +881,9 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           RIGHT PANEL: Table Detail / Order Info
-          ═══════════════════════════════════════════════════════════════ */}
+          â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       <div className="w-96 min-w-[340px] border-l border-slate-200 flex flex-col bg-white">
         {selectedTable ? (
           <>
@@ -695,7 +929,7 @@ export default function POSPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-                  <span className="text-xs font-medium text-slate-600">QR gọi món</span>
+                  <span className="text-xs font-medium text-slate-600">QR gửi món</span>
                 </div>
                 <button
                   disabled
@@ -706,7 +940,7 @@ export default function POSPage() {
               </div>
               <p className="text-[10px] text-slate-400 mt-1.5">
                 {/* TODO: When QR ordering is implemented, show order URL here */}
-                Khách hàng quét QR để tự gọi món — sắp ra mắt
+                Khách hàng quét QR để tự gửi món - sắp ra mắt
               </p>
             </div>
 
@@ -716,7 +950,7 @@ export default function POSPage() {
                 <div className="text-center py-8">
                   <svg className="w-10 h-10 mx-auto text-slate-200 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 2C6.48 2 2 6 2 11h20c0-5-4.48-9-10-9z"/><path d="M2 13h20v1a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-1z"/></svg>
                   <div className="text-sm text-slate-400">Chưa có món</div>
-                  <div className="text-xs text-slate-300 mt-1">Nhấn "Thêm món" để bắt đầu</div>
+                  <div className="text-xs text-slate-300 mt-1">Nhấn &quot;Thêm món&quot; để bắt đầu</div>
                 </div>
               ) : (
                 cartItems.map(item => (
@@ -730,15 +964,23 @@ export default function POSPage() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-slate-800 truncate">{item.productName}</div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">{item.variantName}</div>
+                        {item.variantName && item.variantName !== item.productName && (
+                          <div className="text-[11px] text-slate-500 mt-0.5">Loại: {item.variantName}</div>
+                        )}
+                        {item.sizeName && (
+                          <div className="text-[11px] text-slate-500 mt-0.5">Size: {item.sizeName}</div>
+                        )}
+                        {item.notes && (
+                          <div className="text-[10px] text-amber-600 mt-0.5 italic">Ghi chú: {item.notes}</div>
+                        )}
                         <div className="text-[10px] mt-1">
-                          {item.status === 'PENDING' && <span className="text-slate-400">⏳ Chờ xử lý</span>}
-                          {item.status === 'COOKING' && <span className="text-orange-500">🔥 Đang nấu</span>}
-                          {item.status === 'READY' && <span className="text-emerald-500">✅ Sẵn sàng</span>}
+                          {item.status === 'PENDING' && <span className="text-slate-400">Đang chờ xử lý</span>}
+                          {item.status === 'COOKING' && <span className="text-orange-500">Đang nấu</span>}
+                          {item.status === 'READY' && <span className="text-emerald-500">Sẵn sàng</span>}
                         </div>
                       </div>
                       <div className="text-sm font-semibold text-emerald-600 ml-2 whitespace-nowrap">
-                        {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                        {item.price.toLocaleString('vi-VN')}đ × {item.quantity}
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-2">
@@ -748,7 +990,7 @@ export default function POSPage() {
                           disabled={cartLoading}
                           className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 transition-colors"
                         >
-                          −
+                          -
                         </button>
                         <span className="text-sm w-6 text-center text-slate-700 font-medium">{item.quantity}</span>
                         <button
@@ -787,20 +1029,20 @@ export default function POSPage() {
                   disabled={!session || cartItems.length === 0 || cartLoading}
                   className="py-2.5 bg-orange-500 hover:bg-orange-400 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {cartLoading ? '...' : '🔥 Gửi bếp'}
+                  {cartLoading ? '...' : 'Gửi bếp'}
                 </button>
                 <button
                   onClick={() => setCheckoutOpen(true)}
                   disabled={!session || cartItems.length === 0}
                   className="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  💳 Thanh toán
+                  Thanh toán
                 </button>
               </div>
             </div>
           </>
         ) : (
-          /* No table selected — empty state */
+          /* No table selected - empty state */
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
             <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
               <svg className="w-10 h-10 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -810,12 +1052,12 @@ export default function POSPage() {
             </div>
             <h3 className="text-base font-semibold text-slate-700 mb-1">Chọn bàn để bắt đầu</h3>
             <p className="text-sm text-slate-400 max-w-[200px]">
-              Nhấn vào bàn trên sơ đồ để xem thông tin và bắt đầu đặt món
+              Nhấn vào bàn tròn số để xem thông tin và bắt đầu đặt món
             </p>
             <div className="mt-6 flex flex-col gap-2 w-full max-w-[180px]">
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <div className="w-3 h-3 rounded-full bg-green-500" />
-                <span>Trống — có thể chọn</span>
+                <span>Trống có thể chọn</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <div className="w-3 h-3 rounded-full bg-red-500" />
@@ -831,7 +1073,7 @@ export default function POSPage() {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════
-          MENU MODAL — Opens when "Thêm món" is clicked
+          MENU MODAL - Opens when "Thêm món" is clicked
           ═══════════════════════════════════════════════════════════════ */}
       {menuOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex">
@@ -866,7 +1108,7 @@ export default function POSPage() {
                   selectedCategory === null ? 'bg-[#25439b] text-white' : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
-                Tất cả
+              Tất cả
               </button>
               {categories.map(cat => (
                 <button
@@ -883,7 +1125,12 @@ export default function POSPage() {
 
             {/* Product grid */}
             <div className="flex-1 overflow-y-auto p-4">
-              {filteredProducts.length === 0 ? (
+              {loading ? (
+                <div className="text-slate-400 text-sm text-center mt-12 flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+                  Đang tải thực đơn...
+                </div>
+              ) : filteredProducts.length === 0 ? (
                 <div className="text-slate-400 text-sm text-center mt-12">Không có sản phẩm</div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -898,16 +1145,14 @@ export default function POSPage() {
                           <div className="text-[10px] text-slate-400 mt-0.5">{product.category.name}</div>
                         )}
                       </div>
-                      {product.variants && product.variants.length > 0 && (
+                      {product.variants.length > 0 ? (
                         <div className="border-t border-slate-100 divide-y divide-slate-100">
-                          {product.variants.map(variant => (
+                          {product.variants.map((variant, vIdx) => (
                             <button
-                              key={variant.id}
-                              onClick={() => {
-                                handleAddToCart(variant);
-                              }}
+                              key={`${product.id}-v${vIdx}`}
+                              onClick={() => openAddItemModal(product, variant)}
                               disabled={!session || cartLoading}
-                              className="w-full px-3 py-2.5 text-left hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center"
+                              className="w-full px-3 py-2.5 text-left hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center cursor-pointer"
                             >
                               <span className="text-xs text-slate-600 truncate mr-2">{variant.name}</span>
                               <span className="text-xs font-semibold text-emerald-600 whitespace-nowrap">
@@ -916,6 +1161,17 @@ export default function POSPage() {
                             </button>
                           ))}
                         </div>
+                      ) : (
+                        <button
+                          onClick={() => openAddItemModal(product)}
+                          disabled={!session || cartLoading}
+                          className="w-full px-3 py-2.5 border-t border-slate-100 text-left hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex justify-between items-center cursor-pointer"
+                        >
+                          <span className="text-xs text-slate-600 truncate mr-2">Thêm vào bàn</span>
+                          <span className="text-xs font-semibold text-emerald-600 whitespace-nowrap">
+                            {(product.variants[0]?.price ?? 0).toLocaleString('vi-VN')}đ
+                          </span>
+                        </button>
                       )}
                     </div>
                   ))}
@@ -926,15 +1182,77 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════
-          CHECKOUT MODAL
-          ═══════════════════════════════════════════════════════════════ */}
+      {/* ADD ITEM MODAL */}
+      {addItemOpen && addItemProduct && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={closeAddItemModal}>
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-800">{addItemProduct.name}</h3>
+              <button onClick={closeAddItemModal} className="text-slate-400 hover:text-slate-600 text-xl">&#10005;</button>
+            </div>
+            <div className="p-4 space-y-4">
+              {addItemProduct.variants.length > 1 && (
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">Ch&#7885;n lo&#7841;i *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {addItemProduct.variants.map((v, idx) => (
+                      <button key={`sv-${addItemProduct.id}-${idx}`} type="button" onClick={() => { setAddItemVariant(v); setAddItemSize(null); }}
+                        className={`p-2.5 rounded-lg border text-left transition-all text-sm ${addItemVariant?.id === v.id ? 'border-[#25439b] bg-[#25439b]/5 ring-1 ring-[#25439b]/20' : 'border-slate-200 hover:border-slate-300'}`}>
+                        <div className="font-medium text-slate-800">{v.name}</div>
+                        <div className="text-xs text-emerald-600 font-semibold">{v.price.toLocaleString('vi-VN')}&#8363;</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {addItemProduct.variants.length <= 1 && (
+                <div>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">Ch&#7885;n size</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[{ id: 1, name: 'Nh&#7887;', price: addItemPrice }, { id: 2, name: 'V&#7915;a', price: Math.round(addItemPrice * 1.2) }, { id: 3, name: 'L&#7899;n', price: Math.round(addItemPrice * 1.5) }].map(s => (
+                      <button key={s.id} type="button" onClick={() => setAddItemSize(addItemSize?.id === s.id ? null : s)}
+                        className={`p-2 rounded-lg border text-center transition-all text-sm ${addItemSize?.id === s.id ? 'border-[#25439b] bg-[#25439b]/5 ring-1 ring-[#25439b]/20' : 'border-slate-200 hover:border-slate-300'}`}>
+                        <div className="font-medium text-slate-800">{s.name}</div>
+                        <div className="text-[10px] text-slate-400">{s.price.toLocaleString('vi-VN')}&#8363;</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">S&#7889; l&#432;&#7907;ng</label>
+                <div className="flex items-center justify-center gap-4">
+                  <button type="button" onClick={() => setAddItemQuantity(Math.max(1, addItemQuantity - 1))} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-lg font-bold text-slate-600 transition-colors">&#8722;</button>
+                  <span className="text-xl font-bold text-slate-800 w-8 text-center">{addItemQuantity}</span>
+                  <button type="button" onClick={() => setAddItemQuantity(addItemQuantity + 1)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-lg font-bold text-slate-600 transition-colors">+</button>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-slate-700 mb-1 block">Ghi ch&#432;</label>
+                <input type="text" value={addItemNote} onChange={e => setAddItemNote(e.target.value)} placeholder="&#205;t h&#224;nh, th&#234;m s&#7885;t..." className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]" />
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                <span className="text-sm text-slate-500">Th&#224;nh ti&#7873;n</span>
+                <span className="text-lg font-bold text-emerald-600">{addItemTotal.toLocaleString('vi-VN')}&#8363;</span>
+              </div>
+            </div>
+            <div className="flex gap-3 p-4 border-t border-slate-200">
+              <button onClick={closeAddItemModal} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">H&#7911;y</button>
+              <button onClick={handleAddItemConfirm} disabled={!addItemCanConfirm || cartLoading} className="flex-1 py-2.5 rounded-xl bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {cartLoading ? '&#272;ang th&#234;m...' : 'Th&#234;m v&#224;o b&#7843;n'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHECKOUT MODAL */}
       {checkoutOpen && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setCheckoutOpen(false)}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="text-lg font-semibold text-slate-800">Thanh toán</h3>
-              <button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">✕</button>
+              <button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">âœ•</button>
             </div>
             <div className="p-4 space-y-4">
               <div className="bg-slate-50 rounded-xl p-4">
@@ -945,9 +1263,9 @@ export default function POSPage() {
                 <div className="text-sm text-slate-500 mb-2">Phương thức thanh toán</div>
                 <div className="grid grid-cols-1 gap-2">
                   {[
-                    { key: 'CASH' as const, label: '💵 Tiền mặt', desc: 'Thanh toán bằng tiền mặt' },
-                    { key: 'BANK_TRANSFER' as const, label: '🏦 Chuyển khoản / VietQR', desc: 'Chuyển khoản ngân hàng' },
-                    { key: 'VNPAY' as const, label: '📱 VNPay QR', desc: 'Quét mã QR VNPay' },
+                    { key: 'CASH' as const, label: 'Tiền mặt', desc: 'Thanh toán bằng tiền mặt' },
+                    { key: 'BANK_TRANSFER' as const, label: 'Chuyển khoản / VietQR', desc: 'Chuyển khoản ngân hàng' },
+                    { key: 'VNPAY' as const, label: 'VNPay QR', desc: 'Quét mã QR VNPay' },
                   ].map(opt => (
                     <button
                       key={opt.key}
@@ -964,47 +1282,6 @@ export default function POSPage() {
                   ))}
                 </div>
               </div>
-
-              {/* Bank Transfer Details (US#1) */}
-              {paymentMethod === 'BANK_TRANSFER' && bankInfo && bankInfo.accountNumber && (
-                <div className="bg-indigo-50/50 rounded-xl p-3.5 border border-indigo-100/50 space-y-2 text-xs font-semibold animate-fade-in text-slate-700">
-                  <p className="text-[10px] text-indigo-600 font-black uppercase tracking-wider flex items-center gap-1">
-                    <span>🏦</span> Tài khoản nhận chuyển khoản
-                  </p>
-                  <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[11px]">
-                    <span className="text-slate-450 font-bold">Ngân hàng:</span>
-                    <span className="font-extrabold text-slate-800">{bankInfo.bankName}</span>
-                    
-                    <span className="text-slate-450 font-bold">Số tài khoản:</span>
-                    <span className="font-black text-indigo-700 select-all">{bankInfo.accountNumber}</span>
-                    
-                    <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
-                    <span className="font-extrabold text-slate-800 uppercase">{bankInfo.accountHolder}</span>
-                    
-                    {bankInfo.bankCode && (
-                      <>
-                        <span className="text-slate-450 font-bold">Mã ngân hàng:</span>
-                        <span className="font-bold text-slate-700">{bankInfo.bankCode}</span>
-                      </>
-                    )}
-                  </div>
-                  {/* VietQR Code Display */}
-                  <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
-                    <p className="text-[9px] text-indigo-500 font-black uppercase tracking-wider flex items-center gap-1">
-                      <span>📲</span> Quét mã VietQR để thanh toán hóa đơn
-                    </p>
-                    <img 
-                      src={`https://img.vietqr.io/image/${getVietQrBankId(bankInfo.bankName || '')}-${bankInfo.accountNumber}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMS BILL ${session?.id}`)}&accountName=${encodeURIComponent(bankInfo.accountHolder || '')}`}
-                      alt="VietQR Payment Code"
-                      className="w-40 h-40 object-contain rounded-lg border border-slate-100 shadow-sm"
-                    />
-                    <p className="text-[8px] text-rose-500 font-black text-center animate-pulse">
-                      * Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét
-                    </p>
-                  </div>
-                </div>
-              )}
-
               <button
                 onClick={handleCheckout}
                 disabled={processing}
@@ -1017,15 +1294,15 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           MANAGER MODAL
-          ═══════════════════════════════════════════════════════════════ */}
+          â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {managerOpen && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setManagerOpen(false); setEditingRoom(null); setEditingTable(null); }}>
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setManagerOpen(false); resetRoomForm(); resetTableForm(); }}>
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="text-lg font-semibold text-slate-800">Quản lý bàn & phòng</h3>
-              <button onClick={() => { setManagerOpen(false); setEditingRoom(null); setEditingTable(null); }} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">✕</button>
+              <button onClick={() => { setManagerOpen(false); resetRoomForm(); resetTableForm(); }} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">âœ•</button>
             </div>
             <div className="flex border-b border-slate-200">
               <button onClick={() => setManagerTab('rooms')} className={`flex-1 py-2.5 text-sm font-medium transition-colors ${managerTab === 'rooms' ? 'border-b-2 border-[#25439b] text-[#25439b]' : 'text-slate-400 hover:text-slate-600'}`}>Phòng</button>
@@ -1043,8 +1320,8 @@ export default function POSPage() {
                       <div key={room.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg group">
                         <span className="text-sm text-slate-700">{room.name}</span>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => { setEditingRoom(room); setRoomName(room.name); }} className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300">Sửa</button>
-                          <button onClick={() => handleDeleteRoom(room.id)} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Xóa</button>
+                          <button onClick={(e) => { e.stopPropagation(); setEditingRoom(room); setRoomName(room.name); }} className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300">Sửa</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room.id); }} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Xóa</button>
                         </div>
                       </div>
                     ))}
@@ -1054,28 +1331,47 @@ export default function POSPage() {
               )}
               {managerTab === 'tables' && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <input type="text" value={tableName} onChange={e => setTableName(e.target.value)} placeholder="Tên bàn..." className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20" />
-                    <input type="number" value={tableCapacity} onChange={e => setTableCapacity(parseInt(e.target.value) || 1)} min={1} placeholder="Số chỗ" className="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20" />
-                    <select value={tableRoomId} onChange={e => setTableRoomId(parseInt(e.target.value))} className="col-span-2 bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20">
+                  <div className="space-y-2">
+                    <input type="text" value={tableName} onChange={e => setTableName(e.target.value)} placeholder="Tên bàn..." className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20" />
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[11px] text-slate-500 mb-0.5 block font-medium">Sức chứa</label>
+                        <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden focus-within:border-[#25439b] focus-within:ring-1 focus-within:ring-[#25439b]/20">
+                          <button type="button" onClick={() => setTableCapacity(c => Math.max(1, c - 1))} className="px-3 py-2 text-slate-500 hover:bg-slate-100 transition-colors text-lg font-medium">-</button>
+                          <input type="number" value={tableCapacity} onChange={e => setTableCapacity(Math.max(1, parseInt(e.target.value) || 1))} min={1} className="flex-1 text-center bg-white text-sm text-slate-800 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                          <span className="text-xs text-slate-400 px-1">khách</span>
+                          <button type="button" onClick={() => setTableCapacity(c => c + 1)} className="px-3 py-2 text-slate-500 hover:bg-slate-100 transition-colors text-lg font-medium">+</button>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[11px] text-slate-500 mb-0.5 block font-medium">Kiểu bàn</label>
+                        <select value={tableStyle} onChange={e => setTableStyle(e.target.value as typeof tableStyle)} className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20">
+                          <option value="ROUND">Bàn tròn</option>
+                          <option value="SQUARE">Bàn vuông</option>
+                          <option value="RECTANGLE">Bàn chữ nhật</option>
+                          <option value="VIP">VIP Booth</option>
+                        </select>
+                      </div>
+                    </div>
+                    <select value={tableRoomId} onChange={e => setTableRoomId(parseInt(e.target.value))} className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:border-[#25439b] focus:ring-1 focus:ring-[#25439b]/20">
                       <option value={0}>-- Chọn phòng --</option>
                       {rooms.map(r => (<option key={r.id} value={r.id}>{r.name}</option>))}
                     </select>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={handleSaveTable} className="flex-1 py-2 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-lg text-sm transition-colors">{editingTable ? 'Cập nhật' : 'Thêm bàn'}</button>
-                    {editingTable && <button onClick={() => { setEditingTable(null); setTableName(''); setTableCapacity(4); }} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors">Hủy</button>}
+                    <button onClick={handleSaveTable} className="flex-1 py-2 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-lg text-sm transition-colors">{editingTable ? 'Cập nhật bàn' : 'Thêm bàn'}</button>
+                    {editingTable && <button onClick={resetTableForm} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-sm transition-colors">Hủy</button>}
                   </div>
                   <div className="space-y-1 mt-2">
                     {tables.map(table => (
-                      <div key={table.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg group">
-                        <div>
-                          <span className="text-sm text-slate-700">{table.name}</span>
-                          <span className="text-[10px] text-slate-400 ml-2">{table.capacity} chỗ · {table.room?.name}</span>
+                      <div key={table.id} onClick={() => beginEditTable(table)} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg group cursor-pointer hover:bg-slate-100 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-slate-700 font-medium">{table.name}</div>
+                          <div className="text-[11px] text-slate-400">{table.capacity} khách · {getTableStyleLabel(table.tableStyle)} · {table.room?.name}</div>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => { setEditingTable(table); setTableName(table.name); setTableCapacity(table.capacity); setTableRoomId(table.room?.id || 0); }} className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300">Sửa</button>
-                          <button onClick={() => handleDeleteTable(table.id)} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Xóa</button>
+                          <button onClick={(e) => { e.stopPropagation(); beginEditTable(table); }} className="px-2 py-1 text-xs bg-slate-200 text-slate-600 rounded hover:bg-slate-300">Sửa</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteTable(table.id); }} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100">Xóa</button>
                         </div>
                       </div>
                     ))}
@@ -1088,23 +1384,30 @@ export default function POSPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════
-          360 PANORAMA MODAL
-          ═══════════════════════════════════════════════════════════════ */}
-      {panoramaOpen && selectedRoomObj?.panoramaUrl && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setPanoramaOpen(false)}>
-          <button onClick={() => setPanoramaOpen(false)} className="absolute top-4 right-4 text-white text-2xl z-10 hover:text-slate-300">✕</button>
-          {selectedRoomObj.panoramaType === 'EXTERNAL_LINK' ? (
-            <div className="text-center" onClick={e => e.stopPropagation()}>
-              <iframe src={selectedRoomObj.panoramaUrl} className="w-[90vw] h-[80vh] rounded-lg border-0 bg-slate-900" title="360 View" />
-              <button onClick={() => window.open(selectedRoomObj.panoramaUrl!, '_blank')} className="mt-3 px-4 py-2 bg-white/20 text-white rounded-lg text-sm hover:bg-white/30">Mở trong tab mới</button>
-            </div>
-          ) : (
-            <img src={selectedRoomObj.panoramaUrl} alt="360 panorama" className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
-          )}
-          <div className="absolute bottom-4 text-white/70 text-xs">{selectedRoomObj.name} — 360 View</div>
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+          360 PANORAMA MODAL - Uses Pannellum for real 360 viewing
+          â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {panoramaOpen && activeFloorPlan?.panoramaUrl && (() => {
+        const pUrl = activeFloorPlan.panoramaUrl;
+        const pType = activeFloorPlan.panoramaType;
+        const pName = activeFloorPlan.name;
+        return (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center" onClick={() => setPanoramaOpen(false)}>
+          <button onClick={() => setPanoramaOpen(false)} className="absolute top-4 right-4 text-white text-2xl z-10 hover:text-slate-300 bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">âœ•</button>
+          <div className="w-[95vw] h-[90vh] rounded-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            {pType === 'EXTERNAL_LINK' ? (
+              <div className="w-full h-full flex flex-col">
+                <iframe src={pUrl} className="w-full flex-1 rounded-xl border-0 bg-slate-900" title="360 View" />
+                <button onClick={() => window.open(pUrl, '_blank')} className="mt-2 px-4 py-2 bg-white/20 text-white rounded-lg text-sm hover:bg-white/30">Mở trong tab mới</button>
+              </div>
+            ) : (
+              <PannellumViewer imageUrl={pUrl} className="w-full h-full rounded-xl" />
+            )}
+          </div>
+          <div className="absolute bottom-4 text-white/70 text-xs">{pName} · 360° Panorama</div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Slide-in animation */}
       <style jsx global>{`

@@ -363,6 +363,7 @@ export default function BookingWizardPage() {
 
   const parsedMeta = useMemo(() => {
     if (!selectedTableObj || !selectedTableObj.metadataJson) return {};
+    if (typeof selectedTableObj.metadataJson !== 'string') return selectedTableObj.metadataJson;
     try {
       return JSON.parse(selectedTableObj.metadataJson);
     } catch {
