@@ -1,40 +1,29 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
-import type { FloorPlan, FloorPlanObject } from '@/types';
+import FloorPlanBackground from '@/components/FloorPlanBackground';
+import ObjectRenderer from '@/components/layout-builder/ObjectRenderer';
+import { getFloorPlanStageSize, getWidthScale } from '@/lib/floorPlanViewport';
+import type { FloorPlan, FloorPlanObject, TableEntity } from '@/types';
 
-const TYPE_COLORS: Record<string, string> = {
-  table: '#22c55e',
-  wall: '#333333',
-  door: '#8B4513',
-  window: '#87CEEB',
-  toilet: '#6B7280',
-  cashier: '#DAA520',
-  kitchen: '#FF6347',
-  bar: '#4A90D9',
-  text: '#666666',
-  decoration: '#228B22',
-  blocked_area: '#94a3b8',
-  stairs: '#78716c',
-};
+const PannellumViewer = dynamic(() => import('@/components/PannellumViewer'), { ssr: false });
 
 const STATUS_LABELS: Record<string, string> = {
-  available: 'Trống',
-  occupied: 'Đang dùng',
-  reserved: 'Đặt trước',
-  cleaning: 'Đang dọn',
-  disabled: 'Không khả dụng',
+  EMPTY: 'Trống',
+  OCCUPIED: 'Đang dùng',
+  RESERVED: 'Đặt trước',
 };
 
-const STATUS_DOT_COLORS: Record<string, string> = {
-  available: 'bg-green-500',
-  occupied: 'bg-red-500',
-  reserved: 'bg-yellow-500',
-  cleaning: 'bg-blue-500',
-  disabled: 'bg-gray-400',
-};
+function asJsonObject(value: FloorPlanObject['metadataJson']): Record<string, unknown> {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) as Record<string, unknown>; } catch { return {}; }
+  }
+  return value;
+}
 
 export default function PublicFloorPlanPage() {
   const params = useParams();
@@ -44,21 +33,23 @@ export default function PublicFloorPlanPage() {
 
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<FloorPlan | null>(null);
+  const [floorPlanObjects, setFloorPlanObjects] = useState<FloorPlanObject[]>([]);
+  const [tables, setTables] = useState<TableEntity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedObj, setSelectedObj] = useState<FloorPlanObject | null>(null);
+  const [selectedTable, setSelectedTable] = useState<TableEntity | null>(null);
   const [show360Modal, setShow360Modal] = useState(false);
-  const [zoom, setZoom] = useState(1);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [previewScale, setPreviewScale] = useState(1);
+  const objectsLoadIdRef = useRef(0);
 
   const loadFloorPlans = useCallback(async () => {
     try {
       const res = await api.get<FloorPlan[]>(`/api/public/branches/${branchId}/floor-plans`);
       setFloorPlans(res);
-
       if (fpId) {
         const plan = res.find(p => p.id === Number(fpId));
         if (plan) { setSelectedPlan(plan); setLoading(false); return; }
       }
-
       if (res.length > 0) setSelectedPlan(res[0]);
     } catch {
       // Silent fail for public page
@@ -67,23 +58,49 @@ export default function PublicFloorPlanPage() {
     }
   }, [branchId, fpId]);
 
-  useEffect(() => { loadFloorPlans(); }, [loadFloorPlans]);
+  const loadFloorPlanObjects = useCallback(async (planId: number) => {
+    const thisLoad = ++objectsLoadIdRef.current;
+    setFloorPlanObjects([]);
+    try {
+      const res = await api.get<{ floorPlan: FloorPlan; objects: FloorPlanObject[] }>(
+        `/api/public/floor-plans/${planId}`
+      );
+      if (thisLoad !== objectsLoadIdRef.current) return;
+      setFloorPlanObjects(res.objects || []);
+    } catch {
+      if (thisLoad !== objectsLoadIdRef.current) return;
+      setFloorPlanObjects([]);
+    }
+  }, []);
 
-  const parseStyle = (json: string | null): Record<string, unknown> => {
-    if (!json) return {};
-    try { return JSON.parse(json) as Record<string, unknown>; } catch { return {}; }
-  };
+  const loadTables = useCallback(async () => {
+    try {
+      const res = await api.get<TableEntity[]>('/api/pos/tables', { params: { branchId } });
+      setTables(res);
+    } catch {}
+  }, [branchId]);
 
-  const parseMeta = (json: string | null): Record<string, unknown> => {
-    if (!json) return {};
-    try { return JSON.parse(json) as Record<string, unknown>; } catch { return {}; }
-  };
+  useEffect(() => { loadFloorPlans(); loadTables(); }, [loadFloorPlans, loadTables]);
 
-  const getObjectColor = (obj: FloorPlanObject) => {
-    const style = parseStyle(obj.styleJson);
-    if (obj.objectType === 'table') return style.fillColor || TYPE_COLORS.table;
-    return style.color || TYPE_COLORS[obj.objectType] || '#94a3b8';
-  };
+  useEffect(() => {
+    if (selectedPlan) loadFloorPlanObjects(selectedPlan.id);
+  }, [selectedPlan, loadFloorPlanObjects]);
+
+  useEffect(() => {
+    const el = previewContainerRef.current;
+    if (!el || !selectedPlan) return;
+
+    const measure = () => {
+      const width = el.clientWidth;
+      const stage = getFloorPlanStageSize(selectedPlan);
+      setPreviewScale(getWidthScale(width, stage.width));
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectedPlan]);
 
   if (loading) {
     return (
@@ -98,15 +115,18 @@ export default function PublicFloorPlanPage() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-xl font-bold text-slate-800 mb-2">Sơ đồ tầng</h1>
-          <p className="text-slate-500">Không có sơ đồ nào khả dụng</p>
+          <p className="text-slate-500">No floor plan available.</p>
         </div>
       </div>
     );
   }
 
+  const { width: stageWidth, height: stageHeight } = getFloorPlanStageSize(selectedPlan);
+  const scaledStageWidth = stageWidth * previewScale;
+  const scaledStageHeight = stageHeight * previewScale;
+
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div>
@@ -115,161 +135,83 @@ export default function PublicFloorPlanPage() {
           </div>
           <div className="flex items-center gap-2">
             {floorPlans.length > 1 && (
-              <select
-                value={selectedPlan.id}
-                onChange={e => {
-                  const plan = floorPlans.find(p => p.id === Number(e.target.value));
-                  if (plan) setSelectedPlan(plan);
-                  setSelectedObj(null);
-                }}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm"
-              >
-                {floorPlans.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
+              <select value={selectedPlan.id} onChange={e => { const plan = floorPlans.find(p => p.id === Number(e.target.value)); if (plan) { setSelectedPlan(plan); setSelectedTable(null); } }}
+                className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm">
+                {floorPlans.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
               </select>
             )}
-            {selectedPlan.panorama360Url && (
-              <button
-                onClick={() => setShow360Modal(true)}
-                className="px-3 py-1.5 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600"
-              >
-                🌐 Xem 360°
-              </button>
+            {selectedPlan.panoramaUrl && (
+              <button onClick={() => setShow360Modal(true)} className="px-3 py-1.5 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 font-medium">🌐 Xem 360°</button>
             )}
-            <div className="flex items-center gap-1">
-              <button onClick={() => setZoom(z => Math.max(0.3, z - 0.1))} className="px-2 py-1 text-sm bg-slate-100 rounded hover:bg-slate-200">−</button>
-              <span className="text-xs text-slate-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => Math.min(2, z + 0.1))} className="px-2 py-1 text-sm bg-slate-100 rounded hover:bg-slate-200">+</button>
-            </div>
           </div>
         </div>
       </header>
 
-      {/* Canvas */}
       <main className="max-w-6xl mx-auto p-4">
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-          <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
+          <div ref={previewContainerRef} className="w-full overflow-auto p-4">
+          <div className="relative mx-auto" style={{ width: scaledStageWidth, height: scaledStageHeight }}>
             <div
-              className="relative mx-auto my-4"
+              className="absolute left-0 top-0"
               style={{
-                width: selectedPlan.width * zoom,
-                height: selectedPlan.height * zoom,
-                background: 'repeating-conic-gradient(#f1f5f9 0% 25%, transparent 0% 50%) 50% / 20px 20px',
+                width: stageWidth,
+                height: stageHeight,
+                transform: `scale(${previewScale})`,
+                transformOrigin: '0 0',
               }}
             >
-              <div
-                style={{
-                  transform: `scale(${zoom})`,
-                  transformOrigin: '0 0',
-                  width: selectedPlan.width,
-                  height: selectedPlan.height,
-                  position: 'relative',
-                }}
-              >
-                {/* Background */}
-                {selectedPlan.backgroundImageUrl && (
-                  <img
-                    src={selectedPlan.backgroundImageUrl}
-                    alt="Background"
-                    className="absolute inset-0 pointer-events-none"
-                    style={{ width: selectedPlan.width, height: selectedPlan.height, objectFit: 'contain' }}
-                    draggable={false}
+            <FloorPlanBackground floorPlan={{
+              ...selectedPlan,
+              branch: {} as any,
+              createdBy: null, updatedBy: null, createdAt: '', updatedAt: '',
+            }} className="w-full h-full">
+              {[...floorPlanObjects].sort((a, b) => a.zIndex - b.zIndex).map(obj => {
+                const meta = asJsonObject(obj.metadataJson);
+                const linkedTableId = meta.tableEntityId ?? meta.tableId ?? meta.linkedTableId;
+                const posTable = linkedTableId ? tables.find(t => t.id === linkedTableId) : null;
+                const isSelected = posTable ? selectedTable?.id === posTable.id : false;
+
+                return (
+                  <ObjectRenderer
+                    key={obj.id}
+                    object={{ ...obj, posTable } as any}
+                    isEditor={false}
+                    isSelected={isSelected}
+                    onClick={posTable ? () => setSelectedTable(isSelected ? null : posTable) : undefined}
                   />
-                )}
-
-                {/* Objects */}
-                {(selectedPlan.floorPlanObjects || []).map(obj => {
-                  const color = getObjectColor(obj);
-                  const style = parseStyle(obj.styleJson);
-                  const meta = parseMeta(obj.metadataJson);
-                  const isTable = obj.objectType === 'table';
-
-                  return (
-                    <div
-                      key={obj.id}
-                      onClick={() => isTable && setSelectedObj(selectedObj?.id === obj.id ? null : obj)}
-                      className={`absolute transition-all ${isTable ? 'cursor-pointer hover:brightness-110' : 'pointer-events-none'}`}
-                      style={{
-                        left: obj.x,
-                        top: obj.y,
-                        width: obj.width,
-                        height: obj.height,
-                        transform: `rotate(${obj.rotation}deg)`,
-                        zIndex: obj.zIndex,
-                      }}
-                    >
-                      <div
-                        className="w-full h-full"
-                        style={{
-                          borderRadius: obj.shape === 'circle' ? '50%' : obj.shape === 'arc' ? '50% 50% 0 0' : '4px',
-                          backgroundColor: color as string,
-                          opacity: typeof style.opacity === 'number' ? style.opacity : 0.85,
-                          border: obj.objectType === 'window' ? '2px solid #5B9BD5' : undefined,
-                          outline: selectedObj?.id === obj.id ? '3px solid #25439b' : undefined,
-                        }}
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <span className="text-white text-[10px] font-bold text-center drop-shadow-sm leading-tight px-1">
-                            {obj.label}
-                            {isTable && meta.capacity ? <><br />{String(meta.capacity)}g</> : null}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                );
+              })}
+            </FloorPlanBackground>
             </div>
+          </div>
           </div>
         </div>
 
-        {/* Legend */}
         <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500">
-          {Object.entries(TYPE_COLORS).filter(([k]) => ['table', 'wall', 'door', 'window', 'cashier', 'kitchen', 'bar'].includes(k)).map(([key, color]) => (
-            <div key={key} className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: color }} />
-              <span>{key === 'table' ? 'Bàn' : key === 'wall' ? 'Tường' : key === 'door' ? 'Cửa' : key === 'window' ? 'Cửa sổ' : key === 'cashier' ? 'Thu ngân' : key === 'kitchen' ? 'Bếp' : 'Bar'}</span>
-            </div>
-          ))}
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-green-500" /><span>Trống</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-red-500" /><span>Đang dùng</span></div>
+          <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-yellow-500" /><span>Đặt trước</span></div>
         </div>
       </main>
 
-      {/* Table Info Popup */}
-      {selectedObj && selectedPlan.isTableSelectionEnabled && (
+      {selectedTable && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white rounded-xl shadow-xl border border-slate-200 p-4 w-72 z-50">
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-bold text-slate-800">{selectedObj.label}</h3>
-              <p className="text-sm text-slate-500 mt-1">
-                {(() => {
-                  const meta = parseMeta(selectedObj.metadataJson);
-                  return <>
-                    Mã: {meta.tableCode || '—'}<br />
-                    Số chỗ: {meta.capacity || '—'}<br />
-                    Khu vực: {meta.zone || '—'}
-                  </>;
-                })()}
-              </p>
+              <h3 className="font-bold text-slate-800">{selectedTable.name}</h3>
+              <p className="text-sm text-slate-500 mt-1">Số chỗ: {selectedTable.capacity}<br />Trạng thái: {STATUS_LABELS[selectedTable.status] || selectedTable.status}</p>
             </div>
-            <button onClick={() => setSelectedObj(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            <button onClick={() => setSelectedTable(null)} className="text-slate-400 hover:text-slate-600">✕</button>
           </div>
-          <button className="w-full mt-3 py-2 bg-[#25439b] text-white rounded-lg text-sm font-medium hover:bg-[#1c3580]">
-            Chọn bàn này
-          </button>
         </div>
       )}
 
-      {/* 360 Modal */}
-      {show360Modal && selectedPlan.panorama360Url && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center" onClick={() => setShow360Modal(false)}>
-          <button className="absolute top-4 right-4 text-white text-2xl hover:text-slate-300">✕</button>
-          <img
-            src={selectedPlan.panorama360Url}
-            alt="360 panorama"
-            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg"
-            onClick={e => e.stopPropagation()}
-          />
+      {show360Modal && selectedPlan.panoramaUrl && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center" onClick={() => setShow360Modal(false)}>
+          <button className="absolute top-4 right-4 text-white text-2xl z-10 bg-white/10 w-10 h-10 rounded-full flex items-center justify-center">✕</button>
+          <div className="w-[95vw] h-[90vh] rounded-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <PannellumViewer imageUrl={selectedPlan.panoramaUrl} className="w-full h-full rounded-xl" />
+          </div>
         </div>
       )}
     </div>
