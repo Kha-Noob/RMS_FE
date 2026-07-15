@@ -6,7 +6,7 @@ import { ToastContainer } from "@/components/Toast";
 
 const inter = Inter({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "vietnamese"],
 });
 
 export const metadata: Metadata = {
@@ -20,7 +20,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="vi" className={`${inter.variable} h-full`}>
+      <head>
+        <meta charSet="utf-8" />
+      </head>
       <body className="min-h-full bg-[#f8f9fc] text-slate-800 antialiased">
         <AuthProvider>
           {children}
