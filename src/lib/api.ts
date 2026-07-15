@@ -1,5 +1,37 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+export class ApiError extends Error {
+  status: number;
+  body: unknown;
+
+  constructor(status: number, message: string, body?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
+  }
+}
+
+export function getApiErrorMessage(error: unknown, fallback = 'Request failed'): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Login expired. Please sign in again.';
+    if (error.status === 403) return error.message || 'Permission denied.';
+    if (error.status === 400) return error.message || fallback;
+    if (error.status >= 500) return error.message ? `Server error: ${error.message}` : 'Server error. Please try again.';
+    return error.message || fallback;
+  }
+
+  if (error instanceof TypeError) {
+    return 'Unable to reach server. Please check your connection.';
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 function getStoredCredentials(): string | null {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem('rms_auth_credentials');
@@ -40,9 +72,14 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string> || {}),
   };
+
+  // Only set Content-Type for non-FormData requests
+  // For FormData, the browser auto-generates multipart/form-data with boundary
+  if (!(fetchOptions.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   const creds = getStoredCredentials();
   if (creds) {
@@ -61,8 +98,27 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => 'Request failed');
-    throw new Error(text || `HTTP ${res.status}`);
+    const contentType = res.headers.get('content-type');
+    const text = await res.text().catch(() => '');
+    let body: unknown = text;
+    let message = text || `HTTP ${res.status}`;
+
+    if (contentType?.includes('application/json') && text) {
+      try {
+        body = JSON.parse(text);
+        if (body && typeof body === 'object') {
+          const record = body as Record<string, unknown>;
+          const backendMessage = record.message ?? record.error ?? record.detail;
+          if (typeof backendMessage === 'string' && backendMessage.trim()) {
+            message = backendMessage;
+          }
+        }
+      } catch {
+        body = text;
+      }
+    }
+
+    throw new ApiError(res.status, message, body);
   }
 
   const contentType = res.headers.get('content-type');
@@ -70,6 +126,14 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     return res.json() as Promise<T>;
   }
   return res.text() as unknown as T;
+}
+
+export interface PresignResponse {
+  uploadUrl: string;
+  fileKey: string;
+  publicUrl: string;
+  method: string;
+  headers: Record<string, string>;
 }
 
 export const api = {
@@ -105,6 +169,13 @@ export const api = {
       ...opts,
     }),
 
+  patch: <T>(endpoint: string, body?: unknown, opts?: RequestOptions) =>
+    request<T>(endpoint, {
+      method: 'PATCH',
+      body: body ? JSON.stringify(body) : undefined,
+      ...opts,
+    }),
+
   delete: <T>(endpoint: string, opts?: RequestOptions) =>
     request<T>(endpoint, { method: 'DELETE', ...opts }),
 
@@ -124,6 +195,10 @@ export const api = {
   },
 
   uploadFile: <T>(endpoint: string, file: File, extraParams?: Record<string, string>) => {
+    if (!file || file.size <= 0) {
+      throw new ApiError(400, 'Selected file is empty');
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     if (extraParams) {
@@ -131,10 +206,11 @@ export const api = {
         formData.append(key, value);
       });
     }
+    // Do NOT set Content-Type header — the browser must auto-set
+    // "multipart/form-data; boundary=..." for FormData bodies
     return request<T>(endpoint, {
       method: 'POST',
       body: formData,
-      headers: {},
     });
   },
 };
