@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { RouteGuard } from "@/components/RouteGuard";
 import { ToastContainer } from "@/components/Toast";
+import { Chatbot } from "@/components/Chatbot";
 
 const inter = Inter({
   variable: "--font-geist-sans",
@@ -20,15 +23,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" className={`${inter.variable} h-full`}>
-      <head>
-        <meta charSet="utf-8" />
-      </head>
+    <html lang="vi" className={`${inter.variable} h-full`} suppressHydrationWarning>
       <body className="min-h-full bg-[#f8f9fc] text-slate-800 antialiased">
-        <AuthProvider>
-          {children}
-          <ToastContainer />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <RouteGuard>
+              {children}
+            </RouteGuard>
+            <ToastContainer />
+            <Chatbot />
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

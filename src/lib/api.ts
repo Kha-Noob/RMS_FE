@@ -72,7 +72,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const headers: Record<string, string> = {
-    ...(fetchOptions.headers as Record<string, string> || {}),
+    ...(fetchOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    ...((fetchOptions.headers as Record<string, string>) || {}),
   };
 
   // Only set Content-Type for non-FormData requests
@@ -82,7 +83,14 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const creds = getStoredCredentials();
-  if (creds) {
+  const isPublic = 
+    endpoint.startsWith('/api/public/') || 
+    endpoint.startsWith('/api/auth/oauth2/') ||
+    endpoint.startsWith('/api/auth/forgot-password/') ||
+    endpoint === '/api/auth/login' ||
+    endpoint.startsWith('/api/events/public') ||
+    endpoint.startsWith('/api/floor-plans/files/');
+  if (creds && !isPublic) {
     headers['Authorization'] = `Basic ${creds}`;
   }
 
@@ -91,6 +99,9 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     headers['X-Branch-Id'] = branchId;
   }
 
+  console.log("[API FETCH] URL:", url, "Body constructor:", fetchOptions.body ? fetchOptions.body.constructor.name : 'none');
+  console.log("[API FETCH] Headers:", headers);
+
   const res = await fetch(url, {
     ...fetchOptions,
     credentials: 'include',
@@ -98,6 +109,19 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   });
 
   if (!res.ok) {
+    if (res.status === 401 && typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      const publicExactPaths = ['/', '/login', '/forgot-password', '/oauth2/callback', '/register', '/customer-portal', '/feed', '/events', '/restaurants'];
+      const isExactPublic = publicExactPaths.includes(path);
+      const isDynamicPublic = path.startsWith('/restaurant-page/');
+      if (!isExactPublic && !isDynamicPublic) {
+        console.warn("[API] Got 401 Unauthorized, clearing credentials and redirecting to /login");
+        clearCredentials();
+        localStorage.removeItem('rms_active_branch');
+        window.location.href = '/login';
+      }
+    }
+
     const contentType = res.headers.get('content-type');
     const text = await res.text().catch(() => '');
     let body: unknown = text;
@@ -206,11 +230,18 @@ export const api = {
         formData.append(key, value);
       });
     }
-    // Do NOT set Content-Type header — the browser must auto-set
-    // "multipart/form-data; boundary=..." for FormData bodies
     return request<T>(endpoint, {
       method: 'POST',
       body: formData,
+      headers: {},
+    });
+  },
+  postMultipart: <T>(endpoint: string, formData: FormData, opts?: RequestOptions) => {
+    return request<T>(endpoint, {
+      method: 'POST',
+      body: formData,
+      headers: {},
+      ...opts,
     });
   },
 };

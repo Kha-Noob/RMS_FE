@@ -6,6 +6,19 @@ export interface User {
   isActive: boolean;
   branchId: string | null;
   tenantId: string | null;
+  isUsingSystemWeb?: boolean;
+  avatarUrl?: string | null;
+  bookingCount?: number;
+  totalSpent?: number;
+  loyaltyPoints?: number;
+  tier?: string;
+  loyaltyCardNo?: string;
+  memberSince?: string;
+  phone?: string | null;
+  birthday?: string | null;
+  gender?: string | null;
+  dietaryNotes?: string | null;
+  hasDefaultPassword?: boolean;
 }
 
 export interface Branch {
@@ -14,6 +27,10 @@ export interface Branch {
   address: string;
   phone: string;
   isActive: boolean;
+  bankName?: string;
+  bankAccountNo?: string;
+  bankAccountName?: string;
+  bankBranch?: string;
 }
 
 export interface Employee {
@@ -30,14 +47,14 @@ export interface Employee {
 export type TableStyle = 'ROUND' | 'SQUARE' | 'RECTANGLE' | 'VIP';
 
 export const TABLE_STYLE_OPTIONS: { value: TableStyle; label: string; icon: string }[] = [
-  { value: 'ROUND', label: 'Bàn tròn', icon: '⭕' },
-  { value: 'SQUARE', label: 'Bàn vuông', icon: '⬜' },
-  { value: 'RECTANGLE', label: 'Bàn chữ nhật', icon: '▬' },
-  { value: 'VIP', label: 'VIP Booth', icon: '🛋️' },
+  { value: 'ROUND', label: 'Ban tron', icon: 'o' },
+  { value: 'SQUARE', label: 'Ban vuong', icon: '[]' },
+  { value: 'RECTANGLE', label: 'Ban chu nhat', icon: '[ ]' },
+  { value: 'VIP', label: 'VIP Booth', icon: 'VIP' },
 ];
 
 export function getTableStyleLabel(style?: TableStyle | null): string {
-  return TABLE_STYLE_OPTIONS.find(s => s.value === style)?.label ?? 'Tròn';
+  return TABLE_STYLE_OPTIONS.find(s => s.value === style)?.label ?? 'Tron';
 }
 
 export interface TableEntity {
@@ -63,7 +80,7 @@ export interface Room {
   name: string;
   branch: Branch;
   floorPlanImageUrl?: string | null;
-  backgroundMode?: 'DEFAULT_WOOD' | 'DEFAULT_MARBLE' | 'DEFAULT_DARK' | 'DEFAULT_OUTDOOR' | 'DEFAULT_TILE' | 'DEFAULT_GRID' | 'CUSTOM_IMAGE';
+  backgroundMode?: BackgroundMode;
   panoramaUrl?: string | null;
   panoramaType?: string | null;
   displayOrder?: number;
@@ -115,7 +132,7 @@ export interface CartItem {
   detailId: number;
   productName: string;
   variantName: string;
-  sizeName: string;
+  sizeName?: string;
   price: number;
   quantity: number;
   status: string;
@@ -201,7 +218,18 @@ export interface PurchaseOrder {
   totalAmount: number;
 }
 
-// ─── Floor Plan Types ─────────────────────────────────────────────────
+export const BACKGROUND_MODES = [
+  { value: 'DEFAULT_WOOD', label: 'Wood Floor', icon: 'wood' },
+  { value: 'DEFAULT_MARBLE', label: 'Luxury Marble', icon: 'marble' },
+  { value: 'DEFAULT_DARK', label: 'Dark Restaurant', icon: 'dark' },
+  { value: 'DEFAULT_OUTDOOR', label: 'Outdoor Grass', icon: 'outdoor' },
+  { value: 'DEFAULT_TILE', label: 'Tile Floor', icon: 'tile' },
+  { value: 'DEFAULT_GRID', label: 'Grid Only', icon: 'grid' },
+  { value: 'CUSTOM_IMAGE', label: 'Custom Image', icon: 'image' },
+] as const;
+
+export type BackgroundMode = typeof BACKGROUND_MODES[number]['value'];
+export type JsonObject = Record<string, unknown>;
 
 export interface FloorPlan {
   id: number;
@@ -221,11 +249,14 @@ export interface FloorPlan {
   floorDiagramHeight?: number | null;
   floorDiagramScale?: number | null;
   floorDiagramRotation?: number | null;
-  backgroundMode: 'DEFAULT_WOOD' | 'DEFAULT_MARBLE' | 'DEFAULT_DARK' | 'DEFAULT_OUTDOOR' | 'DEFAULT_TILE' | 'DEFAULT_GRID' | 'CUSTOM_IMAGE';
+  backgroundMode: BackgroundMode;
+  backgroundImageUrl?: string | null;
   panoramaUrl: string | null;
   panoramaKey?: string | null;
   panoramaType: string | null;
+  panorama360Url?: string | null;
   status: 'draft' | 'published';
+  isTableSelectionEnabled?: boolean;
   createdBy: User | null;
   updatedBy: User | null;
   createdAt: string;
@@ -233,21 +264,9 @@ export interface FloorPlan {
   floorPlanObjects?: FloorPlanObject[];
 }
 
-export const BACKGROUND_MODES = [
-  { value: 'DEFAULT_WOOD', label: 'Wood Floor', icon: '🪵' },
-  { value: 'DEFAULT_MARBLE', label: 'Luxury Marble', icon: '💎' },
-  { value: 'DEFAULT_DARK', label: 'Dark Restaurant', icon: '🌙' },
-  { value: 'DEFAULT_OUTDOOR', label: 'Outdoor Grass', icon: '🌿' },
-  { value: 'DEFAULT_TILE', label: 'Tile Floor', icon: '🧱' },
-  { value: 'DEFAULT_GRID', label: 'Grid Only', icon: '📐' },
-  { value: 'CUSTOM_IMAGE', label: 'Custom Image', icon: '🖼️' },
-] as const;
-
-export type BackgroundMode = typeof BACKGROUND_MODES[number]['value'];
-export type JsonObject = Record<string, unknown>;
-
 export interface FloorPlanObject {
   id: number;
+  floorPlan?: FloorPlan;
   tableId?: number | null;
   objectType: string;
   label: string | null;
@@ -263,6 +282,8 @@ export interface FloorPlanObject {
   isLocked?: boolean;
   isVisible?: boolean;
   linkedTableId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FloorPlanStyle {
@@ -273,4 +294,70 @@ export interface FloorPlanStyle {
   opacity?: number;
   fontSize?: string;
   [key: string]: unknown;
+}
+
+export interface FloorPlanMetadata {
+  tableCode?: string;
+  capacity?: number;
+  isMergeable?: boolean;
+  zone?: string;
+  tableId?: string;
+  doorType?: string;
+}
+
+export const OBJECT_TYPES = [
+  'table', 'wall', 'door', 'window', 'toilet', 'cashier',
+  'kitchen', 'bar', 'stairs', 'text', 'decoration', 'blocked_area'
+] as const;
+
+export type ObjectType = typeof OBJECT_TYPES[number];
+
+export const OBJECT_TYPE_LABELS: Record<string, string> = {
+  table: 'Ban',
+  wall: 'Tuong',
+  door: 'Cua',
+  window: 'Cua so',
+  toilet: 'WC',
+  cashier: 'Quay thu ngan',
+  kitchen: 'Bep',
+  bar: 'Quay bar',
+  stairs: 'Cau thang',
+  text: 'Nhan chu',
+  decoration: 'Trang tri',
+  blocked_area: 'Khu vuc chan',
+};
+
+export const STATUS_COLORS: Record<string, string> = {
+  available: '#22c55e',
+  occupied: '#ef4444',
+  reserved: '#f59e0b',
+  cleaning: '#3b82f6',
+  disabled: '#94a3b8',
+};
+
+export interface Booking {
+  id?: number;
+  eventId?: number | null;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string | null;
+  bookingTime: string;
+  guests: number;
+  status?: string;
+  source?: string;
+  depositPaid?: boolean;
+  branchId: string;
+  notes?: string | null;
+  tableId?: number | null;
+  tableLabel?: string | null;
+  dietaryNotes?: string | null;
+  allergyPeanut?: boolean;
+  allergyGluten?: boolean;
+  allergyOthers?: string | null;
+  orderedItemsJson?: string | null;
+  depositAmount?: number;
+  paymentMethod?: string | null;
+  paymentStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }

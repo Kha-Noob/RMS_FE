@@ -27,12 +27,23 @@ interface AuthContextType {
   activeBranchName: string | null;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  isManager: boolean;
+  isCashier: boolean;
+  isKitchen: boolean;
+  isHR: boolean;
+  isProcurement: boolean;
+  isWarehouse: boolean;
+  isEmployee: boolean;
+  isCooperator: boolean;
+  hasRole: (role: string) => boolean;
+  hasAnyRole: (roles: string[]) => boolean;
+  getDefaultLandingPage: (roles: string[]) => string;
   canSwitchBranch: boolean;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   switchBranch: (branchId: string) => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<User | undefined>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -81,8 +92,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const me = await api.get<User>('/api/auth/me');
       setUser(me);
       await loadBranchesAndSetDefault(me);
-    } catch {
-      setUser(null);
+      return me;
+    } catch (err) {
+      // Mock login bypass - prevent clearing mock session when backend is down
+      // setUser(null);
+      return undefined;
     }
   }, [loadBranchesAndSetDefault]);
 
@@ -99,8 +113,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     storeCredentials(email, password);
-    await api.post('/api/auth/login', { email, password });
-    await refreshUser();
+    // Mock login bypass for testing:
+    if (email === 'admin@rms.com' && password === '123456') {
+      const mockUser: User = {
+        id: 1,
+        email: email,
+        name: 'Admin RMS',
+        roles: ['ADMIN'],
+        isActive: true,
+        branchId: 'b1',
+        tenantId: 't1'
+      };
+      setUser(mockUser);
+      setBranches([
+        { branchId: 'b1', name: 'Chi nhánh Hoàn Kiếm', address: '12 Tràng Tiền', phone: '0123456789', isActive: true }
+      ]);
+      setActiveBranchId('b1');
+      setActiveBranchName('Chi nhánh Hoàn Kiếm');
+      return mockUser;
+    } else if (email === 'customer@rms.com' && password === '123456') {
+      const mockUser: User = {
+        id: 99,
+        email: email,
+        name: 'Customer Test',
+        roles: ['CUSTOMER'],
+        isActive: true,
+        branchId: 'b1',
+        tenantId: 't1'
+      };
+      setUser(mockUser);
+      setBranches([]);
+      setActiveBranchId(null);
+      setActiveBranchName(null);
+      return mockUser;
+    } else {
+      try {
+        await api.post('/api/auth/login', { email, password });
+        const me = await refreshUser();
+        if (!me) {
+          throw new Error('Failed to retrieve user profile');
+        }
+        return me;
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : 'Invalid credentials or Server down');
+      }
+    }
   };
 
   const logout = async () => {
@@ -113,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearCredentials();
     setStoredBranchId(null);
     setUser(null);
-    window.location.href = '/login';
+    window.location.href = '/';
   };
 
   const switchBranch = useCallback(async (branchId: string) => {
@@ -132,12 +189,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSuperAdmin = user?.roles.includes('ADMIN') && !user?.branchId || false;
   const isAdmin = user?.roles.includes('ADMIN') || false;
-  const canSwitchBranch = isSuperAdmin;
+  const isManager = user?.roles.includes('MANAGER') || false;
+  const isCashier = user?.roles.includes('CASHIER') || false;
+  const isKitchen = user?.roles.includes('KITCHEN') || user?.roles.includes('CHEF') || false;
+  const isHR = user?.roles.includes('HR') || false;
+  const isProcurement = user?.roles.includes('PROCUREMENT') || false;
+  const isWarehouse = user?.roles.includes('WAREHOUSE') || false;
+  const isEmployee = user?.roles.includes('EMPLOYEE') || false;
+  const isCooperator = user?.roles.includes('COOPERATOR') || false;
+
+  const hasRole = useCallback((role: string) => user?.roles.includes(role) || false, [user]);
+  const hasAnyRole = useCallback((rolesToCheck: string[]) => user?.roles.some(r => rolesToCheck.includes(r)) || false, [user]);
+
+  const getDefaultLandingPage = useCallback((roles: string[]) => {
+    if (roles.includes('ADMIN') || roles.includes('MANAGER') || roles.includes('COOPERATOR')) return '/dashboard';
+    if (roles.includes('HR')) return '/hr-management';
+    if (roles.includes('KITCHEN') || roles.includes('CHEF')) return '/kds';
+    if (roles.includes('WAREHOUSE')) return '/inventory';
+    if (roles.includes('PROCUREMENT')) return '/procurement';
+    if (roles.includes('CASHIER')) return '/pos';
+    if (roles.includes('EMPLOYEE')) return '/schedule';
+    return '/profile';
+  }, []);
+
+  const canSwitchBranch = isSuperAdmin || isCooperator;
 
   return (
     <AuthContext.Provider value={{
       user, branches, activeBranchId, activeBranchName,
-      isSuperAdmin, isAdmin, canSwitchBranch,
+      isSuperAdmin, isAdmin, isManager, isCashier, isKitchen, isHR, isProcurement, isWarehouse, isEmployee, isCooperator,
+      hasRole, hasAnyRole, getDefaultLandingPage, canSwitchBranch,
       loading, login, logout, switchBranch, refreshUser,
     }}>
       {children}

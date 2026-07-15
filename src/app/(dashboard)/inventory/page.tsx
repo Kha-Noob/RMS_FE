@@ -5,11 +5,12 @@ import { api } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { useAuth } from '@/contexts/AuthContext';
 
-type Tab = 'stock' | 'recipes' | 'raw-materials' | 'categories' | 'transfer';
+type Tab = 'stock' | 'recipes' | 'menu' | 'raw-materials' | 'categories' | 'transfer';
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'stock', label: 'Stock' },
   { key: 'recipes', label: 'Recipes' },
+  { key: 'menu', label: 'Menu' },
   { key: 'raw-materials', label: 'Raw Materials' },
   { key: 'categories', label: 'Categories' },
   { key: 'transfer', label: 'Branch Transfer' },
@@ -37,6 +38,22 @@ interface RecipeIngredient {
   rawMaterialName: string;
   quantity: number;
   unit: string;
+}
+
+interface MenuItem {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  category: { id: number; name: string };
+  variants: MenuVariant[];
+  isActive: boolean;
+}
+
+interface MenuVariant {
+  id?: number;
+  name: string;
+  price: number;
 }
 
 interface RawMaterial {
@@ -127,6 +144,7 @@ export default function InventoryPage() {
       {/* Tab Content */}
       {activeTab === 'stock' && <StockTab activeBranchId={activeBranchId} />}
       {activeTab === 'recipes' && <RecipesTab />}
+      {activeTab === 'menu' && <MenuTab activeBranchId={activeBranchId} />}
       {activeTab === 'raw-materials' && <RawMaterialsTab />}
       {activeTab === 'categories' && <CategoriesTab />}
       {activeTab === 'transfer' && <TransferTab activeBranchId={activeBranchId} />}
@@ -380,6 +398,203 @@ function RecipesTab() {
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
             <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Creating...' : 'Create'}</button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MENU TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [form, setForm] = useState({ name: '', description: '', categoryId: '', price: '' });
+  const [variants, setVariants] = useState<{ name: string; price: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [m, c] = await Promise.all([
+        api.get<MenuItem[]>('/api/inventory/menu'),
+        api.get<Category[]>('/api/inventory/categories'),
+      ]);
+      setItems(m);
+      setCategories(c);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load menu');
+    } finally {
+      setLoading(false);
+    }
+  }, [activeBranchId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openCreate = () => {
+    setEditingItem(null);
+    setForm({ name: '', description: '', categoryId: '', price: '' });
+    setVariants([]);
+    setShowCreate(true);
+  };
+
+  const openEdit = (item: MenuItem) => {
+    setEditingItem(item);
+    setForm({
+      name: item.name,
+      description: item.description,
+      categoryId: String(item.category?.id ?? ''),
+      price: String(item.price),
+    });
+    setVariants(item.variants?.map(v => ({ name: v.name, price: String(v.price) })) ?? []);
+    setShowCreate(true);
+  };
+
+  const addVariant = () => setVariants([...variants, { name: '', price: '' }]);
+  const updateVariant = (idx: number, field: string, value: string) => {
+    const u = [...variants];
+    (u[idx] as any)[field] = value;
+    setVariants(u);
+  };
+  const removeVariant = (idx: number) => setVariants(variants.filter((_, i) => i !== idx));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { toast.error('Name is required'); return; }
+    try {
+      setSubmitting(true);
+      const body = {
+        name: form.name,
+        description: form.description,
+        categoryId: form.categoryId ? Number(form.categoryId) : undefined,
+        price: form.price ? parseFloat(form.price) : undefined,
+        variants: variants.map(v => ({ name: v.name, price: parseFloat(v.price) || 0 })),
+      };
+      if (editingItem) {
+        await api.put(`/api/inventory/menu/${editingItem.id}`, body);
+        toast.success('Menu item updated');
+      } else {
+        await api.post('/api/inventory/menu', body);
+        toast.success('Menu item created');
+      }
+      setShowCreate(false);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save menu item');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this menu item?')) return;
+    try {
+      await api.delete(`/api/inventory/menu/${id}`);
+      toast.success('Menu item deleted');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  };
+
+  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading menu...</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button onClick={openCreate} className={btnPrimary}>+ New Menu Item</button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-3 px-4">Name</th>
+              <th className="py-3 px-4">Category</th>
+              <th className="py-3 px-4">Price</th>
+              <th className="py-3 px-4">Variants</th>
+              <th className="py-3 px-4">Status</th>
+              <th className="py-3 px-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4 text-slate-800">{item.name}</td>
+                <td className="py-3 px-4 text-slate-600">{item.category?.name ?? '—'}</td>
+                <td className="py-3 px-4 text-slate-600">${item.price?.toFixed(2)}</td>
+                <td className="py-3 px-4 text-slate-600">{item.variants?.length ?? 0}</td>
+                <td className="py-3 px-4">
+                  {item.isActive ? (
+                    <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs">Active</span>
+                  ) : (
+                    <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">Inactive</span>
+                  )}
+                </td>
+                <td className="py-3 px-4 text-right space-x-2">
+                  <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Edit</button>
+                  <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm">Delete</button>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr><td colSpan={6} className="py-8 text-center text-slate-400">No menu items found</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Create/Edit Modal */}
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Edit Menu Item' : 'New Menu Item'}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Name</label>
+            <input className={inputCls} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Description</label>
+            <input className={inputCls} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">Category</label>
+              <select className={inputCls} value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}>
+                <option value="">Select...</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">Base Price</label>
+              <input type="number" step="0.01" className={inputCls} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-slate-600 font-medium">Variants</label>
+              <button type="button" onClick={addVariant} className="text-sm text-[#25439b] hover:text-[#1c3580]">+ Add</button>
+            </div>
+            {variants.map((v, idx) => (
+              <div key={idx} className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <input className={inputCls} placeholder="Variant name" value={v.name} onChange={e => updateVariant(idx, 'name', e.target.value)} />
+                </div>
+                <div className="w-32">
+                  <input type="number" step="0.01" className={inputCls} placeholder="Price" value={v.price} onChange={e => updateVariant(idx, 'price', e.target.value)} />
+                </div>
+                <button type="button" onClick={() => removeVariant(idx)} className="text-red-500 hover:text-red-600 pb-2 text-lg">✕</button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
+            <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Saving...' : 'Save'}</button>
           </div>
         </form>
       </Modal>

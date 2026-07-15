@@ -1,0 +1,1227 @@
+'use client';
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { toast } from '@/components/Toast';
+import { api } from '@/lib/api';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+import {
+  Utensils,
+  Calendar,
+  User as UserIcon,
+  Upload,
+  KeyRound,
+  Sparkles,
+  CircleDollarSign,
+  Heart,
+  Eye,
+  EyeOff,
+  Award,
+  Shield,
+  Lock,
+  Search,
+  Filter,
+  MapPin,
+  Ticket,
+  ArrowRight
+} from 'lucide-react';
+
+export default function PublicProfilePage() {
+  const { user, logout, refreshUser, loading } = useAuth();
+  const { locale, setLocale } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get('registerPartner') === 'true') {
+      setTimeout(() => {
+        const el = document.getElementById('cooperation-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+    }
+  }, [searchParams]);
+
+  // --- States ---
+  const [uploading, setUploading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || '');
+
+  // Account Information form states
+  const [name, setName] = useState(user?.name || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [birthday, setBirthday] = useState(user?.birthday || '');
+  const [gender, setGender] = useState(user?.gender || 'OTHER');
+  const [dietaryNotes, setDietaryNotes] = useState(user?.dietaryNotes || '');
+  const [updatingInfo, setUpdatingInfo] = useState(false);
+
+  // Security Form States
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPass, setChangingPass] = useState(false);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Business Cooperation Form States
+  const [businessName, setBusinessName] = useState('');
+  const [coopDomain, setCoopDomain] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [requestType, setRequestType] = useState('EVENT_ONLY');
+  const [packages, setPackages] = useState<any[]>([]);
+  const [coopRequests, setCoopRequests] = useState<any[]>([]);
+  const [submittingCoop, setSubmittingCoop] = useState(false);
+  const [loadingCoop, setLoadingCoop] = useState(false);
+
+
+
+  // --- Authentication Redirect Guard ---
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
+    }
+  }, [user, loading, router]);
+
+  // --- Sync Avatar & Info State ---
+  useEffect(() => {
+    if (user) {
+      setAvatarUrl(user.avatarUrl || '');
+      setName(user.name || '');
+      setPhone(user.phone || '');
+      setBirthday(user.birthday || '');
+      setGender(user.gender || 'OTHER');
+      setDietaryNotes(user.dietaryNotes || '');
+      if (user.hasDefaultPassword) {
+        setOldPassword('GoogleUser123!');
+      } else {
+        setOldPassword('');
+      }
+    }
+  }, [user]);
+
+
+
+  // Fetch and submit cooperation requests
+  const fetchCoopRequests = useCallback(async () => {
+    if (!user) return;
+    if (!user.roles.includes('CUSTOMER')) return;
+    try {
+      setLoadingCoop(true);
+      const data = await api.get<any[]>('/api/cooperation/my-requests');
+      setCoopRequests(data);
+    } catch {
+      setCoopRequests([]);
+    } finally {
+      setLoadingCoop(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchCoopRequests();
+  }, [fetchCoopRequests]);
+
+  // Auto populate contact phone from user
+  useEffect(() => {
+    if (user && user.phone) {
+      setContactPhone(user.phone);
+    }
+  }, [user]);
+
+  // Load packages dynamically from public API
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const data = await api.get('/api/public/cooperation/packages');
+        if (data) {
+          setPackages(data as any[]);
+          const typeFromUrl = searchParams.get('requestType');
+          if (typeFromUrl) {
+            setRequestType(typeFromUrl.toUpperCase());
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load packages:', err);
+      }
+    };
+    fetchPackages();
+  }, [searchParams]);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!businessName.trim() || !contactPhone.trim()) {
+      toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc.');
+      return;
+    }
+    try {
+      setSubmittingCoop(true);
+      const data = await api.post<any>('/api/cooperation/payos/create-link', {
+        businessName,
+        domain: coopDomain,
+        contactPhone,
+        requestType
+      });
+      if (data && data.checkoutUrl) {
+        toast.success('Đang chuyển hướng sang cổng thanh toán PayOS...');
+        window.open(data.checkoutUrl, '_blank');
+        setBusinessName('');
+        setCoopDomain('');
+        fetchCoopRequests();
+      } else {
+        toast.error('Không nhận được liên kết thanh toán từ PayOS.');
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || 'Tạo liên kết thanh toán thất bại.';
+      toast.error(errMsg);
+    } finally {
+      setSubmittingCoop(false);
+    }
+  };
+
+  const handleQuickUpgrade = async () => {
+    if (!businessName.trim() || !contactPhone.trim()) {
+      toast.error('Vui lòng điền đầy đủ các thông tin bắt buộc.');
+      return;
+    }
+    try {
+      setSubmittingCoop(true);
+      const res = await api.post<any>('/api/cooperation/quick-upgrade', {
+        businessName,
+        contactPhone,
+        requestType
+      });
+      toast.success(res?.message || 'Nâng cấp đối tác thành công!');
+      // Force reload user context or window to update layout and permission settings
+      window.location.reload();
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.error || 'Nâng cấp đối tác thất bại.';
+      toast.error(errMsg);
+    } finally {
+      setSubmittingCoop(false);
+    }
+  };
+
+
+
+  // --- Dynamic Translations Dictionary ---
+  const t = useMemo(() => {
+    return locale === 'vi' ? {
+      // Nav
+      navExplore: 'Khám phá',
+      navFeed: 'Diễn đàn Review',
+      navEvents: 'Sự kiện & Ưu đãi',
+      navAbout: 'Về chúng tôi',
+      navSys: 'Hệ thống Quản lý',
+      navSignIn: 'Sign In',
+      navSignUp: 'Sign Up',
+      navDashboard: 'Dashboard',
+      navLogout: 'Đăng xuất',
+      
+      // Profile Content
+      profileTitle: 'Hồ Sơ Thành Viên',
+      profileSub: 'Quản lý thông tin hội viên, điểm tích lũy và lịch sử giao dịch',
+      
+      // Loyalty Card Tiers
+      tierLabel: 'CẤP ĐỘ THÀNH VIÊN',
+      tierStandard: 'THÀNH VIÊN THƯỜNG',
+      tierBronze: 'THÀNH VIÊN ĐỒNG',
+      tierSilver: 'THÀNH VIÊN BẠC',
+      tierGold: 'THÀNH VIÊN VÀNG',
+      tierPlatinum: 'THÀNH VIÊN BẠCH KIM',
+      tierDiamond: 'THÀNH VIÊN KIM CƯƠNG',
+      cardHolder: 'CHỦ THẺ',
+      cardNumber: 'MÃ SỐ THẺ',
+      ptsBalance: 'ĐIỂM TÍCH LŨY HIỆN TẠI',
+      nextTierHint: 'Tích lũy thêm {pts} điểm để thăng hạng {next}',
+      
+      // Stats Cards
+      statBookings: 'Số lần đặt bàn',
+      statBookingsSub: 'Lượt đặt thành công',
+      statSpent: 'Tổng chi tiêu',
+      statSpentSub: 'Hóa đơn tích lũy',
+      statMemberSince: 'Thành viên từ',
+      statMemberSinceSub: 'Ngày gia nhập hệ thống',
+
+      // Booking History
+      bookingHistoryTitle: 'Lịch sử hoạt động gần đây',
+      btnViewAll: 'Xem tất cả',
+      thDate: 'Thời gian',
+      thBranch: 'Sự kiện / Chi nhánh',
+      thGuests: 'Số khách',
+      thSpent: 'Đặt cọc/Hóa đơn',
+      thStatus: 'Trạng thái',
+      statusCompleted: 'Hoàn thành',
+      statusUpcoming: 'Sắp diễn ra',
+      statusCancelled: 'Đã hủy',
+      thType: 'Loại',
+      typeTable: 'Đặt bàn',
+      typeEvent: 'Vé sự kiện',
+      thLocation: 'Địa điểm',
+      searchPlaceholder: 'Tìm theo tên event, nhà hàng, địa điểm...',
+      filterAll: 'Tất cả trạng thái',
+      filterAllTypes: 'Tất cả loại hình',
+      noBookingsFound: 'Không tìm thấy lịch sử đặt bàn hoặc đặt vé.',
+      
+      // Edit Account Info
+      cardInfoTitle: 'Thông tin cá nhân',
+      labelName: 'Họ và tên',
+      labelEmail: 'Địa chỉ Email (Không thể thay đổi)',
+      labelPhone: 'Số điện thoại',
+      labelBirthday: 'Ngày sinh',
+      labelGender: 'Giới tính',
+      genderMale: 'Nam',
+      genderFemale: 'Nữ',
+      genderOther: 'Khác',
+      labelDietary: 'Sở thích ăn uống & Ghi chú dị ứng',
+      placeholderDietary: 'Ví dụ: Ăn chay, không ăn cay, dị ứng đậu phộng, ưu tiên ngồi bàn gần cửa sổ...',
+      btnChangePhoto: 'Thay ảnh',
+      uploadingText: 'Đang tải...',
+      btnSaveInfo: 'Lưu thay đổi',
+      btnSavingInfo: 'Đang lưu...',
+      
+      // Password
+      cardPassTitle: 'Đổi mật khẩu bảo mật',
+      labelOldPass: 'Mật khẩu hiện tại',
+      labelNewPass: 'Mật khẩu mới',
+      labelConfirmPass: 'Xác nhận mật khẩu mới',
+      passMinLengthHint: 'Mật khẩu phải dài ít nhất 6 ký tự',
+      btnChangePass: 'Cập nhật mật khẩu',
+      btnChangingPass: 'Đang cập nhật...',
+      
+      // Toast notifications
+      toastSelectImage: 'Vui lòng chọn file hình ảnh',
+      toastLimitSize: 'Dung lượng ảnh không được vượt quá 5MB',
+      toastAvatarSuccess: 'Đã cập nhật ảnh đại diện thành công',
+      toastOldPassRequired: 'Mật khẩu hiện tại không được để trống',
+      toastNewPassRequired: 'Mật khẩu mới không được để trống',
+      toastPassMinLength: 'Mật khẩu mới phải từ 6 ký tự trở lên',
+      toastPassMismatch: 'Xác nhận mật khẩu không khớp',
+      toastPassSuccess: 'Đổi mật khẩu thành công',
+      toastInfoSuccess: 'Đã cập nhật thông tin cá nhân thành công',
+      toastMockMode: 'API offline. Đã cập nhật ảnh ở chế độ giả lập!',
+      toastMockInfoMode: 'API offline. Đã cập nhật thông tin cá nhân giả lập!',
+      
+      // Footer
+      footerDesc: 'Kết nối những tâm hồn ẩm thực với các nhà hàng sang trọng và uy tín. Tìm kiếm, đánh giá và đặt bàn trực tuyến dễ dàng.',
+      footerExplore: 'Khám phá',
+      footerSearch: 'Tìm kiếm nhà hàng',
+      footerCuisineCol: 'Bộ sưu tập món ăn',
+      footerLatestRev: 'Đánh giá mới nhất',
+      footerWeeklyOffers: 'Ưu đãi tuần này',
+      footerPartner: 'Hợp tác',
+      footerRegOwner: 'Đăng ký chủ nhà hàng',
+      footerAdPacks: 'Gói dịch vụ quảng bá',
+      footerGuide: 'Hướng dẫn đặt bàn',
+      footerContact: 'Liên hệ & Kết nối',
+      footerTerms: 'Điều khoản dịch vụ',
+      footerPrivacy: 'Chính sách bảo mật',
+      footerAllRights: 'Bảo lưu mọi quyền.'
+    } : {
+      // Nav
+      navExplore: 'Explore',
+      navFeed: 'Review Feed',
+      navEvents: 'Events & Offers',
+      navAbout: 'About Us',
+      navSys: 'Management System',
+      navSignIn: 'Sign In',
+      navSignUp: 'Sign Up',
+      navDashboard: 'Dashboard',
+      navLogout: 'Log Out',
+      
+      // Profile Content
+      profileTitle: 'Membership Profile',
+      profileSub: 'Manage your loyalty tier, reward points, and table reservation history',
+      
+      // Loyalty Card Tiers
+      tierLabel: 'MEMBERSHIP TIER',
+      tierStandard: 'STANDARD MEMBER',
+      tierBronze: 'BRONZE MEMBER',
+      tierSilver: 'SILVER MEMBER',
+      tierGold: 'GOLD MEMBER',
+      tierPlatinum: 'PLATINUM MEMBER',
+      tierDiamond: 'DIAMOND MEMBER',
+      cardHolder: 'CARDHOLDER',
+      cardNumber: 'CARD NUMBER',
+      ptsBalance: 'CURRENT LOYALTY POINTS',
+      nextTierHint: 'Accumulate {pts} more points to reach {next}',
+
+      // Stats Cards
+      statBookings: 'Total Bookings',
+      statBookingsSub: 'Successful visits',
+      statSpent: 'Total Spent',
+      statSpentSub: 'Cumulative bills',
+      statMemberSince: 'Member Since',
+      statMemberSinceSub: 'Join date',
+
+      // Booking History
+      bookingHistoryTitle: 'Recent Activity History',
+      btnViewAll: 'View All',
+      thDate: 'Time',
+      thBranch: 'Event / Branch',
+      thGuests: 'Party Size',
+      thSpent: 'Deposit/Bill',
+      thStatus: 'Status',
+      statusCompleted: 'Completed',
+      statusUpcoming: 'Upcoming',
+      statusCancelled: 'Cancelled',
+      thType: 'Type',
+      typeTable: 'Table Reservation',
+      typeEvent: 'Event Ticket',
+      thLocation: 'Location',
+      searchPlaceholder: 'Search by event name, restaurant, address...',
+      filterAll: 'All statuses',
+      filterAllTypes: 'All types',
+      noBookingsFound: 'No booking or ticket history found.',
+      
+      // Edit Account Info
+      cardInfoTitle: 'Personal Information',
+      labelName: 'Full Name',
+      labelEmail: 'Email Address (Non-changeable)',
+      labelPhone: 'Phone Number',
+      labelBirthday: 'Date of Birth',
+      labelGender: 'Gender',
+      genderMale: 'Male',
+      genderFemale: 'Female',
+      genderOther: 'Other',
+      labelDietary: 'Dietary Preferences & Allergy Notes',
+      placeholderDietary: 'Example: Vegetarian, no spicy, peanut allergy, prefers tables near window...',
+      btnChangePhoto: 'Change Photo',
+      uploadingText: 'Uploading...',
+      btnSaveInfo: 'Save Changes',
+      btnSavingInfo: 'Saving...',
+      
+      // Password
+      cardPassTitle: 'Change Account Password',
+      labelOldPass: 'Current Password',
+      labelNewPass: 'New Password',
+      labelConfirmPass: 'Confirm New Password',
+      passMinLengthHint: 'Must be at least 6 characters',
+      btnChangePass: 'Change Password',
+      btnChangingPass: 'Changing...',
+      
+      // Toast notifications
+      toastSelectImage: 'Please select an image file',
+      toastLimitSize: 'Image size cannot exceed 5MB',
+      toastAvatarSuccess: 'Avatar updated successfully',
+      toastOldPassRequired: 'Current password is required',
+      toastNewPassRequired: 'New password is required',
+      toastPassMinLength: 'New password must be at least 6 characters',
+      toastPassMismatch: 'Passwords do not match',
+      toastPassSuccess: 'Password changed successfully',
+      toastInfoSuccess: 'Personal information updated successfully',
+      toastMockMode: 'API offline. Updated avatar in Mock Mode!',
+      toastMockInfoMode: 'API offline. Updated profile details locally!',
+      
+      // Footer
+      footerDesc: 'Connecting food lovers with prestigious and luxurious restaurants. Search, review, and book tables online with ease.',
+      footerExplore: 'Explore',
+      footerSearch: 'Search Restaurants',
+      footerCuisineCol: 'Food Collections',
+      footerLatestRev: 'Latest Reviews',
+      footerWeeklyOffers: 'Weekly Offers',
+      footerPartner: 'Partnerships',
+      footerRegOwner: 'Register Restaurant Owner',
+      footerAdPacks: 'Promotional Packages',
+      footerGuide: 'Booking Guide',
+      footerContact: 'Contact & Connect',
+      footerTerms: 'Terms of Service',
+      footerPrivacy: 'Privacy Policy',
+      footerAllRights: 'All rights reserved.'
+    };
+  }, [locale]);
+
+  // --- Resolve Card Styles dynamically based on tier ---
+  const cardStyle = useMemo(() => {
+    const activeTier = user?.tier || 'STANDARD';
+    const styles = {
+      STANDARD: {
+        bg: 'bg-gradient-to-br from-slate-650 via-slate-700 to-slate-800',
+        text: 'text-slate-100',
+        accentText: 'text-slate-400',
+        glow: 'shadow-slate-500/10',
+        badgeBg: 'bg-white/10',
+        displayName: t.tierStandard
+      },
+      BRONZE: {
+        bg: 'bg-gradient-to-br from-orange-850 via-amber-800 to-amber-950',
+        text: 'text-amber-50',
+        accentText: 'text-amber-355',
+        glow: 'shadow-amber-900/15',
+        badgeBg: 'bg-white/10',
+        displayName: t.tierBronze
+      },
+      SILVER: {
+        bg: 'bg-gradient-to-br from-slate-200 via-zinc-400 to-slate-450',
+        text: 'text-slate-900',
+        accentText: 'text-slate-600',
+        glow: 'shadow-slate-400/10',
+        badgeBg: 'bg-slate-900/10',
+        displayName: t.tierSilver
+      },
+      GOLD: {
+        bg: 'bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-600',
+        text: 'text-white',
+        accentText: 'text-amber-100',
+        glow: 'shadow-amber-500/25',
+        badgeBg: 'bg-white/20',
+        displayName: t.tierGold
+      },
+      PLATINUM: {
+        bg: 'bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900',
+        text: 'text-indigo-50',
+        accentText: 'text-indigo-300',
+        glow: 'shadow-indigo-950/30 border border-indigo-900/20',
+        badgeBg: 'bg-indigo-500/25',
+        displayName: t.tierPlatinum
+      },
+      DIAMOND: {
+        bg: 'bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-650',
+        text: 'text-white',
+        accentText: 'text-cyan-100',
+        glow: 'shadow-cyan-500/30 border border-cyan-300/30',
+        badgeBg: 'bg-white/25',
+        displayName: t.tierDiamond
+      }
+    };
+    return styles[activeTier as keyof typeof styles] || styles.STANDARD;
+  }, [user?.tier, t]);
+
+  // --- Currency Formatter Helper ---
+  const formatCurrency = (amount: number) => {
+    if (locale === 'vi') {
+      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+    } else {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(Math.round(amount / 25000));
+    }
+  };
+
+  // --- Handle Avatar S3 Upload ---
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error(t.toastSelectImage);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(t.toastLimitSize);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+      setUploading(true);
+      const response = await api.post<{ avatarUrl: string }>('/api/profile/upload-avatar', formData);
+      setAvatarUrl(response.avatarUrl);
+      if (refreshUser) {
+        await refreshUser();
+      }
+      toast.success(t.toastAvatarSuccess);
+      setUploading(false);
+    } catch (err) {
+      console.warn('Backend API offline. Updating avatar locally for testing (Mock Mode):', err);
+      setTimeout(() => {
+        const localUrl = URL.createObjectURL(file);
+        setAvatarUrl(localUrl);
+        toast.success(t.toastMockMode);
+        setUploading(false);
+      }, 1000);
+    }
+  };
+
+  // --- Handle Save Personal Info ---
+  const handleUpdateInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error(locale === 'vi' ? 'Họ và tên không được để trống.' : 'Full name cannot be empty.');
+      return;
+    }
+    if (!/^[A-Za-zÀ-ỹ\s']{2,100}$/.test(name.trim())) {
+      toast.error(locale === 'vi' ? 'Họ và tên không hợp lệ (chỉ chứa chữ cái, từ 2-100 ký tự).' : 'Invalid full name (letters only, 2-100 characters).');
+      return;
+    }
+    if (!phone.trim()) {
+      toast.error(locale === 'vi' ? 'Số điện thoại không được để trống.' : 'Phone number cannot be empty.');
+      return;
+    }
+    if (!/^(0|\+84)[35789][0-9]{8}$/.test(phone.trim())) {
+      toast.error(locale === 'vi' ? 'Số điện thoại không hợp lệ (phải là số điện thoại Việt Nam hợp lệ).' : 'Invalid Vietnamese phone number.');
+      return;
+    }
+    if (birthday) {
+      const selectedBdate = new Date(birthday);
+      const today = new Date();
+      if (selectedBdate >= today) {
+        toast.error(locale === 'vi' ? 'Ngày sinh phải ở trong quá khứ.' : 'Birthday must be in the past.');
+        return;
+      }
+    }
+    try {
+      setUpdatingInfo(true);
+      await api.post('/api/profile/update-info', {
+        name,
+        phone,
+        birthday,
+        gender,
+        dietaryNotes
+      });
+      if (refreshUser) {
+        await refreshUser();
+      }
+      toast.success(t.toastInfoSuccess);
+    } catch (err) {
+      console.warn('Backend API offline. Saving profile details locally (Mock Mode):', err);
+      setTimeout(() => {
+        if (user) {
+          user.name = name;
+          user.phone = phone;
+          user.birthday = birthday;
+          user.gender = gender;
+          user.dietaryNotes = dietaryNotes;
+        }
+        toast.success(t.toastMockInfoMode);
+        setUpdatingInfo(false);
+      }, 800);
+    }
+  };
+
+  // --- Handle Change Password ---
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!oldPassword) { toast.error(t.toastOldPassRequired); return; }
+    if (!newPassword) { toast.error(t.toastNewPassRequired); return; }
+    if (newPassword.length < 8 || !/\d/.test(newPassword) || !/[!@#$%^&*()]/.test(newPassword)) {
+      toast.error(locale === 'vi' 
+        ? 'Mật khẩu mới không đủ mạnh (phải có ít nhất 8 ký tự, 1 chữ số và 1 ký tự đặc biệt)!'
+        : 'New password is not strong enough (must be at least 8 characters long, containing at least 1 digit and 1 special character)!');
+      return;
+    }
+    if (newPassword !== confirmPassword) { toast.error(t.toastPassMismatch); return; }
+
+    try {
+      setChangingPass(true);
+      await api.post('/api/auth/change-password', { oldPassword, newPassword });
+      toast.success(t.toastPassSuccess);
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to change password');
+    } finally {
+      setChangingPass(false);
+    }
+  };
+
+  // Show loading screen while verifying auth redirection
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen bg-[#f8f9fc] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+          <div className="text-slate-500 text-sm">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate points progress to Platinum Tier (3000 pts)
+  const currentPoints = user.loyaltyPoints || 0;
+  const nextTierPoints = 3000;
+  const pointsRemaining = Math.max(0, nextTierPoints - currentPoints);
+  const progressPercent = Math.min(100, (currentPoints / nextTierPoints) * 100);
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden flex flex-col justify-between">
+      
+      <Header />
+
+      {/* 2. PROFILE HERO TITLE SECTION */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-blue-50/60 via-indigo-50/20 to-[#F8FAFC] pt-12 pb-8">
+        <div className="absolute top-[-20%] left-[-10%] h-[300px] w-[300px] rounded-full bg-cyan-200/10 blur-3xl" />
+        <div className="absolute bottom-10 right-[-10%] h-[350px] w-[350px] rounded-full bg-indigo-200/10 blur-3xl" />
+
+        <div className="mx-auto max-w-7xl px-4 relative z-10 text-center space-y-3">
+          <h1 className="text-3xl font-black tracking-tight sm:text-4xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 bg-clip-text text-transparent">
+            {t.profileTitle}
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto">
+            {t.profileSub}
+          </p>
+        </div>
+      </section>
+
+      {/* 3. MAIN PROFILE CONTENT & MEMBERSHIP SYSTEM */}
+      <main className="flex-1 mx-auto max-w-4xl w-full px-4 py-6 space-y-8 relative z-10">
+        
+        {/* MEMBERSHIP TIER CARD & POINTS METERS */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-sm flex flex-col md:flex-row items-center gap-8 md:gap-10">
+          
+          {/* Membership Virtual Card */}
+          <div className={`relative overflow-hidden w-full max-w-sm h-52 rounded-2xl ${cardStyle.bg} p-6 ${cardStyle.text} shadow-md ${cardStyle.glow} flex flex-col justify-between group hover:shadow-lg hover:scale-[1.01] transition-all duration-300 shrink-0`}>
+            {/* Glass overlay */}
+            <div className="absolute inset-0 bg-white/5 backdrop-blur-[0.5px]" />
+            
+            {/* Top row */}
+            <div className="flex justify-between items-start relative z-10">
+              <div className="flex items-center gap-1.5">
+                <div className={`h-7 w-7 rounded-lg ${cardStyle.badgeBg} flex items-center justify-center backdrop-blur-sm`}>
+                  <Utensils className="h-4 w-4" />
+                </div>
+                <span className="font-extrabold text-sm tracking-wider">RMS MEMBER</span>
+              </div>
+              <div className="flex flex-col items-end">
+                <span className={`text-[9px] font-bold ${cardStyle.accentText} uppercase tracking-widest`}>{t.tierLabel}</span>
+                <span className="text-xs font-black tracking-wide drop-shadow-sm flex items-center gap-0.5">
+                  <Sparkles className="h-3.5 w-3.5 fill-current opacity-90" />
+                  {cardStyle.displayName}
+                </span>
+              </div>
+            </div>
+
+            {/* Chip & Wireless */}
+            <div className="flex items-center gap-4 relative z-10 my-1">
+              <div className="w-9 h-7 rounded-md bg-gradient-to-br from-yellow-100 to-amber-200 opacity-90 shadow-sm relative overflow-hidden">
+                <div className="absolute inset-x-2 inset-y-1.5 border border-amber-800/20 grid grid-cols-3 gap-0.5">
+                  <div className="border-r border-amber-800/10"></div>
+                  <div className="border-r border-amber-800/10"></div>
+                  <div></div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-0.5 opacity-60">
+                <div className="h-4 w-28 bg-white/80 rounded-sm overflow-hidden flex gap-[2px] p-0.5">
+                  <div className="w-[1px] bg-slate-900 h-full"></div>
+                  <div className="w-[2px] bg-slate-900 h-full"></div>
+                  <div className="w-[1px] bg-slate-900 h-full"></div>
+                  <div className="w-[4px] bg-slate-900 h-full"></div>
+                  <div className="w-[1px] bg-slate-900 h-full"></div>
+                  <div className="w-[2px] bg-slate-900 h-full"></div>
+                  <div className="w-[3px] bg-slate-900 h-full"></div>
+                  <div className="w-[1px] bg-slate-900 h-full"></div>
+                  <div className="w-[2px] bg-slate-900 h-full"></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Row */}
+            <div className="flex justify-between items-end relative z-10 mt-auto">
+              <div className="space-y-0.5">
+                <p className={`text-[9px] ${cardStyle.accentText} uppercase font-bold tracking-wider`}>{t.cardHolder}</p>
+                <p className="text-xs font-bold tracking-wide uppercase">{user.name}</p>
+              </div>
+              <div className="text-right space-y-0.5">
+                <p className={`text-[9px] ${cardStyle.accentText} uppercase font-bold tracking-wider`}>{t.cardNumber}</p>
+                <p className="text-[11px] font-mono font-bold tracking-wider">{user.loyaltyCardNo || '---'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Points Progress */}
+          <div className="flex-1 w-full space-y-5 text-left">
+            <div className="flex justify-between items-end">
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{t.ptsBalance}</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-4xl font-black bg-gradient-to-r from-amber-500 to-yellow-600 bg-clip-text text-transparent">
+                    {currentPoints}
+                  </span>
+                  <span className="text-xs font-bold text-slate-500">PTS</span>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold text-slate-500">
+                {t.nextTierHint.replace('{pts}', String(pointsRemaining)).replace('{next}', t.tierPlatinum)}
+              </span>
+            </div>
+            
+            {/* Visual Progress Bar */}
+            <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50 p-0.5">
+              <div 
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 via-yellow-500 to-indigo-650 transition-all duration-1000 shadow-inner"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold">
+              <span>0 PTS</span>
+              <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-150">{t.tierGold} (1,500 pts)</span>
+              <span className="text-slate-500">{t.tierPlatinum} (3,000 pts)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* 3 STATS CARDS GRID */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Stat 1: Bookings count */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition duration-200 text-left flex items-center gap-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 h-16 w-16 bg-blue-500/5 rounded-bl-full translate-x-3 -translate-y-3" />
+            <div className="h-12 w-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-650 group-hover:scale-105 transition">
+              <Calendar className="h-5.5 w-5.5" />
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.statBookings}</p>
+              <p className="text-2xl font-black text-slate-900">{user.bookingCount || 0}</p>
+              <p className="text-[10px] font-medium text-slate-500">{t.statBookingsSub}</p>
+            </div>
+          </div>
+
+          {/* Stat 2: Total Spent */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition duration-200 text-left flex items-center gap-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 h-16 w-16 bg-emerald-500/5 rounded-bl-full translate-x-3 -translate-y-3" />
+            <div className="h-12 w-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-650 group-hover:scale-105 transition">
+              <CircleDollarSign className="h-5.5 w-5.5" />
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.statSpent}</p>
+              <p className="text-xl font-black text-slate-900">{formatCurrency(user.totalSpent || 0)}</p>
+              <p className="text-[10px] font-medium text-slate-500">{t.statSpentSub}</p>
+            </div>
+          </div>
+
+          {/* Stat 3: Member since */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition duration-200 text-left flex items-center gap-4 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 h-16 w-16 bg-amber-500/5 rounded-bl-full translate-x-3 -translate-y-3" />
+            <div className="h-12 w-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-650 group-hover:scale-105 transition">
+              <Award className="h-5.5 w-5.5" />
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.statMemberSince}</p>
+              <p className="text-base font-black text-slate-900">
+                {user.memberSince ? new Date(user.memberSince).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                }) : '---'}
+              </p>
+              <p className="text-[10px] font-medium text-slate-500">{t.statMemberSinceSub}</p>
+            </div>
+          </div>
+        </div>
+
+
+        {/* Card 4: Edit Account Information & Avatar Upload */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+            <Shield className="h-5 w-5 text-blue-650" />
+            <h2 className="text-base font-extrabold text-slate-800">{t.cardInfoTitle}</h2>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+            
+            {/* Avatar Upload Container */}
+            <div className="flex flex-col items-center gap-3 shrink-0">
+              <div className="relative h-28 w-28 rounded-full overflow-hidden border-3 border-blue-50 bg-slate-50 shadow-inner group">
+                <img 
+                  src={avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=25439b&color=fff&size=128`} 
+                  alt="Profile Avatar" 
+                  className="h-full w-full object-cover group-hover:scale-[1.03] transition-transform duration-300" 
+                />
+                {uploading && (
+                  <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center text-white text-[10px] font-bold">
+                    <div className="w-5 h-5 border-2 border-slate-200 border-t-white rounded-full animate-spin mb-1" />
+                    <span>{t.uploadingText}</span>
+                  </div>
+                )}
+              </div>
+              <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm border border-slate-205 flex items-center gap-1">
+                <Upload className="h-3 w-3 text-slate-500" />
+                <span>{t.btnChangePhoto}</span>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarUpload} 
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+
+            {/* Editable Profile Info Details Form */}
+            <form onSubmit={handleUpdateInfo} className="flex-1 w-full text-left space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                
+                {/* Full Name */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-750">{t.labelName}</label>
+                  <input
+                    type="text"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Email (Disabled for safety) */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-400">{t.labelEmail}</label>
+                  <input
+                    type="email"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 text-sm select-none cursor-not-allowed"
+                    value={user.email}
+                    disabled
+                  />
+                </div>
+
+                {/* Phone Number */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-755">{t.labelPhone}</label>
+                  <input
+                    type="tel"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    placeholder="e.g. 0912345678"
+                  />
+                </div>
+
+                {/* Date of Birth */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-755">{t.labelBirthday}</label>
+                  <input
+                    type="date"
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                    value={birthday}
+                    onChange={e => setBirthday(e.target.value)}
+                  />
+                </div>
+
+                {/* Gender */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-755 mb-1.5">{t.labelGender}</label>
+                  <div className="flex gap-4">
+                    {['MALE', 'FEMALE', 'OTHER'].map((g) => (
+                      <label 
+                        key={g} 
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border text-xs font-bold cursor-pointer transition ${
+                          gender === g 
+                            ? 'bg-blue-50 text-blue-700 border-blue-300 shadow-sm'
+                            : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="gender"
+                          value={g}
+                          checked={gender === g}
+                          onChange={() => setGender(g)}
+                          className="hidden"
+                        />
+                        <span>
+                          {g === 'MALE' ? t.genderMale : g === 'FEMALE' ? t.genderFemale : t.genderOther}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dietary Notes */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <div className="flex items-center gap-1">
+                    <Heart className="h-4 w-4 text-rose-500 fill-rose-500" />
+                    <label className="block text-xs font-bold text-slate-755">{t.labelDietary}</label>
+                  </div>
+                  <textarea
+                    rows={3}
+                    className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition resize-none"
+                    value={dietaryNotes}
+                    onChange={e => setDietaryNotes(e.target.value)}
+                    placeholder={t.placeholderDietary}
+                  />
+                </div>
+
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={updatingInfo}
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 px-6 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer flex items-center gap-1.5"
+                >
+                  {updatingInfo ? t.btnSavingInfo : t.btnSaveInfo}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        {/* Card 5: Change Password Form */}
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+            <Lock className="h-5 w-5 text-blue-650" />
+            <h2 className="text-base font-extrabold text-slate-800">{t.cardPassTitle}</h2>
+          </div>
+
+          {user?.roles.includes('CUSTOMER') && user.hasDefaultPassword && (
+            <div className="p-4 rounded-xl bg-blue-50 border border-blue-150 text-xs text-blue-800 leading-relaxed shadow-sm">
+              <strong>💡 {locale === 'vi' ? 'Thiết lập mật khẩu cho tài khoản Google' : 'Set password for Google account'}:</strong>{' '}
+              {locale === 'vi' 
+                ? 'Do bạn đăng nhập bằng Google, hệ thống đã tự động điền mật khẩu hiện tại mặc định (GoogleUser123!) vào ô bên dưới. Bạn chỉ cần nhập Mật khẩu mới và xác nhận để hoàn tất thiết lập mật khẩu riêng của mình!'
+                : 'Since you log in via Google, the system has automatically pre-filled the default current password (GoogleUser123!) below. Just type your new password to set your own custom password!'}
+            </div>
+          )}
+
+          <form onSubmit={handleChangePassword} className="space-y-5 text-left max-w-xl">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">{t.labelOldPass}</label>
+              <div className="relative">
+                <input
+                  type={showOldPassword ? "text" : "password"}
+                  className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                  value={oldPassword}
+                  onChange={e => setOldPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowOldPassword(!showOldPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  {showOldPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">{t.labelNewPass}</label>
+              <div className="relative">
+                <input
+                  type={showNewPassword ? "text" : "password"}
+                  className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">{t.passMinLengthHint}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">{t.labelConfirmPass}</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button 
+                type="submit" 
+                disabled={changingPass} 
+                className="bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-755 text-white rounded-xl py-2.5 px-5 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer flex items-center gap-1.5"
+              >
+                <KeyRound className="h-4 w-4" />
+                <span>{changingPass ? t.btnChangingPass : t.btnChangePass}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Card 6: Đăng ký hợp tác kinh doanh & Sử dụng phần mềm (Chỉ hiện cho CUSTOMER nếu có query param registerPartner=true) */}
+        {user?.roles.includes('CUSTOMER') && searchParams.get('registerPartner') === 'true' && (
+          <div id="cooperation-section" className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm text-left">
+            <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              <h2 className="text-base font-extrabold text-slate-800">
+                {locale === 'vi' ? 'Đăng ký Hợp tác & Sử dụng ứng dụng' : 'Business Cooperation & Software Rental'}
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Form đăng ký */}
+              <div className="lg:col-span-2 space-y-4">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  {locale === 'vi' 
+                    ? 'RMS cung cấp giải pháp chuyển đổi số toàn diện cho chuỗi nhà hàng hoặc hỗ trợ truyền thông sự kiện ẩm thực của bạn trên nền tảng. Vui lòng gửi yêu cầu để Ban Quản trị hệ thống phê duyệt.'
+                    : 'RMS provides digital solutions for restaurant chains and hosts culinary events. Please submit a request for Admin approval.'}
+                </p>
+
+                <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
+                  <div className="space-y-1.5">
+                    <label className="block font-bold text-slate-700">{locale === 'vi' ? 'Tên nhà hàng/chuỗi muốn đăng ký tạo mới *' : 'New Business / Chain Name *'}</label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                      value={businessName}
+                      onChange={e => setBusinessName(e.target.value)}
+                      placeholder="Ví dụ: Golden Gate Group"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-slate-700">{locale === 'vi' ? 'Số điện thoại liên hệ *' : 'Contact Phone *'}</label>
+                      <input
+                        type="tel"
+                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                        value={contactPhone}
+                        onChange={e => setContactPhone(e.target.value)}
+                        placeholder="Ví dụ: 0912345678"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block font-bold text-slate-700">{locale === 'vi' ? 'Tên miền mong muốn (nếu có)' : 'Desired Domain (optional)'}</label>
+                      <input
+                        type="text"
+                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 text-sm transition"
+                        value={coopDomain}
+                        onChange={e => setCoopDomain(e.target.value)}
+                        placeholder="Ví dụ: goldengate.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block font-bold text-slate-700 mb-1">{locale === 'vi' ? 'Chọn gói dịch vụ hợp tác' : 'Choose Cooperation Plan'}</label>
+                    <div className="grid grid-cols-1 gap-2.5">
+                      {packages.length === 0 ? (
+                        <div className="text-center p-4 text-slate-400 font-medium">
+                          {locale === 'vi' ? 'Đang tải thông tin các gói dịch vụ...' : 'Loading cooperation plans...'}
+                        </div>
+                      ) : (
+                        packages.map((plan) => (
+                          <label
+                            key={plan.code}
+                            className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition ${
+                              requestType === plan.code
+                                ? 'bg-blue-50/50 border-blue-400 shadow-sm'
+                                : 'bg-white border-slate-200 hover:bg-slate-50/50'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="requestType"
+                              value={plan.code}
+                              checked={requestType === plan.code}
+                              onChange={() => setRequestType(plan.code)}
+                              className="mt-0.5"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-800 text-xs sm:text-sm">
+                                {locale === 'vi' ? plan.titleVi : plan.titleEn}
+                              </span>
+                              <span className="block text-[11px] text-slate-500 mt-1 leading-normal">
+                                {locale === 'vi' ? plan.descVi : plan.descEn}
+                              </span>
+                            </div>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      disabled={submittingCoop}
+                      onClick={handleQuickUpgrade}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 px-6 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer disabled:opacity-50"
+                    >
+                      {submittingCoop 
+                        ? (locale === 'vi' ? 'Đang xử lý...' : 'Processing...')
+                        : (locale === 'vi' ? 'Kích hoạt trực tiếp (Dùng thử)' : 'Instant Trial Activation')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingCoop}
+                      className="bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl py-2.5 px-6 text-xs font-bold transition shadow-sm hover:shadow active:scale-98 cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {submittingCoop 
+                        ? (locale === 'vi' ? 'Đang chuyển hướng...' : 'Redirecting...')
+                        : (locale === 'vi' ? 'Tiếp tục thanh toán' : 'Proceed to Payment')}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Lịch sử yêu cầu đã gửi */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
+                  {locale === 'vi' ? 'Yêu cầu đã gửi' : 'Applications Submitted'}
+                </h3>
+
+                {loadingCoop ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+                  </div>
+                ) : coopRequests.length === 0 ? (
+                  <p className="text-[11px] text-slate-400">
+                    {locale === 'vi' ? 'Bạn chưa gửi yêu cầu hợp tác nào.' : 'No applications found.'}
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {coopRequests.map((req) => (
+                      <div key={req.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-[11px]">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-slate-800">{req.businessName}</span>
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] border uppercase ${
+                            req.status === 'APPROVED'
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              : req.status === 'REJECTED'
+                              ? 'bg-rose-50 text-rose-600 border-rose-100'
+                              : 'bg-amber-50 text-amber-600 border-amber-100'
+                          }`}>
+                            {req.status === 'APPROVED'
+                              ? (locale === 'vi' ? 'Đã duyệt' : 'Approved')
+                              : req.status === 'REJECTED'
+                              ? (locale === 'vi' ? 'Từ chối' : 'Rejected')
+                              : (locale === 'vi' ? 'Chờ duyệt' : 'Pending')}
+                          </span>
+                        </div>
+                        <div className="text-slate-400 space-y-0.5">
+                          <div>Phân loại: <strong className="text-slate-600">{req.requestType === 'EVENT_ONLY' ? (locale === 'vi' ? 'Chỉ Event (Phí 5tr)' : 'Event Only') : req.requestType === 'APP_SUBSCRIPTION' ? (locale === 'vi' ? 'Thuê App (Phí 2tr/tháng)' : 'Monthly Lease') : (locale === 'vi' ? 'Mua App (Phí 50tr)' : 'Lifetime App')}</strong></div>
+                          <div>SĐT: <span className="text-slate-600">{req.contactPhone}</span></div>
+                          {req.domain && <div>Domain: <span className="text-slate-605">{req.domain}</span></div>}
+                          <div>Chi phí: <span className="text-slate-600">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(req.paymentAmount)}</span></div>
+                          <div>Ngày gửi: <span className="text-slate-500">{new Date(req.createdAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US')}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+
+
+
+      </main>
+
+      <Footer />
+    </div>
+  );
+}
