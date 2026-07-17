@@ -73,6 +73,9 @@ export interface TableEntity {
   layoutRadius?: number | null;
   displayLabel?: string | null;
   shape?: 'circle' | 'rectangle' | null;
+  activeSessionId?: number | null;
+  sessionOpenedAt?: string | null;
+  sessionTotalAmount?: number | null;
 }
 
 export interface Room {

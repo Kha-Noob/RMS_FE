@@ -31,6 +31,34 @@ const columns: { key: OrderStatus; label: string; color: string; bgColor: string
   { key: 'READY', label: 'Sẵn sàng', color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
 ];
 
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12); // A5
+
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch (err) {
+    console.debug('Audio play blocked:', err);
+  }
+}
+
+function getWaitingTimeMinutes(createdAt: string): number {
+  const diff = Date.now() - new Date(createdAt).getTime();
+  return Math.floor(diff / 60000);
+}
+
 function timeElapsed(createdAt: string): string {
   const diff = Date.now() - new Date(createdAt).getTime();
   const mins = Math.floor(diff / 60000);
@@ -46,6 +74,12 @@ export default function KDSPage() {
   const [loading, setLoading] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick(t => t + 1), 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   const loadOrders = useCallback(async () => {
     if (!activeBranchId) {
@@ -80,18 +114,31 @@ export default function KDSPage() {
       };
 
       ws.onmessage = (event) => {
+        const text = event.data;
+        if (text === 'NEW_ORDER_SUBMITTED' || text === 'ORDER_STATE_CHANGED') {
+          loadOrders();
+          if (text === 'NEW_ORDER_SUBMITTED') {
+            playNotificationSound();
+          }
+          return;
+        }
+
         try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'NEW_ORDER') {
+          const msg = JSON.parse(text);
+          if (msg.type === 'NEW_ORDER' || msg.type === 'NEW_ORDER_SUBMITTED') {
             toast.info(`Đơn mới: ${msg.data?.tableName || '#' + msg.data?.id}`);
+            playNotificationSound();
             loadOrders();
-          } else if (msg.type === 'ORDER_UPDATED') {
+          } else if (msg.type === 'ORDER_UPDATED' || msg.type === 'ORDER_STATE_CHANGED') {
             loadOrders();
           } else if (msg.type === 'ORDER_CANCELLED') {
             toast.warning(`Đơn bị hủy: #${msg.data?.id}`);
             loadOrders();
           }
-        } catch { /* ignore malformed */ }
+        } catch {
+          // If JSON parse fails, reload anyway to keep in sync
+          loadOrders();
+        }
       };
 
       ws.onclose = () => {
@@ -116,7 +163,7 @@ export default function KDSPage() {
 
   const updateStatus = async (orderId: number, status: OrderStatus) => {
     try {
-      await api.post('/api/kds/status', { orderId, status });
+      await api.post('/api/kds/status', null, { params: { orderId, status } });
       setOrders(prev =>
         prev.map(o => o.id === orderId ? { ...o, status } : o)
       );
@@ -127,7 +174,12 @@ export default function KDSPage() {
   };
 
   const ordersByStatus = (status: OrderStatus) =>
-    orders.filter(o => o.status === status);
+    orders.filter(o => {
+      if (status === 'PENDING') {
+        return o.status === 'PENDING' || o.status === 'SENT';
+      }
+      return o.status === status;
+    });
 
   if (loading) {
     return (
@@ -175,62 +227,78 @@ export default function KDSPage() {
                 {colOrders.length === 0 && (
                   <div className="text-slate-300 text-sm text-center py-8">Trống</div>
                 )}
-                {colOrders.map(order => (
-                  <div
-                    key={order.id}
-                    className={`rounded-xl border ${col.borderColor} ${col.bgColor} p-3 transition-all shadow-sm`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-800">{order.tableName || `#${order.id}`}</span>
-                        <span className="text-[10px] text-slate-400">#{order.id}</span>
-                      </div>
-                      <span className="text-[11px] text-slate-400">
-                        ⏱ {timeElapsed(order.createdAt)}
-                      </span>
-                    </div>
+                {colOrders.map(order => {
+                  const waitingMins = getWaitingTimeMinutes(order.createdAt);
+                  let waitColorClass = 'border-slate-200 bg-white';
+                  if (order.status !== 'READY') {
+                    if (waitingMins >= 20) {
+                      waitColorClass = 'border-rose-300 bg-rose-50/50 shadow-rose-100/30 animate-pulse';
+                    } else if (waitingMins >= 10) {
+                      waitColorClass = 'border-amber-300 bg-amber-50/50';
+                    } else {
+                      waitColorClass = 'border-emerald-200 bg-emerald-50/20';
+                    }
+                  } else {
+                    waitColorClass = 'border-slate-200 bg-slate-50/60';
+                  }
 
-                    <div className="space-y-1 mb-3">
-                      {order.items.map(item => (
-                        <div key={item.id} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-1 min-w-0">
-                            <span className="font-medium text-slate-700">{item.quantity}×</span>
-                            <span className="text-slate-600 truncate">{item.productName}</span>
-                            {item.variantName !== item.productName && (
-                              <span className="text-slate-400 truncate">({item.variantName})</span>
-                            )}
-                          </div>
-                          {item.status === 'COOKING' && <span className="text-orange-500">🔥</span>}
-                          {item.status === 'READY' && <span className="text-emerald-500">✓</span>}
+                  return (
+                    <div
+                      key={order.id}
+                      className={`rounded-xl border p-3 transition-all shadow-sm ${waitColorClass}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-slate-800">{order.tableName || `#${order.id}`}</span>
+                          <span className="text-[10px] text-slate-400">#{order.id}</span>
                         </div>
-                      ))}
-                    </div>
-
-                    <div className="flex gap-1">
-                      {col.key === 'PENDING' && (
-                        <button
-                          onClick={() => updateStatus(order.id, 'COOKING')}
-                          className="flex-1 py-1.5 bg-orange-500 hover:bg-orange-400 rounded-lg text-xs font-medium text-white transition-colors"
-                        >
-                          🔥 Bắt đầu nấu
-                        </button>
-                      )}
-                      {col.key === 'COOKING' && (
-                        <button
-                          onClick={() => updateStatus(order.id, 'READY')}
-                          className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-medium text-white transition-colors"
-                        >
-                          ✅ Đánh dấu sẵn sàng
-                        </button>
-                      )}
-                      {col.key === 'READY' && (
-                        <span className="flex-1 py-1.5 bg-slate-100 rounded-lg text-xs font-medium text-center text-slate-400">
-                          Đã hoàn thành
+                        <span className="text-[11px] text-slate-400 font-semibold">
+                          ⏱ {timeElapsed(order.createdAt)}
                         </span>
-                      )}
+                      </div>
+
+                      <div className="space-y-1 mb-3">
+                        {order.items.map(item => (
+                          <div key={item.id} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1 min-w-0">
+                              <span className="font-medium text-slate-700">{item.quantity}×</span>
+                              <span className="text-slate-600 truncate">{item.productName}</span>
+                              {item.variantName !== item.productName && (
+                                <span className="text-slate-400 truncate">({item.variantName})</span>
+                              )}
+                            </div>
+                            {item.status === 'COOKING' && <span className="text-orange-500">🔥</span>}
+                            {item.status === 'READY' && <span className="text-emerald-500">✓</span>}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-1">
+                        {col.key === 'PENDING' && (
+                          <button
+                            onClick={() => updateStatus(order.id, 'COOKING')}
+                            className="flex-1 py-1.5 bg-orange-500 hover:bg-orange-400 rounded-lg text-xs font-medium text-white transition-colors"
+                          >
+                            🔥 Bắt đầu nấu
+                          </button>
+                        )}
+                        {col.key === 'COOKING' && (
+                          <button
+                            onClick={() => updateStatus(order.id, 'READY')}
+                            className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-medium text-white transition-colors"
+                          >
+                            ✅ Đánh dấu sẵn sàng
+                          </button>
+                        )}
+                        {col.key === 'READY' && (
+                          <span className="flex-1 py-1.5 bg-slate-100 rounded-lg text-xs font-medium text-center text-slate-400">
+                            Đã hoàn thành
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           );
