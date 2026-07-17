@@ -436,7 +436,7 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
   };
 
   const getObjectColor = (obj: FloorPlanObject) => {
-    const isBooked = bookedTableIds.includes(obj.id);
+    const isBooked = (obj.tableId && bookedTableIds.includes(obj.tableId)) || bookedTableIds.includes(obj.id);
     if (isBooked) return '#ef4444'; // Red for booked
     return '#22c55e'; // Green for available
   };
@@ -615,7 +615,7 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
         guests: bookingForm.guests,
         branchId: selectedBranchId,
         notes: dietaryNotes || null,
-        tableId: selectedTableObj?.id || null,
+        tableId: selectedTableObj?.tableId || selectedTableObj?.id || null,
         tableLabel: selectedTableObj?.label || null,
         dietaryNotes: dietaryNotes || null,
         allergyPeanut: allergyPeanut,
@@ -1505,7 +1505,7 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
                               {/* Objects rendering */}
                               {(selectedPlan.floorPlanObjects || []).map(obj => {
                                 const isTable = obj.objectType === 'table';
-                                const isBooked = bookedTableIds.includes(obj.id);
+                                const isBooked = (obj.tableId && bookedTableIds.includes(obj.tableId)) || bookedTableIds.includes(obj.id);
                                 
                                 const belongsToActiveRoom = doesRoomMatchFilter(selectedPlan.name, selectedPlan.id);
                                 if (!belongsToActiveRoom && isTable) return null;

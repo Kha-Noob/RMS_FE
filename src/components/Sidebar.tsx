@@ -46,7 +46,20 @@ export default function Sidebar() {
   const handleBranchSwitch = (branchId: string) => {
     switchBranch(branchId);
     setBranchDropdownOpen(false);
-    router.refresh();
+    
+    if (pathname.includes('/floor-plans')) {
+      router.push(`/branches/${branchId}/floor-plans`);
+    } else if (pathname.startsWith('/branches/')) {
+      const segments = pathname.split('/');
+      if (segments.length > 2) {
+        segments[2] = branchId;
+        router.push(segments.join('/'));
+      } else {
+        router.refresh();
+      }
+    } else {
+      router.refresh();
+    }
   };
 
   return (
