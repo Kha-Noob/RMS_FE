@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
@@ -745,7 +745,7 @@ export default function POSPage() {
                 360°
               </button>
             )}
-            <button
+<button
               onClick={() => { setManagerOpen(true); setManagerTab('rooms'); }}
               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               title="Quản lý bàn & phòng"
@@ -757,76 +757,54 @@ export default function POSPage() {
 
         {/* Floor plan canvas / Table grid */}
         <div className="flex-1 overflow-auto p-4">
-          {selectedRoom && floorPlanLoading ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <div className="w-8 h-8 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin mb-3" />
-              <div className="text-sm">Loading floor plan...</div>
-            </div>
-          ) : selectedRoom && !activeFloorPlan ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <svg className="w-12 h-12 mb-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
-              <div className="text-sm">No floor plan available.</div>
-            </div>
-          ) : !selectedRoom && filteredTables.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <svg className="w-12 h-12 mb-3 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              <div className="text-sm">Không có bàn</div>
-              {selectedRoom && <div className="text-xs mt-1">Thử chọn phòng khác</div>}
-            </div>
-          ) : selectedRoom && activeFloorPlan ? (
-            /* â”€â”€â”€ Published FloorPlanObjects via ObjectRenderer â”€â”€â”€ */
-            <div className="relative mx-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
-              style={{ maxWidth: '100%', aspectRatio: `${activeFloorPlan.width} / ${activeFloorPlan.height}` }}>
-              <FloorPlanBackground floorPlan={{
-                id: activeFloorPlan.id, branch: {} as any, name: activeFloorPlan.name, floorNumber: 0,
-                width: activeFloorPlan.width, height: activeFloorPlan.height,
-                floorDiagramImageUrl: activeFloorPlan.floorDiagramImageUrl,
-                floorDiagramFitMode: activeFloorPlan.floorDiagramFitMode ?? undefined,
-                floorDiagramX: activeFloorPlan.floorDiagramX ?? undefined,
-                floorDiagramY: activeFloorPlan.floorDiagramY ?? undefined,
-                floorDiagramWidth: activeFloorPlan.floorDiagramWidth ?? undefined,
-                floorDiagramHeight: activeFloorPlan.floorDiagramHeight ?? undefined,
-                floorDiagramScale: activeFloorPlan.floorDiagramScale ?? undefined,
-                floorDiagramRotation: activeFloorPlan.floorDiagramRotation ?? undefined,
-                backgroundMode: activeFloorPlan.backgroundMode as any,
-                panoramaUrl: activeFloorPlan.panoramaUrl, panoramaType: activeFloorPlan.panoramaType,
-                status: 'published', createdBy: null, updatedBy: null, createdAt: '', updatedAt: '',
-              }} className="w-full h-full">
-                {[...floorPlanObjects].sort((a, b) => a.zIndex - b.zIndex).map(obj => {
-                  const def = getObjectDefinition(obj.objectType);
-                  const isTableObj = def?.isTable || obj.objectType === 'table';
-                  const meta = asJsonObject(obj.metadataJson);
-                  const linkedTableId = meta.tableEntityId ?? meta.tableId ?? meta.linkedTableId;
-                  const posTable = linkedTableId ? tables.find(t => t.id === linkedTableId) : null;
-                  const isSelected = posTable ? selectedTable?.id === posTable.id : false;
-                  const isMergeSelected = posTable ? mergeTableIds.includes(posTable.id) : false;
-
-                  return (
-                    <ObjectRenderer
-                      key={obj.id}
-                      object={{ ...obj, posTable } as any}
-                      isEditor={false}
-                      isSelected={isSelected}
-                      floorPlanWidth={activeFloorPlan.width}
-                      floorPlanHeight={activeFloorPlan.height}
-                      onClick={isTableObj && posTable ? () => {
-                        if (mergeMode) {
-                          if (posTable.status === 'OCCUPIED' || isSelected) toggleMergeTable(posTable.id);
-                        } else {
-                          handleSelectTable(posTable);
-                        }
-                      } : undefined}
-                    />
-                  );
-                })}
-              </FloorPlanBackground>
+          {filteredTables.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
+              <svg className="w-12 h-12 mb-3 text-slate-300 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M3 9h18M9 21V9"/>
+              </svg>
+              <div className="text-sm font-medium">Không có bàn nào</div>
+              {selectedRoom && <div className="text-xs mt-1 opacity-70">Thử chọn khu vực hoặc phòng khác</div>}
             </div>
           ) : (
-            /* Table grid for the all-rooms view */
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            /* Beautiful Redesigned Table Cards Grid */
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filteredTables.map(table => {
                 const isSelected = selectedTable?.id === table.id;
                 const isMergeSelected = mergeTableIds.includes(table.id);
+                
+                // Determine table design status styles
+                let statusBg = '';
+                let statusText = '';
+                let statusBorder = '';
+                let dotColor = '';
+                
+                switch (table.status) {
+                  case 'EMPTY':
+                    statusBg = 'bg-emerald-50/60 hover:bg-emerald-50/80';
+                    statusText = 'text-emerald-700';
+                    statusBorder = 'border-emerald-200/80';
+                    dotColor = 'bg-emerald-500';
+                    break;
+                  case 'OCCUPIED':
+                    statusBg = 'bg-rose-50/60 hover:bg-rose-50/80';
+                    statusText = 'text-rose-700';
+                    statusBorder = 'border-rose-200/80';
+                    dotColor = 'bg-rose-500';
+                    break;
+                  case 'RESERVED':
+                    statusBg = 'bg-amber-50/60 hover:bg-amber-50/80';
+                    statusText = 'text-amber-700';
+                    statusBorder = 'border-amber-200/80';
+                    dotColor = 'bg-amber-500';
+                    break;
+                  default:
+                    statusBg = 'bg-slate-50/60 hover:bg-slate-50/80';
+                    statusText = 'text-slate-700';
+                    statusBorder = 'border-slate-200/80';
+                    dotColor = 'bg-slate-500';
+                }
+                
                 return (
                   <button
                     key={table.id}
@@ -837,17 +815,46 @@ export default function POSPage() {
                         handleSelectTable(table);
                       }
                     }}
-                    className={`relative p-4 rounded-xl text-center transition-all text-white ${
-                      statusColor[table.status as TableStatus] || 'bg-slate-400'
-                    } ${isSelected ? 'ring-2 ring-[#25439b] ring-offset-2 ring-offset-white scale-105' : 'hover:scale-105'} ${
-                      isMergeSelected ? 'ring-2 ring-purple-400 ring-offset-2 ring-offset-white' : ''
+                    className={`relative p-5 rounded-2xl border text-left transition-all ${statusBg} ${statusBorder} ${
+                      isSelected
+                        ? 'ring-2 ring-indigo-600 border-indigo-300 shadow-md scale-[1.03]'
+                        : isMergeSelected
+                        ? 'ring-2 ring-purple-600 border-purple-300 shadow-md scale-[1.03]'
+                        : 'hover:shadow-sm hover:scale-[1.01]'
                     }`}
                   >
-                    <div className="text-sm font-bold">{table.name}</div>
-                    <div className="text-[11px] mt-1 opacity-75">{table.capacity} chỗ</div>
-                    {table.status !== 'EMPTY' && (
-                      <div className="text-[10px] mt-0.5 opacity-80">{statusLabel[table.status as TableStatus]}</div>
-                    )}
+                    {/* Header: Table Name and Dot status indicator */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-extrabold text-slate-800 tracking-tight">
+                        {table.name}
+                      </span>
+                      <span className="flex h-2 w-2 relative">
+                        {table.status === 'OCCUPIED' && (
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        )}
+                        <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`}></span>
+                      </span>
+                    </div>
+                    
+                    {/* Body Info */}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] uppercase font-bold tracking-wider opacity-60 text-slate-500">Ghế:</span>
+                        <span className="text-xs font-semibold text-slate-700">{table.capacity} chỗ</span>
+                      </div>
+                      {selectedRoom === null && table.room?.name && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] uppercase font-bold tracking-wider opacity-60 text-slate-500">Phòng:</span>
+                          <span className="text-xs font-semibold text-slate-700 truncate">{table.room.name}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/50">
+                        <span className="text-[9px] uppercase font-extrabold tracking-wider opacity-70 text-slate-400">Trạng thái</span>
+                        <span className={`text-[10px] font-black ${statusText}`}>
+                          {statusLabel[table.status as TableStatus] || table.status}
+                        </span>
+                      </div>
+                    </div>
                   </button>
                 );
               })}
