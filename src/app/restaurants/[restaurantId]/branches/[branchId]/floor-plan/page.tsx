@@ -167,7 +167,7 @@ export default function PublicFloorPlanPage() {
             }} className="w-full h-full">
               {[...floorPlanObjects].sort((a, b) => a.zIndex - b.zIndex).map(obj => {
                 const meta = asJsonObject(obj.metadataJson);
-                const linkedTableId = meta.tableEntityId ?? meta.tableId ?? meta.linkedTableId;
+                const linkedTableId = obj.tableId ?? meta.tableEntityId ?? meta.tableId ?? meta.linkedTableId;
                 const posTable = linkedTableId ? tables.find(t => t.id === linkedTableId) : null;
                 const isSelected = posTable ? selectedTable?.id === posTable.id : false;
 

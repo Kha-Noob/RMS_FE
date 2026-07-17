@@ -81,8 +81,8 @@ export default function ObjectRenderer({
     <div
       className={`absolute ${cursorClass}`}
       style={{
-        left: `${obj.x}%`,
-        top: `${obj.y}%`,
+        left: obj.x,
+        top: obj.y,
         width: obj.width,
         height: obj.height,
         transform: `translate(-50%, -50%) rotate(${obj.rotation}deg)`,

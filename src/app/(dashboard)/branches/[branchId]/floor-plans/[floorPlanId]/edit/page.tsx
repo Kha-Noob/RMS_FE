@@ -314,7 +314,7 @@ export default function FloorPlanEditorPage() {
 
       const objectPayload = objects.map(o => {
         const metadataJson = withLinkedTableAliases(o.metadataJson);
-        const linkedTableId = metadataJson.tableEntityId ?? metadataJson.tableId ?? metadataJson.linkedTableId ?? null;
+        const linkedTableId = o.tableId ?? metadataJson.tableEntityId ?? metadataJson.tableId ?? metadataJson.linkedTableId ?? null;
         return {
           id: o.id,
           tableId: linkedTableId,

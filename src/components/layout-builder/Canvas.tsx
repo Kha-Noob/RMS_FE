@@ -94,8 +94,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({
     const r = el.getBoundingClientRect();
     const canvasX = (cx - r.left - camera.x) / zoom;
     const canvasY = (cy - r.top - camera.y) / zoom;
-    return { x: (canvasX / stageWidth) * 100, y: (canvasY / stageHeight) * 100 };
-  }, [zoom, camera, stageHeight, stageWidth]);
+    return { x: canvasX, y: canvasY };
+  }, [zoom, camera]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -150,7 +150,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({
     }
     if (dragging) {
       const p = screenToCanvas(e.clientX, e.clientY);
-      onObjectMove(dragging.id, Math.max(0, Math.min(100, snap(p.x - dragging.offsetX))), Math.max(0, Math.min(100, snap(p.y - dragging.offsetY))));
+      onObjectMove(dragging.id, Math.max(0, Math.min(stageWidth, snap(p.x - dragging.offsetX))), Math.max(0, Math.min(stageHeight, snap(p.y - dragging.offsetY))));
       return;
     }
     if (resizing) {
@@ -205,13 +205,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas({
     if (!obj || obj.isLocked) return;
     const r = containerRef.current?.getBoundingClientRect();
     if (!r) return;
-    const cx = (obj.x / 100) * stageWidth;
-    const cy = (obj.y / 100) * stageHeight;
+    const cx = obj.x;
+    const cy = obj.y;
     const osx = cx * zoom + camera.x + r.left;
     const osy = cy * zoom + camera.y + r.top;
     setRotating({ id: objId, startAngle: Math.atan2(e.clientY - osy, e.clientX - osx) * (180 / Math.PI), origRotation: obj.rotation, centerX: cx, centerY: cy });
     capturePointer(e.currentTarget as HTMLElement, e.pointerId);
-  }, [objects, stageHeight, stageWidth, zoom, camera]);
+  }, [objects, zoom, camera]);
 
   const sortedObjects = [...objects].sort((a, b) => a.zIndex - b.zIndex);
   const cursorStyle = isPanning ? 'grabbing' : spaceHeld ? 'grab' : dragging ? 'grabbing' : rotating ? 'crosshair' : 'default';

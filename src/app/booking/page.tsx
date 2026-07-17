@@ -305,7 +305,7 @@ export default function BookingWizardPage() {
         guests: guests,
         branchId: selectedBranchId,
         notes: dietaryNotes || null,
-        tableId: selectedTableObj?.id || null,
+        tableId: selectedTableObj?.tableId || selectedTableObj?.id || null,
         tableLabel: selectedTableObj?.label || null,
         dietaryNotes: dietaryNotes || null,
         allergyPeanut: allergyPeanut,
@@ -337,7 +337,7 @@ export default function BookingWizardPage() {
 
   // --- Dynamic Room & Space Filtering (US#2) ---
   const getObjectColor = (obj: FloorPlanObject) => {
-    const isBooked = bookedTableIds.includes(obj.id);
+    const isBooked = (obj.tableId && bookedTableIds.includes(obj.tableId)) || bookedTableIds.includes(obj.id);
     if (isBooked) return '#ef4444'; // Red for booked
     return '#22c55e'; // Green for available
   };
@@ -645,8 +645,31 @@ export default function BookingWizardPage() {
                 
                 {/* 2D Canvas Area */}
                 <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 md:p-6 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <span className="text-sm font-bold text-slate-700">{selectedPlan.name} (Tầng {selectedPlan.floorNumber})</span>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-100">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-sm font-bold text-slate-700">{selectedPlan.name} (Tầng {selectedPlan.floorNumber})</span>
+                      {floorPlans.length > 1 && (
+                        <div className="flex gap-2">
+                          {floorPlans.map(plan => (
+                            <button
+                              key={plan.id}
+                              onClick={() => {
+                                setSelectedPlan(plan);
+                                setSelectedTableObj(null);
+                                setSelectedTableConfirmed(false);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                selectedPlan?.id === plan.id
+                                  ? 'bg-[#25439b] text-white'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              {plan.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex items-center gap-4 text-xs font-bold">
                       <div className="flex items-center gap-1.5">
                         <div className="h-3.5 w-3.5 rounded bg-green-500" />
@@ -681,7 +704,7 @@ export default function BookingWizardPage() {
                       {/* Objects Rendering */}
                       {(selectedPlan.floorPlanObjects || []).map(obj => {
                         const isTable = obj.objectType === 'table';
-                        const isBooked = bookedTableIds.includes(obj.id);
+                        const isBooked = (obj.tableId && bookedTableIds.includes(obj.tableId)) || bookedTableIds.includes(obj.id);
                         
                         // Check room filtering
                         const belongsToActiveRoom = doesRoomMatchFilter(selectedPlan.name, selectedPlan.id);
