@@ -190,9 +190,19 @@ export default function POSPage() {
         try {
           const menuItems = await getActiveMenuItems();
           const menuProducts = menuToProducts(menuItems);
-          const menuIds = new Set(menuProducts.map(p => p.id));
+          const mergedWithBackend = menuProducts.map(mp => {
+            const bp = activeProducts.find(p => p.id === mp.id || p.name.toLowerCase() === mp.name.toLowerCase());
+            if (bp && bp.variants && bp.variants.length > 0) {
+              return {
+                ...mp,
+                variants: bp.variants,
+              };
+            }
+            return mp;
+          });
+          const menuIds = new Set(mergedWithBackend.map(p => p.id));
           const backendOnly = activeProducts.filter(p => !menuIds.has(p.id));
-          const merged = [...menuProducts, ...backendOnly];
+          const merged = [...mergedWithBackend, ...backendOnly];
           setProducts(merged);
           const catSet = new Map<number, Category>();
           merged.forEach(p => { if (p.category) catSet.set(p.category.id, p.category); });
@@ -246,9 +256,19 @@ export default function POSPage() {
       if (cancelled) return;
       const menuProducts = menuToProducts(menuItems);
       setProducts(prev => {
-        const menuIds = new Set(menuProducts.map(p => p.id));
+        const mergedWithBackend = menuProducts.map(mp => {
+          const bp = prev.find(p => p.id === mp.id || p.name.toLowerCase() === mp.name.toLowerCase());
+          if (bp && bp.variants && bp.variants.length > 0) {
+            return {
+              ...mp,
+              variants: bp.variants,
+            };
+          }
+          return mp;
+        });
+        const menuIds = new Set(mergedWithBackend.map(p => p.id));
         const existing = prev.filter(p => !menuIds.has(p.id));
-        return [...menuProducts, ...existing];
+        return [...mergedWithBackend, ...existing];
       });
     }).catch(() => {});
     return () => { cancelled = true; };
