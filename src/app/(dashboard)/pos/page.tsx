@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { api, getApiErrorMessage } from '@/lib/api';
+import { api, getApiErrorMessage, connectWebSocket } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/components/Toast';
 import FloorPlanBackground from '@/components/FloorPlanBackground';
@@ -80,6 +80,16 @@ const statusDotColor: Record<TableStatus, string> = {
   RESERVED: 'bg-yellow-500',
 };
 
+function getSessionDuration(openedAt: string | null | undefined): string {
+  if (!openedAt) return '';
+  const diff = Date.now() - new Date(openedAt).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'vừa vào';
+  if (mins < 60) return `${mins}p`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ${mins % 60}p`;
+}
+
 export default function POSPage() {
   const { activeBranchId } = useAuth();
 
@@ -117,6 +127,7 @@ export default function POSPage() {
 
   const [panoramaOpen, setPanoramaOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
 
   // AddItemModal state
   const [addItemOpen, setAddItemOpen] = useState(false);
@@ -283,13 +294,18 @@ export default function POSPage() {
     }
   }, [selectedRoom, loadFloorPlanForRoom]);
 
+
   const filteredTables = selectedRoom !== null
     ? tables.filter(t => t.room?.id === selectedRoom)
     : tables;
 
-  const filteredProducts = selectedCategory !== null
-    ? products.filter(p => p.category?.id === selectedCategory)
-    : products;
+  const filteredProducts = products.filter(p => {
+    const matchesCategory = selectedCategory === null || p.category?.id === selectedCategory;
+    const matchesSearch = menuSearchQuery.trim() === '' || 
+      p.name.toLowerCase().includes(menuSearchQuery.toLowerCase()) || 
+      (p.description && p.description.toLowerCase().includes(menuSearchQuery.toLowerCase()));
+    return matchesCategory && matchesSearch;
+  });
 
   const resetTableForm = useCallback(() => {
     setEditingTable(null);
@@ -309,7 +325,35 @@ export default function POSPage() {
     toast.error(getApiErrorMessage(error, fallback));
   }, []);
 
+  const ensureSession = async (table: TableEntity): Promise<TableSession> => {
+    try {
+      if (table.status === 'EMPTY') {
+        const res = await api.post<TableSession>('/api/pos/session/open', null, { params: { tableId: table.id } });
+        await loadData();
+        return res;
+      }
+      const res = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: table.id } });
+      return {
+        id: res.sessionId,
+        table: table,
+        status: res.status,
+      };
+    } catch {
+      // Backend offline or error - open fallback session locally
+      return {
+        id: Date.now(),
+        table,
+        status: 'ACTIVE'
+      };
+    }
+  };
+
   const loadSession = useCallback(async (table: TableEntity) => {
+    if (table.status === 'EMPTY') {
+      setSession({ id: Date.now(), table, status: 'ACTIVE' });
+      setCartItems([]);
+      return;
+    }
     try {
       const res = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: table.id } });
       const tblSession: TableSession = {
@@ -334,8 +378,41 @@ export default function POSPage() {
     await loadSession(table);
   };
 
+  // Real-time synchronization of rooms, tables and session states using WebSockets
+  useEffect(() => {
+    let active = true;
+    let ws: WebSocket | null = null;
+    
+    function connect() {
+      if (!active) return;
+      ws = connectWebSocket('/ws/kds');
+      
+      ws.onmessage = (event) => {
+        const text = event.data;
+        if (text === 'ORDER_STATE_CHANGED' || text === 'NEW_ORDER_SUBMITTED' || text.includes('KDS_READY_ALERT')) {
+          loadData();
+          if (selectedTable) {
+            loadSession(selectedTable);
+          }
+        }
+      };
+      
+      ws.onclose = () => {
+        if (active) {
+          setTimeout(connect, 3000);
+        }
+      };
+    }
+    
+    connect();
+    return () => {
+      active = false;
+      if (ws) ws.close();
+    };
+  }, [loadData, selectedTable, loadSession]);
+
   const handleAddToCart = async (product: ProductWithVariants, variant: ProductVariant | null, size: { id: number; name: string; price: number } | null, quantity: number, note: string) => {
-    if (!session) {
+    if (!selectedTable) {
       toast.warning('Chọn bàn trước khi thêm món');
       return;
     }
@@ -344,15 +421,21 @@ export default function POSPage() {
     const sizeName = size ? size.name : '';
     setCartLoading(true);
     try {
+      let currentSession = session;
+      if (!currentSession || currentSession.id > 1000000000000) {
+        currentSession = await ensureSession(selectedTable);
+        setSession(currentSession);
+      }
+
       await api.postForm('/api/pos/order/add', {
-        sessionId: session.id,
+        sessionId: currentSession.id,
         menuItemId: product.id,
         variantId: variant?.id ?? '',
         sizeId: size?.id ?? '',
         quantity,
         note,
       });
-      await loadSession(selectedTable!);
+      await loadSession(selectedTable);
       toast.success(`Đã thêm ${variantName}${sizeName ? ' - ' + sizeName : ''}`);
     } catch {
       // Backend unavailable — add locally to cart
@@ -414,20 +497,25 @@ export default function POSPage() {
   const addItemCanConfirm = addItemProduct && !addItemNeedsVariant;
 
   const handleUpdateQuantity = async (detailId: number, delta: number) => {
-    if (!session) return;
+    if (!session || !selectedTable) return;
     setCartLoading(true);
     try {
+      let currentSession = session;
+      if (currentSession.id > 1000000000000) {
+        currentSession = await ensureSession(selectedTable);
+        setSession(currentSession);
+      }
       const item = cartItems.find(i => i.detailId === detailId);
       if (!item) return;
       const newQty = item.quantity + delta;
       if (newQty <= 0) {
-        await api.delete(`/api/pos/session/${session.id}/item/${detailId}`);
+        await api.delete(`/api/pos/session/${currentSession.id}/item/${detailId}`);
       } else {
-        await api.put(`/api/pos/session/${session.id}/item/${detailId}`, null, {
+        await api.put(`/api/pos/session/${currentSession.id}/item/${detailId}`, null, {
           params: { quantity: newQty },
         });
       }
-      await loadSession(selectedTable!);
+      await loadSession(selectedTable);
     } catch {
       // Backend unavailable — update locally
       setCartItems(prev => {
@@ -443,11 +531,36 @@ export default function POSPage() {
   };
 
   const handleSendToKitchen = async () => {
-    if (!session) return;
+    if (!session || !selectedTable) return;
     setCartLoading(true);
     try {
-      await api.postForm('/api/pos/order/send', { sessionId: session.id });
-      await loadSession(selectedTable!);
+      let currentSession = session;
+      if (currentSession.id > 1000000000000) {
+        currentSession = await ensureSession(selectedTable);
+        setSession(currentSession);
+      }
+
+      // Synchronize any local pending cart items to database first
+      for (const item of cartItems) {
+        if (item.status === 'PENDING') {
+          const p = products.find(prod => prod.name === item.productName);
+          if (p) {
+            const v = p.variants.find(varnt => varnt.name === item.variantName);
+            await api.postForm('/api/pos/order/add', {
+              sessionId: currentSession.id,
+              menuItemId: p.id,
+              variantId: v?.id ?? '',
+              sizeId: '',
+              quantity: item.quantity,
+              note: item.notes,
+            });
+          }
+        }
+      }
+
+      await api.postForm('/api/pos/order/send', { sessionId: currentSession.id });
+      await loadSession(selectedTable);
+      await loadData();
       toast.success('Đã gửi lên bếp');
     } catch {
       toast.error('Gửi bếp thất bại');
@@ -848,6 +961,18 @@ export default function POSPage() {
                           <span className="text-xs font-semibold text-slate-700 truncate">{table.room.name}</span>
                         </div>
                       )}
+                      {table.status === 'OCCUPIED' && table.sessionOpenedAt && (
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold mt-1">
+                          <span className="opacity-60 text-[9px] uppercase font-bold tracking-wider">Mở:</span>
+                          <span>{getSessionDuration(table.sessionOpenedAt)}</span>
+                        </div>
+                      )}
+                      {table.status === 'OCCUPIED' && table.sessionTotalAmount !== undefined && table.sessionTotalAmount !== null && table.sessionTotalAmount > 0 && (
+                        <div className="flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-0.5">
+                          <span className="opacity-60 text-[9px] uppercase font-bold tracking-wider">Tạm tính:</span>
+                          <span>{table.sessionTotalAmount.toLocaleString('vi-VN')}đ</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/50">
                         <span className="text-[9px] uppercase font-extrabold tracking-wider opacity-70 text-slate-400">Trạng thái</span>
                         <span className={`text-[10px] font-black ${statusText}`}>
@@ -1105,6 +1230,30 @@ export default function POSPage() {
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
+            </div>
+
+            {/* Search Bar */}
+            <div className="px-4 py-2 border-b border-slate-200 bg-slate-50/50">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Tìm món ăn..."
+                  value={menuSearchQuery}
+                  onChange={e => setMenuSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-xs border border-slate-200 rounded-xl bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#25439b]/35 focus:border-[#25439b]/50"
+                />
+                <div className="absolute left-3 top-2.5 text-slate-400">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </div>
+                {menuSearchQuery && (
+                  <button
+                    onClick={() => setMenuSearchQuery('')}
+                    className="absolute right-3 top-2 text-[10px] text-slate-400 hover:text-slate-600 font-bold"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Category tabs */}
