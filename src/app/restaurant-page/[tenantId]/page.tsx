@@ -118,6 +118,7 @@ interface FloorPlanObject {
   rotation: number;
   zIndex: number;
   metadataJson?: string;
+  tableId?: number | null;
   floorPlan?: {
     id: number;
     name: string;
@@ -185,6 +186,7 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<FloorPlan | null>(null);
   const [bookedTableIds, setBookedTableIds] = useState<number[]>([]);
+  const [occupiedTables, setOccupiedTables] = useState<Record<number, string>>({});
   const [selectedTableObj, setSelectedTableObj] = useState<FloorPlanObject | null>(null);
   const [selectedTableConfirmed, setSelectedTableConfirmed] = useState<boolean>(false);
   const [loadingFloorPlan, setLoadingFloorPlan] = useState<boolean>(false);
@@ -441,6 +443,14 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
     return '#22c55e'; // Green for available
   };
 
+  const getOccupiedTimeLabel = (tableId?: number | null) => {
+    if (!tableId || !occupiedTables[tableId]) return null;
+    const date = new Date(occupiedTables[tableId]);
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   const doesRoomMatchFilter = (roomName: string, roomId: number) => {
     const nameLower = roomName.toLowerCase();
     switch (spaceFilter) {
@@ -562,11 +572,12 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
 
       // 2. Fetch occupied/reserved table IDs for this time slot
       const isoTime = `${bookingForm.date}T${bookingForm.time}:00`;
-      const avail = await api.get<{ bookedTableIds: number[] }>(
+      const avail = await api.get<{ bookedTableIds: number[]; occupiedTables?: Record<number, string> }>(
         `/api/public/branches/${selectedBranchId}/tables/availability`,
         { params: { time: isoTime } }
       );
       setBookedTableIds(avail.bookedTableIds || []);
+      setOccupiedTables(avail.occupiedTables || {});
     } catch (err) {
       toast.error('Lỗi khi tải thông tin sơ đồ bàn!');
     } finally {
@@ -1545,8 +1556,13 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
                                         opacity: isTable ? 0.9 : 0.4
                                       }}
                                     >
-                                      <span className="text-center drop-shadow-sm select-none">
-                                        {obj.label}
+                                      <span className="text-center drop-shadow-sm select-none flex flex-col items-center">
+                                        <span className="font-extrabold">{obj.label}</span>
+                                        {isTable && obj.tableId && occupiedTables[obj.tableId] && (
+                                          <span className="text-[7.5px] font-medium opacity-90 mt-0.5 bg-black/15 px-1 rounded-sm">
+                                            Vào: {getOccupiedTimeLabel(obj.tableId)}
+                                          </span>
+                                        )}
                                       </span>
                                     </div>
                                   </div>

@@ -93,6 +93,7 @@ export default function BookingWizardPage() {
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<FloorPlan | null>(null);
   const [bookedTableIds, setBookedTableIds] = useState<number[]>([]);
+  const [occupiedTables, setOccupiedTables] = useState<Record<number, string>>({});
   const [selectedTableObj, setSelectedTableObj] = useState<FloorPlanObject | null>(null);
   const [selectedTableConfirmed, setSelectedTableConfirmed] = useState<boolean>(false);
   const [loadingFloorPlan, setLoadingFloorPlan] = useState<boolean>(false);
@@ -235,11 +236,12 @@ export default function BookingWizardPage() {
 
       // 2. Fetch occupied/reserved table IDs for this time slot
       const isoTime = `${bookingDate}T${bookingTime}:00`;
-      const avail = await api.get<{ bookedTableIds: number[] }>(
+      const avail = await api.get<{ bookedTableIds: number[]; occupiedTables?: Record<number, string> }>(
         `/api/public/branches/${selectedBranchId}/tables/availability`,
         { params: { time: isoTime } }
       );
       setBookedTableIds(avail.bookedTableIds || []);
+      setOccupiedTables(avail.occupiedTables || {});
 
       setStep(2);
     } catch (err) {
@@ -340,6 +342,14 @@ export default function BookingWizardPage() {
     const isBooked = (obj.tableId && bookedTableIds.includes(obj.tableId)) || bookedTableIds.includes(obj.id);
     if (isBooked) return '#ef4444'; // Red for booked
     return '#22c55e'; // Green for available
+  };
+
+  const getOccupiedTimeLabel = (tableId?: number | null) => {
+    if (!tableId || !occupiedTables[tableId]) return null;
+    const date = new Date(occupiedTables[tableId]);
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
   };
 
   // Check if a room matches the filter
@@ -745,8 +755,13 @@ export default function BookingWizardPage() {
                                 opacity: isTable ? 0.9 : 0.4
                               }}
                             >
-                              <span className="text-center drop-shadow-sm select-none">
-                                {obj.label}
+                              <span className="text-center drop-shadow-sm select-none flex flex-col items-center">
+                                <span className="font-extrabold">{obj.label}</span>
+                                {isTable && obj.tableId && occupiedTables[obj.tableId] && (
+                                  <span className="text-[7.5px] font-medium opacity-90 mt-0.5 bg-black/15 px-1 rounded-sm">
+                                    Vào: {getOccupiedTimeLabel(obj.tableId)}
+                                  </span>
+                                )}
                               </span>
                             </div>
                           </div>
