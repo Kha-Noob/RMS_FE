@@ -52,7 +52,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f8f9fc] flex items-center justify-center">
+      <div className="min-h-screen bg-[#f8f9fc] flex items-center justify-center relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-indigo-200/10 rounded-full blur-3xl -z-10 pointer-events-none" />
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
           <div className="text-slate-500 text-sm">Loading...</div>
@@ -66,10 +67,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!isAllowed) {
     const defaultPage = getDefaultLandingPage(user.roles, user.isUsingSystemWeb);
     return (
-      <div className="min-h-screen bg-[#f8f9fc]">
+      <div className="min-h-screen bg-[#f8f9fc] relative overflow-hidden">
+        {/* Premium Ambient Background Glows */}
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-200/20 rounded-full blur-3xl -z-10 pointer-events-none" />
+        <div className="absolute bottom-0 left-[20%] w-[600px] h-[600px] bg-blue-200/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+
         <Sidebar />
-        <main className="lg:ml-64 min-h-screen flex items-center justify-center p-6">
-          <div className="w-full max-w-md p-8 rounded-2xl bg-white border border-slate-200 shadow-xl text-center flex flex-col items-center gap-5">
+        <main className="lg:ml-64 min-h-screen flex items-center justify-center p-6 relative z-10">
+          <div className="w-full max-w-md p-8 rounded-2xl bg-white border border-slate-200/60 shadow-xl text-center flex flex-col items-center gap-5">
             <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner">
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -94,9 +99,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fc]">
+    <div className="min-h-screen bg-[#f8f9fc] relative overflow-hidden">
+      {/* Premium Ambient Background Glows */}
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-200/20 rounded-full blur-3xl -z-10 pointer-events-none" />
+      <div className="absolute bottom-0 left-[20%] w-[600px] h-[600px] bg-blue-200/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen">
+      <main className="lg:ml-64 min-h-screen relative z-10">
         <div className="p-4 lg:p-6 max-w-[1600px]">
           {children}
         </div>
