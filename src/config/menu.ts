@@ -12,7 +12,7 @@ export const menuItems: MenuItem[] = [
   { label: 'Menu', href: '/menu', icon: 'menu', roles: ['ADMIN', 'MANAGER', 'CHEF', 'COOPERATOR'] },
   { label: 'Inventory', href: '/inventory', icon: 'inventory', roles: ['ADMIN', 'MANAGER', 'WAREHOUSE', 'CHEF', 'COOPERATOR'] },
   { label: 'Procurement', href: '/procurement', icon: 'procurement', roles: ['ADMIN', 'MANAGER', 'PROCUREMENT', 'COOPERATOR'] },
-  { label: 'Employees', href: '/employees', icon: 'employees', roles: ['ADMIN', 'MANAGER', 'HR', 'COOPERATOR'] },
+  { label: 'Employees', href: '/employees', icon: 'employees', roles: ['HR', 'CASHIER', 'KITCHEN', 'CHEF', 'WAREHOUSE', 'PROCUREMENT', 'EMPLOYEE'] },
   { label: 'Schedule', href: '/schedule', icon: 'schedule', roles: ['ADMIN', 'MANAGER', 'HR', 'EMPLOYEE', 'COOPERATOR'] },
   { label: 'HR Management', href: '/hr-management', icon: 'hr', roles: ['ADMIN', 'MANAGER', 'HR', 'COOPERATOR'] },
   { label: 'Floor Plans', href: '/floor-plans', icon: 'floorplan', roles: ['ADMIN', 'MANAGER', 'COOPERATOR'] },

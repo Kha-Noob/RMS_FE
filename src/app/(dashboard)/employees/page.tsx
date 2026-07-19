@@ -191,6 +191,30 @@ export default function EmployeesPage() {
   const tableTh = 'px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider';
   const tableTd = 'px-4 py-3 text-sm text-slate-600';
 
+  const [scheduleYear, scheduleMonthVal] = scheduleMonth.split('-').map(Number);
+  const startDay = new Date(scheduleYear, scheduleMonthVal - 1, 1);
+  const startOffset = (startDay.getDay() + 6) % 7; // Monday = 0, Sunday = 6
+  const daysInMonth = new Date(scheduleYear, scheduleMonthVal, 0).getDate();
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+  const gridDays: Date[] = [];
+  const tempDate = new Date(startDay);
+  tempDate.setDate(tempDate.getDate() - startOffset);
+  for (let i = 0; i < totalCells; i++) {
+    gridDays.push(new Date(tempDate));
+    tempDate.setDate(tempDate.getDate() + 1);
+  }
+
+  const getAssignmentsForGridDate = (dateObj: Date) => {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    const targetStr = `${y}-${m}-${d}`;
+    return schedule.filter(s => s.date === targetStr);
+  };
+
+  const weekdays = ['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'];
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       <h1 className="text-2xl font-bold text-slate-800">Employee Portal</h1>
@@ -418,47 +442,77 @@ export default function EmployeesPage() {
       </div>
 
       {/* Personal Schedule Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-800">My Schedule</h2>
+      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-800">My Schedule</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Lịch làm việc cá nhân hàng tuần</p>
+          </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => navigateMonth(-1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors">
+            <button onClick={() => navigateMonth(-1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer">
               ← Prev
             </button>
-            <span className="text-sm text-slate-600 font-medium">{formatMonthLabel(scheduleMonth)}</span>
-            <button onClick={() => navigateMonth(1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors">
+            <span className="text-sm text-slate-600 font-semibold bg-slate-50 border border-slate-200 px-4 py-1.5 rounded-lg">{formatMonthLabel(scheduleMonth)}</span>
+            <button onClick={() => navigateMonth(1)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer">
               Next →
             </button>
           </div>
         </div>
 
         {scheduleLoading ? (
-          <div className="flex items-center gap-2 text-slate-500 py-4">
-            <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
+          <div className="flex items-center justify-center gap-2 text-slate-500 py-20 bg-slate-50/40 rounded-xl border border-slate-100 animate-pulse">
+            <div className="w-5 h-5 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
             Loading schedule...
           </div>
-        ) : schedule.length === 0 ? (
-          <p className="text-slate-400 py-4 text-sm">No shifts scheduled for this month.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className={tableTh}>Date</th>
-                  <th className={tableTh}>Shift</th>
-                  <th className={tableTh}>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {schedule.map(s => (
-                  <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className={tableTd}>{new Date(s.date).toLocaleDateString()}</td>
-                    <td className={tableTd}>{s.shiftTemplateName}</td>
-                    <td className={tableTd}>{s.startTime} - {s.endTime}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 shadow-sm">
+            <div className="min-w-[800px] grid grid-cols-7 gap-px">
+              {/* Day Headers */}
+              {weekdays.map(wd => (
+                <div key={wd} className="bg-slate-50 py-3 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {wd}
+                </div>
+              ))}
+
+              {/* Day Cells */}
+              {gridDays.map((dateObj, idx) => {
+                const isCurrentMonth = dateObj.getMonth() === scheduleMonthVal - 1;
+                const isToday = dateObj.toDateString() === new Date().toDateString();
+                const dayAssignments = getAssignmentsForGridDate(dateObj);
+
+                return (
+                  <div
+                    key={idx}
+                    className={`bg-white min-h-[120px] p-2.5 flex flex-col justify-between transition-all duration-200 ${
+                      isCurrentMonth ? 'hover:bg-slate-50/50' : 'bg-slate-50/20 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <span className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                        isToday 
+                          ? 'bg-[#25439b] text-white shadow-sm font-black' 
+                          : isCurrentMonth ? 'text-slate-700 hover:bg-slate-100' : 'text-slate-300'
+                      }`}>
+                        {dateObj.getDate()}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 flex flex-col justify-end space-y-1.5 mt-2">
+                      {dayAssignments.map(assign => (
+                        <div
+                          key={assign.id}
+                          className="bg-[#25439b]/5 hover:bg-[#25439b]/10 border-l-4 border-l-[#25439b] border-t border-r border-b border-slate-100 rounded-r-lg p-2 transition-all duration-150 shadow-xs"
+                          title={`${assign.shiftTemplateName}: ${assign.startTime} - ${assign.endTime}`}
+                        >
+                          <div className="text-[#25439b] text-xs font-bold truncate">{assign.shiftTemplateName}</div>
+                          <div className="text-slate-500 text-[10px] font-semibold mt-0.5">{assign.startTime} - {assign.endTime}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

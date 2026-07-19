@@ -5,7 +5,7 @@ import { toast } from '@/components/Toast';
 import { getApiErrorMessage } from '@/lib/api';
 import {
   getMenuItems, getMenuCategories, createMenuItem, updateMenuItem,
-  deleteMenuItem, patchMenuItemStatus,
+  deleteMenuItem, deleteMenuItemsBulk, patchMenuItemStatus,
   type MenuItem, type MenuCategory,
 } from '@/lib/menu-store';
 
@@ -53,22 +53,28 @@ export default function MenuPage() {
   const [variants, setVariants] = useState<{ name: string; priceVnd: string }[]>([]);
   const [filterCategory, setFilterCategory] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  // Clear selection when filter or search changes
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [search, filterCategory]);
 
   // ─── Load from API ────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [m, c] = await Promise.all([getMenuItems(), getMenuCategories()]);
       setItems(m);
       setCategories(c);
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Không tải được thực đơn'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(false); }, [load]);
 
   // ─── Filtered Items ──────────────────────────────────────────────────────
   const filteredItems = items.filter(item => {
@@ -113,6 +119,29 @@ export default function MenuPage() {
     if (!form.name.trim()) { toast.error('Tên món ăn là bắt buộc'); return; }
     const cat = form.categoryId ? categories.find(c => c.id === Number(form.categoryId)) ?? null : null;
     const variantData = variants.map((v, vi) => ({ id: vi + 1, name: v.name, priceVnd: parseFloat(v.priceVnd) || 0 }));
+
+    const originalItems = [...items];
+    const tempId = Date.now();
+    const tempItem: MenuItem = {
+      id: tempId,
+      name: form.name,
+      description: form.description,
+      priceVnd: parseFloat(form.priceVnd) || 0,
+      imageUrl: form.imageUrl || null,
+      category: cat,
+      variants: variantData,
+      status: form.status,
+    };
+
+    // 1. Optimistic Update (Immediate state update and modal close)
+    if (editingItem) {
+      setItems(prev => prev.map(i => i.id === editingItem.id ? { ...tempItem, id: editingItem.id } : i));
+    } else {
+      setItems(prev => [...prev, tempItem]);
+    }
+    setShowForm(false);
+
+    // 2. Background Sync
     try {
       setSubmitting(true);
       if (editingItem) {
@@ -128,10 +157,10 @@ export default function MenuPage() {
         });
         toast.success('Thêm món ăn thành công');
       }
-      setShowForm(false);
-      load();
+      await load(true); // Silent reload in background to sync database IDs
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Lưu món ăn thất bại'));
+      setItems(originalItems); // Rollback
     } finally {
       setSubmitting(false);
     }
@@ -139,23 +168,58 @@ export default function MenuPage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Xóa món ăn này?')) return;
+    const originalItems = [...items];
+
+    // 1. Optimistic Update
+    setItems(prev => prev.filter(i => i.id !== id));
+
+    // 2. Background Sync
     try {
       await deleteMenuItem(id);
       toast.success('Xóa món ăn thành công');
-      load();
+      await load(true); // Silent reload
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Xóa món ăn thất bại'));
+      setItems(originalItems); // Rollback
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Xóa ${selectedIds.length} món ăn đã chọn?`)) return;
+    const originalItems = [...items];
+    const idsToDelete = [...selectedIds];
+
+    // 1. Optimistic Update
+    setItems(prev => prev.filter(i => !idsToDelete.includes(i.id)));
+    setSelectedIds([]);
+
+    // 2. Background Sync
+    try {
+      await deleteMenuItemsBulk(idsToDelete);
+      toast.success(`Đã xóa ${idsToDelete.length} món ăn thành công`);
+      await load(true); // Silent reload
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Xóa món ăn thất bại'));
+      setItems(originalItems); // Rollback
     }
   };
 
   const handleToggleStatus = async (item: MenuItem) => {
     const newStatus = item.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const originalItems = [...items];
+
+    // 1. Optimistic Update
+    setItems(prev => prev.map(i => i.id === item.id ? { ...i, status: newStatus } : i));
+
+    // 2. Background Sync
     try {
       await patchMenuItemStatus(item.id, newStatus);
       toast.success(newStatus === 'ACTIVE' ? 'Đang bán' : 'Đã ngừng bán');
-      load();
+      await load(true); // Silent reload
     } catch (err) {
       toast.error(getApiErrorMessage(err, 'Cập nhật trạng thái thất bại'));
+      setItems(originalItems); // Rollback
     }
   };
 
@@ -201,6 +265,32 @@ export default function MenuPage() {
         </div>
       </div>
 
+      {selectedIds.length > 0 && (
+        <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#25439b]">{selectedIds.length}</span>
+            <span className="text-sm text-slate-600">món ăn đã được chọn</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-medium transition cursor-pointer"
+            >
+              Hủy chọn
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              className="px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-xs font-medium transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Xóa
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2">
           <div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" />
@@ -212,6 +302,33 @@ export default function MenuPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-slate-500 bg-slate-50 border-b border-slate-200">
+                  <th className="py-3 px-4 w-10">
+                    <label className="flex items-center cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={filteredItems.length > 0 && selectedIds.length === filteredItems.length}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedIds(filteredItems.map(item => item.id));
+                          } else {
+                            setSelectedIds([]);
+                          }
+                        }}
+                      />
+                      <div className="w-5 h-5 border-2 border-slate-300 rounded bg-white peer-checked:bg-[#25439b] peer-checked:border-[#25439b] flex items-center justify-center transition-all duration-150">
+                        <svg
+                          className={`w-3.5 h-3.5 text-white transition-opacity duration-150 ${(filteredItems.length > 0 && selectedIds.length === filteredItems.length) ? 'opacity-100' : 'opacity-0'}`}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      </div>
+                    </label>
+                  </th>
                   <th className="py-3 px-4">Món ăn</th>
                   <th className="py-3 px-4">Danh mục</th>
                   <th className="py-3 px-4">Giá bán</th>
@@ -223,6 +340,33 @@ export default function MenuPage() {
               <tbody>
                 {filteredItems.map(item => (
                   <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                    <td className="py-3 px-4 w-10">
+                      <label className="flex items-center cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setSelectedIds(prev => [...prev, item.id]);
+                            } else {
+                              setSelectedIds(prev => prev.filter(x => x !== item.id));
+                            }
+                          }}
+                        />
+                        <div className="w-5 h-5 border-2 border-slate-300 rounded bg-white peer-checked:bg-[#25439b] peer-checked:border-[#25439b] flex items-center justify-center transition-all duration-150">
+                          <svg
+                            className={`w-3.5 h-3.5 text-white transition-opacity duration-150 ${selectedIds.includes(item.id) ? 'opacity-100' : 'opacity-0'}`}
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                          </svg>
+                        </div>
+                      </label>
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         {item.imageUrl ? (
@@ -250,15 +394,22 @@ export default function MenuPage() {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm font-medium">Sửa</button>
-                        <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm font-medium">Xóa</button>
+                      <div className="flex items-center justify-end">
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-[#25439b] hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-all duration-200 cursor-pointer"
+                          title="Sửa"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                          </svg>
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {filteredItems.length === 0 && (
-                  <tr><td colSpan={6} className="py-12 text-center text-slate-400">Chưa có món ăn nào. Hãy thêm món ăn đầu tiên!</td></tr>
+                  <tr><td colSpan={7} className="py-12 text-center text-slate-400">Chưa có món ăn nào. Hãy thêm món ăn đầu tiên!</td></tr>
                 )}
               </tbody>
             </table>

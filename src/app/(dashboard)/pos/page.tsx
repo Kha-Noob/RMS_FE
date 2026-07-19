@@ -80,6 +80,27 @@ const statusDotColor: Record<TableStatus, string> = {
   RESERVED: 'bg-yellow-500',
 };
 
+const getVietQrBankId = (bankName: string) => {
+  const name = bankName.toLowerCase().trim();
+  if (name.includes('vietcombank') || name.includes('vcb')) return 'vietcombank';
+  if (name.includes('techcombank') || name.includes('tcb')) return 'techcombank';
+  if (name.includes('vietinbank') || name.includes('ctg')) return 'vietinbank';
+  if (name.includes('bidv')) return 'bidv';
+  if (name.includes('agribank')) return 'agribank';
+  if (name.includes('mbbank') || name.includes('mb bank') || name.includes('mb')) return 'mb';
+  if (name.includes('acb')) return 'acb';
+  if (name.includes('tpbank') || name.includes('tp bank')) return 'tpbank';
+  if (name.includes('vpbank') || name.includes('vp bank')) return 'vpbank';
+  if (name.includes('sacombank')) return 'sacombank';
+  if (name.includes('hdbank')) return 'hdbank';
+  if (name.includes('shb')) return 'shb';
+  if (name.includes('vib')) return 'vib';
+  if (name.includes('eximbank')) return 'eximbank';
+  if (name.includes('ocb')) return 'ocb';
+  if (name.includes('scb')) return 'scb';
+  return name.replace(/\s+/g, '');
+};
+
 function getSessionDuration(openedAt: string | null | undefined): string {
   if (!openedAt) return '';
   const diff = Date.now() - new Date(openedAt).getTime();
@@ -91,7 +112,7 @@ function getSessionDuration(openedAt: string | null | undefined): string {
 }
 
 export default function POSPage() {
-  const { activeBranchId } = useAuth();
+  const { activeBranchId, branches } = useAuth();
 
   const [tables, setTables] = useState<TableEntity[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -110,6 +131,30 @@ export default function POSPage() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'VNPAY'>('CASH');
   const [processing, setProcessing] = useState(false);
+
+  // PayOS checkout states
+  const [showPayOSScreen, setShowPayOSScreen] = useState(false);
+  const [payosCheckoutUrl, setPayosCheckoutUrl] = useState('');
+  const [payosOrderCode, setPayosOrderCode] = useState<number | null>(null);
+  const [paymentTimeLeft, setPaymentTimeLeft] = useState(300);
+
+  const activeBranch = branches?.find(b => b.branchId === activeBranchId);
+
+  const closeCheckoutModal = () => {
+    setCheckoutOpen(false);
+    setShowPayOSScreen(false);
+    setPayosCheckoutUrl('');
+    setPayosOrderCode(null);
+  };
+
+  useEffect(() => {
+    if (!showPayOSScreen || paymentTimeLeft <= 0) return;
+    const timer = setInterval(() => {
+      setPaymentTimeLeft(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showPayOSScreen, paymentTimeLeft]);
+
 
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerTab, setManagerTab] = useState<'rooms' | 'tables'>('rooms');
@@ -190,9 +235,25 @@ export default function POSPage() {
         try {
           const menuItems = await getActiveMenuItems();
           const menuProducts = menuToProducts(menuItems);
-          const menuIds = new Set(menuProducts.map(p => p.id));
+          const mergedWithBackend = menuProducts.map(mp => {
+            const bp = activeProducts.find(p => {
+              const pName = p.name.toLowerCase().replace(/\s+/g, '');
+              const mpName = mp.name.toLowerCase().replace(/\s+/g, '');
+              return pName === mpName || pName.includes(mpName) || mpName.includes(pName);
+            });
+            if (bp && bp.variants && bp.variants.length > 0) {
+              return {
+                ...mp,
+                id: bp.id,
+                name: bp.name,
+                variants: bp.variants,
+              };
+            }
+            return null;
+          }).filter((p): p is ProductWithVariants => p !== null);
+          const menuIds = new Set(mergedWithBackend.map(p => p.id));
           const backendOnly = activeProducts.filter(p => !menuIds.has(p.id));
-          const merged = [...menuProducts, ...backendOnly];
+          const merged = [...mergedWithBackend, ...backendOnly];
           setProducts(merged);
           const catSet = new Map<number, Category>();
           merged.forEach(p => { if (p.category) catSet.set(p.category.id, p.category); });
@@ -238,6 +299,31 @@ export default function POSPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Polling for POS payment status
+  useEffect(() => {
+    let pollInterval: NodeJS.Timeout;
+    if (showPayOSScreen && selectedTable) {
+      const checkPaymentStatus = async () => {
+        try {
+          // If the active session is gone/404, it means payment was successful and session was cleared/paid
+          await api.get('/api/pos/session/active', { params: { tableId: selectedTable.id } });
+        } catch (err: any) {
+          // Active session is gone! Payment successful.
+          toast.success('Thanh toán chuyển khoản thành công!');
+          closeCheckoutModal();
+          setSession(null);
+          setCartItems([]);
+          setSelectedTable(null);
+          loadData();
+        }
+      };
+      pollInterval = setInterval(checkPaymentStatus, 2000);
+    }
+    return () => {
+      if (pollInterval) clearInterval(pollInterval);
+    };
+  }, [showPayOSScreen, selectedTable, loadData]);
+
   // Refresh products when menu drawer opens (merge, don't overwrite)
   useEffect(() => {
     if (!menuOpen) return;
@@ -246,9 +332,25 @@ export default function POSPage() {
       if (cancelled) return;
       const menuProducts = menuToProducts(menuItems);
       setProducts(prev => {
-        const menuIds = new Set(menuProducts.map(p => p.id));
+        const mergedWithBackend = menuProducts.map(mp => {
+          const bp = prev.find(p => {
+            const pName = p.name.toLowerCase().replace(/\s+/g, '');
+            const mpName = mp.name.toLowerCase().replace(/\s+/g, '');
+            return p.id === mp.id || pName === mpName || pName.includes(mpName) || mpName.includes(pName);
+          });
+          if (bp && bp.variants && bp.variants.length > 0) {
+            return {
+              ...mp,
+              id: bp.id,
+              name: bp.name,
+              variants: bp.variants,
+            };
+          }
+          return mp;
+        });
+        const menuIds = new Set(mergedWithBackend.map(p => p.id));
         const existing = prev.filter(p => !menuIds.has(p.id));
-        return [...menuProducts, ...existing];
+        return [...mergedWithBackend, ...existing];
       });
     }).catch(() => {});
     return () => { cancelled = true; };
@@ -392,7 +494,17 @@ export default function POSPage() {
         if (text === 'ORDER_STATE_CHANGED' || text === 'NEW_ORDER_SUBMITTED' || text.includes('KDS_READY_ALERT')) {
           loadData();
           if (selectedTable) {
-            loadSession(selectedTable);
+            api.get('/api/pos/session/active', { params: { tableId: selectedTable.id } })
+              .then(() => {
+                loadSession(selectedTable);
+              })
+              .catch(() => {
+                toast.success('Thanh toán thành công qua chuyển khoản!');
+                closeCheckoutModal();
+                setSession(null);
+                setCartItems([]);
+                setSelectedTable(null);
+              });
           }
         }
       };
@@ -419,52 +531,33 @@ export default function POSPage() {
     const itemPrice = size ? size.price : (variant?.price ?? 0);
     const variantName = variant ? variant.name : product.name;
     const sizeName = size ? size.name : '';
-    setCartLoading(true);
-    try {
-      let currentSession = session;
-      if (!currentSession || currentSession.id > 1000000000000) {
-        currentSession = await ensureSession(selectedTable);
-        setSession(currentSession);
-      }
 
-      await api.postForm('/api/pos/order/add', {
-        sessionId: currentSession.id,
-        menuItemId: product.id,
-        variantId: variant?.id ?? '',
-        sizeId: size?.id ?? '',
+    // Add item strictly locally to React state
+    setCartItems(prev => {
+      const existing = prev.find(i =>
+        i.productName === product.name &&
+        i.variantName === variantName &&
+        i.sizeName === sizeName &&
+        i.notes === note &&
+        i.status === 'PENDING'
+      );
+      if (existing) {
+        return prev.map(i => i.detailId === existing.detailId ? { ...i, quantity: i.quantity + quantity } : i);
+      }
+      const tempDetailId = Date.now(); // Temp ID > 1000000000000
+      return [...prev, {
+        detailId: tempDetailId,
+        productName: product.name,
+        variantName,
+        sizeName,
+        price: itemPrice,
         quantity,
-        note,
-      });
-      await loadSession(selectedTable);
-      toast.success(`Đã thêm ${variantName}${sizeName ? ' - ' + sizeName : ''}`);
-    } catch {
-      // Backend unavailable — add locally to cart
-      setCartItems(prev => {
-        const existing = prev.find(i =>
-          i.productName === product.name &&
-          i.variantName === variantName &&
-          i.sizeName === sizeName &&
-          i.notes === note
-        );
-        if (existing) {
-          return prev.map(i => i.detailId === existing.detailId ? { ...i, quantity: i.quantity + quantity } : i);
-        }
-        const newDetailId = prev.length > 0 ? Math.max(...prev.map(i => i.detailId)) + 1 : 1;
-        return [...prev, {
-          detailId: newDetailId,
-          productName: product.name,
-          variantName,
-          sizeName,
-          price: itemPrice,
-          quantity,
-          status: 'PENDING',
-          notes: note,
-        }];
-      });
-      toast.success(`Đã thêm ${variantName}${sizeName ? ' - ' + sizeName : ''}`);
-    } finally {
-      setCartLoading(false);
-    }
+        status: 'PENDING',
+        notes: note,
+      }];
+    });
+
+    toast.success(`Đã thêm ${variantName}${sizeName ? ' - ' + sizeName : ''} vào danh sách chờ`);
   };
 
   const openAddItemModal = (product: ProductWithVariants, variant: ProductVariant | null = null) => {
@@ -498,14 +591,36 @@ export default function POSPage() {
 
   const handleUpdateQuantity = async (detailId: number, delta: number) => {
     if (!session || !selectedTable) return;
-    setCartLoading(true);
+
+    // 1. If it is a local draft item (detailId > 1,000,000,000,000), update strictly locally
+    if (detailId > 1000000000000) {
+      setCartItems(prev => {
+        const item = prev.find(i => i.detailId === detailId);
+        if (!item) return prev;
+        const newQty = item.quantity + delta;
+        if (newQty <= 0) return prev.filter(i => i.detailId !== detailId);
+        return prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i);
+      });
+      return;
+    }
+
+    // 2. If it is an existing database item, sync changes with server
+    const originalItems = [...cartItems];
+    setCartItems(prev => {
+      const item = prev.find(i => i.detailId === detailId);
+      if (!item) return prev;
+      const newQty = item.quantity + delta;
+      if (newQty <= 0) return prev.filter(i => i.detailId !== detailId);
+      return prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i);
+    });
+
     try {
       let currentSession = session;
       if (currentSession.id > 1000000000000) {
         currentSession = await ensureSession(selectedTable);
         setSession(currentSession);
       }
-      const item = cartItems.find(i => i.detailId === detailId);
+      const item = originalItems.find(i => i.detailId === detailId);
       if (!item) return;
       const newQty = item.quantity + delta;
       if (newQty <= 0) {
@@ -515,18 +630,18 @@ export default function POSPage() {
           params: { quantity: newQty },
         });
       }
-      await loadSession(selectedTable);
-    } catch {
-      // Backend unavailable — update locally
-      setCartItems(prev => {
-        const item = prev.find(i => i.detailId === detailId);
-        if (!item) return prev;
-        const newQty = item.quantity + delta;
-        if (newQty <= 0) return prev.filter(i => i.detailId !== detailId);
-        return prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i);
+
+      // Quietly reload session from backend in background to sync actual database IDs
+      const res = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: selectedTable.id } });
+      setSession({
+        id: res.sessionId,
+        table: selectedTable,
+        status: res.status,
       });
-    } finally {
-      setCartLoading(false);
+      setCartItems(res.items || []);
+    } catch {
+      toast.error('Lỗi cập nhật số lượng. Đang khôi phục...');
+      setCartItems(originalItems);
     }
   };
 
@@ -580,13 +695,27 @@ export default function POSPage() {
         toast.info(res.qrData);
         return;
       }
+      if (paymentMethod === 'BANK_TRANSFER') {
+        const res = await api.postForm<{ checkoutUrl: string; orderCode: number }>('/api/pos/checkout/payos', {
+          sessionId: session.id,
+        });
+        if (res.checkoutUrl) {
+          setPayosCheckoutUrl(res.checkoutUrl);
+          setPayosOrderCode(res.orderCode);
+          setPaymentTimeLeft(300);
+          setShowPayOSScreen(true);
+        } else {
+          toast.error('Không tạo được liên kết thanh toán.');
+        }
+        return;
+      }
       await api.postForm('/api/pos/checkout/confirm', {
         sessionId: session.id,
         amount: total,
         paymentMethod,
       });
       toast.success('Thanh toán thành công');
-      setCheckoutOpen(false);
+      closeCheckoutModal();
       setSession(null);
       setCartItems([]);
       setSelectedTable(null);
@@ -1208,9 +1337,104 @@ export default function POSPage() {
           MENU MODAL - Opens when "Thêm món" is clicked
           ═══════════════════════════════════════════════════════════════ */}
       {menuOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex">
-          {/* Click outside to close */}
-          <div className="flex-1" onClick={() => setMenuOpen(false)} />
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex justify-between">
+          {/* Left panel showing current draft cart details */}
+          <div className="hidden md:flex flex-col w-[380px] bg-slate-50 border-r border-slate-200 h-full p-4 animate-slide-in-left shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
+              <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                Giỏ hàng tạm thời
+              </h3>
+              <span className="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
+                {cartItems.length} món
+              </span>
+            </div>
+            
+            {/* Cart Items List */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 select-none">
+              {cartItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                  <svg className="w-8 h-8 opacity-40 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+                  <p className="text-xs">Chưa có món nào được chọn</p>
+                </div>
+              ) : (
+                cartItems.map(item => (
+                  <div
+                    key={item.detailId}
+                    className={`rounded-xl p-3 border transition-colors ${
+                      item.status === 'COOKING' ? 'border-orange-200 bg-orange-50/70' :
+                      item.status === 'READY' ? 'border-emerald-200 bg-emerald-50/70' : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold text-slate-800 truncate">{item.productName}</div>
+                        {item.variantName && item.variantName !== item.productName && (
+                          <div className="text-[10px] text-slate-500 mt-0.5">Loại: {item.variantName}</div>
+                        )}
+                        {item.sizeName && (
+                          <div className="text-[10px] text-slate-500 mt-0.5">Size: {item.sizeName}</div>
+                        )}
+                        {item.notes && (
+                          <div className="text-[10px] text-amber-600 mt-0.5 italic">Ghi chú: {item.notes}</div>
+                        )}
+                      </div>
+                      <div className="text-xs font-semibold text-emerald-600 ml-2 whitespace-nowrap">
+                        {(item.price * item.quantity).toLocaleString('vi-VN')}đ
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleUpdateQuantity(item.detailId, -1)}
+                          disabled={cartLoading}
+                          className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-xs text-slate-500 disabled:opacity-50 transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="text-xs w-5 text-center text-slate-700 font-semibold">{item.quantity}</span>
+                        <button
+                          onClick={() => handleUpdateQuantity(item.detailId, 1)}
+                          disabled={cartLoading}
+                          className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-xs text-slate-500 disabled:opacity-50 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        {item.price.toLocaleString('vi-VN')}đ
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Bottom Section */}
+            <div className="mt-4 pt-3 border-t border-slate-200 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-slate-500">Tạm tính</span>
+                <span className="text-base font-bold text-emerald-600">
+                  {cartItems.reduce((acc, curr) => acc + curr.price * curr.quantity, 0).toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+              <button
+                onClick={handleSendToKitchen}
+                disabled={!session || cartItems.length === 0 || cartLoading}
+                className="w-full py-2 bg-orange-500 hover:bg-orange-400 rounded-xl text-xs font-bold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+              >
+                {cartLoading ? 'Đang gửi...' : (
+                  <>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                    Gửi bếp ({cartItems.filter(i => i.status === 'PENDING').length})
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Empty spacer / Click to close drawer */}
+          <div className="flex-1 cursor-pointer" onClick={() => setMenuOpen(false)} />
 
           {/* Slide-in panel from right */}
           <div className="w-[520px] max-w-[90vw] bg-white shadow-2xl flex flex-col animate-slide-in-right">
@@ -1344,18 +1568,18 @@ export default function POSPage() {
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="text-lg font-semibold text-slate-800">{addItemProduct.name}</h3>
-              <button onClick={closeAddItemModal} className="text-slate-400 hover:text-slate-600 text-xl">&#10005;</button>
+              <button onClick={closeAddItemModal} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
             </div>
             <div className="p-4 space-y-4">
               {addItemProduct.variants.length > 1 && (
                 <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">Ch&#7885;n lo&#7841;i *</label>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">Chọn loại *</label>
                   <div className="grid grid-cols-2 gap-2">
                     {addItemProduct.variants.map((v, idx) => (
                       <button key={`sv-${addItemProduct.id}-${idx}`} type="button" onClick={() => { setAddItemVariant(v); setAddItemSize(null); }}
                         className={`p-2.5 rounded-lg border text-left transition-all text-sm ${addItemVariant?.id === v.id ? 'border-[#25439b] bg-[#25439b]/5 ring-1 ring-[#25439b]/20' : 'border-slate-200 hover:border-slate-300'}`}>
                         <div className="font-medium text-slate-800">{v.name}</div>
-                        <div className="text-xs text-emerald-600 font-semibold">{v.price.toLocaleString('vi-VN')}&#8363;</div>
+                        <div className="text-xs text-emerald-600 font-semibold">{v.price.toLocaleString('vi-VN')}₫</div>
                       </button>
                     ))}
                   </div>
@@ -1363,39 +1587,39 @@ export default function POSPage() {
               )}
               {addItemProduct.variants.length <= 1 && (
                 <div>
-                  <label className="text-sm font-medium text-slate-700 mb-2 block">Ch&#7885;n size</label>
+                  <label className="text-sm font-medium text-slate-700 mb-2 block">Chọn size</label>
                   <div className="grid grid-cols-3 gap-2">
-                    {[{ id: 1, name: 'Nh&#7887;', price: addItemPrice }, { id: 2, name: 'V&#7915;a', price: Math.round(addItemPrice * 1.2) }, { id: 3, name: 'L&#7899;n', price: Math.round(addItemPrice * 1.5) }].map(s => (
+                    {[{ id: 1, name: 'Nhỏ', price: addItemPrice }, { id: 2, name: 'Vừa', price: Math.round(addItemPrice * 1.2) }, { id: 3, name: 'Lớn', price: Math.round(addItemPrice * 1.5) }].map(s => (
                       <button key={s.id} type="button" onClick={() => setAddItemSize(addItemSize?.id === s.id ? null : s)}
                         className={`p-2 rounded-lg border text-center transition-all text-sm ${addItemSize?.id === s.id ? 'border-[#25439b] bg-[#25439b]/5 ring-1 ring-[#25439b]/20' : 'border-slate-200 hover:border-slate-300'}`}>
                         <div className="font-medium text-slate-800">{s.name}</div>
-                        <div className="text-[10px] text-slate-400">{s.price.toLocaleString('vi-VN')}&#8363;</div>
+                        <div className="text-[10px] text-slate-400">{s.price.toLocaleString('vi-VN')}₫</div>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-2 block">S&#7889; l&#432;&#7907;ng</label>
+                <label className="text-sm font-medium text-slate-700 mb-2 block">Số lượng</label>
                 <div className="flex items-center justify-center gap-4">
-                  <button type="button" onClick={() => setAddItemQuantity(Math.max(1, addItemQuantity - 1))} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-lg font-bold text-slate-600 transition-colors">&#8722;</button>
+                  <button type="button" onClick={() => setAddItemQuantity(Math.max(1, addItemQuantity - 1))} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-lg font-bold text-slate-600 transition-colors">−</button>
                   <span className="text-xl font-bold text-slate-800 w-8 text-center">{addItemQuantity}</span>
                   <button type="button" onClick={() => setAddItemQuantity(addItemQuantity + 1)} className="w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-lg font-bold text-slate-600 transition-colors">+</button>
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-slate-700 mb-1 block">Ghi ch&#432;</label>
-                <input type="text" value={addItemNote} onChange={e => setAddItemNote(e.target.value)} placeholder="&#205;t h&#224;nh, th&#234;m s&#7885;t..." className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]" />
+                <label className="text-sm font-medium text-slate-700 mb-1 block">Ghi chú</label>
+                <input type="text" value={addItemNote} onChange={e => setAddItemNote(e.target.value)} placeholder="Ít hành, thêm sốt..." className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]" />
               </div>
               <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                <span className="text-sm text-slate-500">Th&#224;nh ti&#7873;n</span>
-                <span className="text-lg font-bold text-emerald-600">{addItemTotal.toLocaleString('vi-VN')}&#8363;</span>
+                <span className="text-sm text-slate-500">Thành tiền</span>
+                <span className="text-lg font-bold text-emerald-600">{addItemTotal.toLocaleString('vi-VN')}₫</span>
               </div>
             </div>
             <div className="flex gap-3 p-4 border-t border-slate-200">
-              <button onClick={closeAddItemModal} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">H&#7911;y</button>
+              <button onClick={closeAddItemModal} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors">Hủy</button>
               <button onClick={handleAddItemConfirm} disabled={!addItemCanConfirm || cartLoading} className="flex-1 py-2.5 rounded-xl bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                {cartLoading ? '&#272;ang th&#234;m...' : 'Th&#234;m v&#224;o b&#7843;n'}
+                {cartLoading ? 'Đang thêm...' : 'Thêm vào bàn'}
               </button>
             </div>
           </div>
@@ -1404,48 +1628,142 @@ export default function POSPage() {
 
       {/* CHECKOUT MODAL */}
       {checkoutOpen && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setCheckoutOpen(false)}>
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={closeCheckoutModal}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-slate-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-slate-200">
               <h3 className="text-lg font-semibold text-slate-800">Thanh toán</h3>
-              <button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">âœ•</button>
+              <button onClick={closeCheckoutModal} className="text-slate-400 hover:text-slate-600 text-xl transition-colors">✕</button>
             </div>
-            <div className="p-4 space-y-4">
-              <div className="bg-slate-50 rounded-xl p-4">
-                <div className="text-sm text-slate-500 mb-1">Tổng tiền</div>
-                <div className="text-2xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</div>
-              </div>
-              <div>
-                <div className="text-sm text-slate-500 mb-2">Phương thức thanh toán</div>
-                <div className="grid grid-cols-1 gap-2">
-                  {[
-                    { key: 'CASH' as const, label: 'Tiền mặt', desc: 'Thanh toán bằng tiền mặt' },
-                    { key: 'BANK_TRANSFER' as const, label: 'Chuyển khoản / VietQR', desc: 'Chuyển khoản ngân hàng' },
-                    { key: 'VNPAY' as const, label: 'VNPay QR', desc: 'Quét mã QR VNPay' },
-                  ].map(opt => (
+            
+            {showPayOSScreen ? (
+              <div className="p-4 space-y-4 text-center">
+                <div className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+                  Hệ thống đang tự động rà soát giao dịch chuyển khoản ngân hàng của bạn.
+                  <br />
+                  Vui lòng giữ nguyên trang, quá trình xác thực mất khoảng 5-15 giây.
+                </div>
+
+                {/* Countdown Timer */}
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full text-amber-700 font-extrabold text-[10px] mx-auto animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                  <span>
+                    {Math.floor(paymentTimeLeft / 60)}:{(paymentTimeLeft % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
+
+                {/* Bank details and VietQR */}
+                <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100/50 space-y-2.5 text-xs font-semibold text-left text-slate-700">
+                  <p className="text-[10px] text-indigo-550 font-black uppercase tracking-wider flex items-center gap-1">
+                    <span>🏦</span> Thông tin tài khoản nhận thanh toán
+                  </p>
+                  <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[10px]">
+                    <span className="text-slate-450 font-bold">Ngân hàng:</span>
+                    <span className="font-extrabold text-slate-800">{activeBranch?.bankName || 'Vietcombank'}</span>
+                    
+                    <span className="text-slate-450 font-bold">Số tài khoản:</span>
+                    <span className="font-black text-indigo-700 select-all">{activeBranch?.bankAccountNo || '1012938475'}</span>
+                    
+                    <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
+                    <span className="font-extrabold text-slate-800 uppercase">{activeBranch?.bankAccountName || 'LITEFLOW RESTAURANT GROUP'}</span>
+
+                    <span className="text-slate-450 font-bold">Nội dung:</span>
+                    <span className="font-extrabold text-slate-850 select-all">RMSPOS{session?.id}</span>
+
+                    <span className="text-slate-450 font-bold">Số tiền:</span>
+                    <span className="font-extrabold text-emerald-600">{(total).toLocaleString('vi-VN')}đ</span>
+                  </div>
+
+                  <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
+                    <img 
+                      src={`https://img.vietqr.io/image/${getVietQrBankId(activeBranch?.bankName || 'Vietcombank')}-${activeBranch?.bankAccountNo || '1012938475'}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMSPOS${session?.id}`)}&accountName=${encodeURIComponent(activeBranch?.bankAccountName || 'LITEFLOW RESTAURANT GROUP')}`}
+                      alt="VietQR Payment Code"
+                      className="w-36 h-36 object-contain rounded-lg border border-slate-100 shadow-sm"
+                    />
+                    <p className="text-[8px] text-rose-500 font-black text-center animate-pulse mt-1">
+                      * Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét
+                    </p>
+                    
                     <button
-                      key={opt.key}
-                      onClick={() => setPaymentMethod(opt.key)}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        paymentMethod === opt.key
-                          ? 'border-[#25439b] bg-[#25439b]/5 ring-1 ring-[#25439b]/20'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          if (payosOrderCode) {
+                            setProcessing(true);
+                            await api.post('/api/public/webhook/payos', {
+                              signature: 'mock-signature',
+                              data: {
+                                orderCode: payosOrderCode,
+                                amount: total,
+                                description: `RMSPOS${session?.id}`,
+                                reference: `MOCK_REF_${Date.now()}`
+                              }
+                            });
+                            toast.success('Gửi webhook giả lập thành công!');
+                          }
+                        } catch {
+                          toast.error('Lỗi khi giả lập thanh toán');
+                        } finally {
+                          setProcessing(false);
+                        }
+                      }}
+                      disabled={processing}
+                      className="mt-2 w-full py-1.5 px-3 bg-gradient-to-r from-emerald-550 to-teal-650 hover:from-emerald-650 hover:to-teal-755 text-white rounded-lg text-[9px] font-black transition shadow-sm cursor-pointer animate-pulse"
                     >
-                      <div className="text-sm font-medium text-slate-800">{opt.label}</div>
-                      <div className="text-[11px] text-slate-400">{opt.desc}</div>
+                      ⚡ Giả lập Banking tự động nhận diện
                     </button>
-                  ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => {
+                      setShowPayOSScreen(false);
+                      setPayosCheckoutUrl('');
+                      setPayosOrderCode(null);
+                    }}
+                    className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-500 text-xs font-semibold hover:bg-slate-50 transition-colors"
+                  >
+                    Quay lại để sửa đổi
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={handleCheckout}
-                disabled={processing}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50"
-              >
-                {processing ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
-              </button>
-            </div>
+            ) : (
+              <div className="p-4 space-y-4">
+                <div className="bg-slate-50 rounded-xl p-4">
+                  <div className="text-sm text-slate-500 mb-1">Tổng tiền</div>
+                  <div className="text-2xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</div>
+                </div>
+                <div>
+                  <div className="text-sm text-slate-500 mb-2">Phương thức thanh toán</div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      { key: 'CASH' as const, label: 'Tiền mặt', desc: 'Thanh toán bằng tiền mặt' },
+                      { key: 'BANK_TRANSFER' as const, label: 'Chuyển khoản / VietQR', desc: 'Chuyển khoản ngân hàng' },
+                    ].map(opt => (
+                      <button
+                        key={opt.key}
+                        onClick={() => setPaymentMethod(opt.key)}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          paymentMethod === opt.key
+                            ? 'border-[#25439b] bg-[#25439b]/5 ring-1 ring-[#25439b]/20'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="text-sm font-medium text-slate-800">{opt.label}</div>
+                        <div className="text-[11px] text-slate-400">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={handleCheckout}
+                  disabled={processing}
+                  className="w-full py-3 bg-[#25439b] hover:bg-[#1c3580] rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                >
+                  {processing ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1573,6 +1891,13 @@ export default function POSPage() {
         }
         .animate-slide-in-right {
           animation: slide-in-right 0.25s ease-out;
+        }
+        @keyframes slide-in-left {
+          from { transform: translateX(-100%); }
+          to { transform: translateX(0); }
+        }
+        .animate-slide-in-left {
+          animation: slide-in-left 0.25s ease-out;
         }
       `}</style>
     </div>
