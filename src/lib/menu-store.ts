@@ -60,6 +60,10 @@ export async function deleteMenuItem(id: number): Promise<void> {
   return api.delete(`/api/menu/${id}`);
 }
 
+export async function deleteMenuItemsBulk(ids: number[]): Promise<void> {
+  return api.delete('/api/menu/bulk', { body: ids });
+}
+
 // ─── Menu Categories ────────────────────────────────────────────────────────
 export async function getMenuCategories(): Promise<MenuCategory[]> {
   return api.get<MenuCategory[]>('/api/menu/categories');

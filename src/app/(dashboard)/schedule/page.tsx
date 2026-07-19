@@ -41,13 +41,15 @@ export default function SchedulePage() {
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [modalDate, setModalDate] = useState('');
-  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [selectedEmployees, setSelectedEmployees] = useState<number[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState('');
   const [selectedShift, setSelectedShift] = useState('');
   const [assigning, setAssigning] = useState(false);
 
   // Bulk assign state
   const [bulkMode, setBulkMode] = useState(false);
-  const [bulkEmployee, setBulkEmployee] = useState('');
+  const [bulkEmployees, setBulkEmployees] = useState<number[]>([]);
+  const [bulkSearch, setBulkSearch] = useState('');
   const [bulkShift, setBulkShift] = useState('');
   const [bulkDates, setBulkDates] = useState<string[]>([]);
   const [bulkAssigning, setBulkAssigning] = useState(false);
@@ -91,28 +93,29 @@ export default function SchedulePage() {
 
   const openAssignModal = (date: string) => {
     setModalDate(date);
-    setSelectedEmployee('');
+    setSelectedEmployees([]);
+    setEmployeeSearch('');
     setSelectedShift('');
     setModalOpen(true);
   };
 
   const handleAssign = async () => {
-    if (!selectedEmployee || !selectedShift) {
-      toast.error('Select an employee and shift');
+    if (selectedEmployees.length === 0 || !selectedShift) {
+      toast.error('Select at least one employee and a shift');
       return;
     }
     try {
       setAssigning(true);
-      await api.post('/api/hr/schedule/assign', {
-        employeeId: Number(selectedEmployee),
+      await api.post('/api/hr/schedule/assign-bulk', {
+        employeeIds: selectedEmployees,
         shiftTemplateId: Number(selectedShift),
         date: modalDate,
       });
-      toast.success('Shift assigned');
+      toast.success('Shifts assigned successfully');
       setModalOpen(false);
       fetchData();
     } catch {
-      toast.error('Failed to assign shift');
+      toast.error('Failed to assign shifts');
     } finally {
       setAssigning(false);
     }
@@ -125,8 +128,8 @@ export default function SchedulePage() {
   };
 
   const handleBulkAssign = async () => {
-    if (!bulkEmployee || !bulkShift || bulkDates.length === 0) {
-      toast.error('Select employee, shift, and at least one date');
+    if (bulkEmployees.length === 0 || !bulkShift || bulkDates.length === 0) {
+      toast.error('Select employee(s), shift, and at least one date');
       return;
     }
     try {
@@ -134,17 +137,18 @@ export default function SchedulePage() {
       await Promise.all(
         bulkDates.map(date =>
           api.post('/api/hr/schedule/assign-bulk', {
-            employeeId: Number(bulkEmployee),
+            employeeIds: bulkEmployees,
             shiftTemplateId: Number(bulkShift),
             date,
           })
         )
       );
-      toast.success(`Shift assigned to ${bulkDates.length} day(s)`);
+      toast.success(`Shifts assigned to ${bulkDates.length} day(s)`);
       setBulkMode(false);
       setBulkDates([]);
-      setBulkEmployee('');
+      setBulkEmployees([]);
       setBulkShift('');
+      setBulkSearch('');
       fetchData();
     } catch {
       toast.error('Failed to bulk assign shifts');
@@ -272,25 +276,92 @@ export default function SchedulePage() {
 
       {/* Bulk assign bar */}
       {bulkMode && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
-          <span className="text-sm text-slate-500">
-            {bulkDates.length} day(s) selected
-          </span>
-          <select value={bulkEmployee} onChange={e => setBulkEmployee(e.target.value)} className={selectClass + ' w-48'}>
-            <option value="">Select employee</option>
-            {employees.map(e => (
-              <option key={e.id} value={e.id}>{e.user?.name || `#${e.id}`}</option>
-            ))}
-          </select>
-          <select value={bulkShift} onChange={e => setBulkShift(e.target.value)} className={selectClass + ' w-48'}>
-            <option value="">Select shift</option>
-            {shiftTemplates.map(s => (
-              <option key={s.id} value={s.id}>{s.name} ({s.startTime}-{s.endTime})</option>
-            ))}
-          </select>
-          <button onClick={handleBulkAssign} disabled={bulkAssigning} className={btnPrimary}>
-            {bulkAssigning ? 'Assigning...' : 'Assign to Selected Days'}
-          </button>
+        <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col gap-4 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <span className="text-sm font-semibold text-slate-700">
+              Bulk Assignment ({bulkDates.length} day(s) selected)
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkEmployees(employees.map(e => e.id))}
+                className="text-xs text-[#25439b] hover:underline font-medium"
+              >
+                Select All Employees
+              </button>
+              <span className="text-xs text-slate-300">|</span>
+              <button
+                type="button"
+                onClick={() => setBulkEmployees([])}
+                className="text-xs text-slate-500 hover:underline font-medium"
+              >
+                Clear Selected Employees
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Shift Selection */}
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Select Shift</label>
+              <select value={bulkShift} onChange={e => setBulkShift(e.target.value)} className={selectClass}>
+                <option value="">Select shift</option>
+                {shiftTemplates.map(s => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.startTime}-{s.endTime})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Employees Search and Select */}
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-slate-500 mb-1">Select Employees ({bulkEmployees.length} selected)</label>
+              <input
+                type="text"
+                placeholder="Filter employees..."
+                value={bulkSearch}
+                onChange={e => setBulkSearch(e.target.value)}
+                className={inputClass + ' mb-2'}
+              />
+              <div className="border border-slate-200 rounded-lg p-2 max-h-32 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1 bg-slate-50/50">
+                {employees
+                  .filter(e => (e.user?.name || '').toLowerCase().includes(bulkSearch.toLowerCase()))
+                  .map(e => {
+                    const checked = bulkEmployees.includes(e.id);
+                    return (
+                      <label key={e.id} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-white cursor-pointer text-xs text-slate-700 border border-transparent hover:border-slate-100">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setBulkEmployees(prev =>
+                              checked ? prev.filter(id => id !== e.id) : [...prev, e.id]
+                            );
+                          }}
+                          className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                        />
+                        <span className="truncate">{e.user?.name || `Employee #${e.id}`}</span>
+                      </label>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => { setBulkMode(false); setBulkDates([]); }}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleBulkAssign}
+              disabled={bulkAssigning || bulkEmployees.length === 0 || !bulkShift || bulkDates.length === 0}
+              className={btnPrimary}
+            >
+              {bulkAssigning ? 'Assigning...' : 'Assign to Selected Days'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -302,18 +373,11 @@ export default function SchedulePage() {
               <h2 className="text-lg font-semibold text-slate-800">Assign Shift</h2>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-800 text-xl">&times;</button>
             </div>
-            <p className="text-sm text-slate-500 mb-4">Date: {new Date(modalDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p className="text-sm text-slate-500 mb-4">
+              Date: {new Date(modalDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 mb-1">Employee</label>
-                <select value={selectedEmployee} onChange={e => setSelectedEmployee(e.target.value)} className={selectClass}>
-                  <option value="">Select employee</option>
-                  {employees.map(e => (
-                    <option key={e.id} value={e.id}>{e.user?.name || `Employee #${e.id}`}</option>
-                  ))}
-                </select>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-1">Shift Template</label>
                 <select value={selectedShift} onChange={e => setSelectedShift(e.target.value)} className={selectClass}>
@@ -323,13 +387,71 @@ export default function SchedulePage() {
                   ))}
                 </select>
               </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-slate-600">Select Employees</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEmployees(employees.map(e => e.id))}
+                      className="text-xs text-[#25439b] hover:underline"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-xs text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedEmployees([])}
+                      className="text-xs text-slate-500 hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search employees..."
+                  value={employeeSearch}
+                  onChange={e => setEmployeeSearch(e.target.value)}
+                  className={inputClass + ' mb-2'}
+                />
+                <div className="border border-slate-200 rounded-lg p-2 max-h-48 overflow-y-auto space-y-1">
+                  {employees
+                    .filter(e => (e.user?.name || '').toLowerCase().includes(employeeSearch.toLowerCase()))
+                    .map(e => {
+                      const checked = selectedEmployees.includes(e.id);
+                      return (
+                        <label key={e.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setSelectedEmployees(prev =>
+                                checked ? prev.filter(id => id !== e.id) : [...prev, e.id]
+                              );
+                            }}
+                            className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                          />
+                          <span className="truncate">{e.user?.name || `Employee #${e.id}`}</span>
+                        </label>
+                      );
+                    })}
+                  {employees.filter(e => (e.user?.name || '').toLowerCase().includes(employeeSearch.toLowerCase())).length === 0 && (
+                    <p className="text-xs text-slate-400 text-center py-4">No employees match search</p>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {selectedEmployees.length} employee(s) selected
+                </p>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setModalOpen(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm transition-colors">
                 Cancel
               </button>
-              <button onClick={handleAssign} disabled={assigning} className={btnPrimary}>
+              <button onClick={handleAssign} disabled={assigning || selectedEmployees.length === 0 || !selectedShift} className={btnPrimary}>
                 {assigning ? 'Assigning...' : 'Assign'}
               </button>
             </div>
