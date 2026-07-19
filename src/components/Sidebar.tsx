@@ -84,16 +84,16 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full w-64 bg-[#1e293b] z-40 transition-transform duration-300 flex flex-col
+        className={`fixed left-0 top-0 h-full w-64 bg-gradient-to-b from-[#0f172a] via-[#1e293b] to-[#0f172a] border-r border-slate-800/60 z-40 transition-transform duration-300 flex flex-col
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
       >
         {/* Brand */}
-        <div className="px-5 py-5 border-b border-slate-700/50">
-          <h1 className="text-lg font-bold text-white tracking-tight">RMS</h1>
+        <div className="px-5 py-5 border-b border-slate-800/50">
+          <h1 className="text-xl font-black bg-gradient-to-r from-blue-400 via-indigo-400 to-violet-400 bg-clip-text text-transparent tracking-wider">RMS</h1>
           <p className="text-xs text-slate-400 mt-0.5 truncate">{user?.name}</p>
           <div className="flex items-center gap-1.5 mt-1.5">
             {user?.roles.map(role => (
-              <span key={role} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-300 font-medium">
+              <span key={role} className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 font-semibold border border-slate-700/50">
                 {role}
               </span>
             ))}
@@ -102,22 +102,22 @@ export default function Sidebar() {
 
         {/* Branch switcher */}
         {canSwitchBranch && branches.length > 0 && (
-          <div className="px-3 py-3 border-b border-slate-700/50 relative">
+          <div className="px-3 py-3 border-b border-slate-800/50 relative">
             <button
               onClick={() => setBranchDropdownOpen(!branchDropdownOpen)}
-              className="w-full text-left px-3 py-2 text-sm bg-slate-700/50 rounded-lg hover:bg-slate-700 flex justify-between items-center text-slate-200 transition-colors"
+              className="w-full text-left px-3 py-2 text-sm bg-slate-800/40 border border-slate-700/40 rounded-xl hover:bg-slate-800/80 flex justify-between items-center text-slate-300 transition-all duration-200 cursor-pointer"
             >
               <span className="truncate">{activeBranchName || 'All Branches'}</span>
-              <svg className={`w-4 h-4 transition-transform ${branchDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              <svg className={`w-4 h-4 text-slate-400 transition-transform ${branchDropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
             {branchDropdownOpen && (
-              <div className="absolute left-3 right-3 mt-1 bg-slate-800 rounded-lg shadow-lg border border-slate-700 z-50 max-h-60 overflow-auto">
+              <div className="absolute left-3 right-3 mt-1 bg-slate-900 border border-slate-850 rounded-xl shadow-2xl z-50 max-h-60 overflow-auto divide-y divide-slate-800/40">
                 {branches.map(b => (
                   <button
                     key={b.branchId}
                     onClick={() => handleBranchSwitch(b.branchId)}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 transition-colors ${
-                      b.branchId === activeBranchId ? 'bg-[#25439b] text-white' : 'text-slate-300'
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-800/60 transition-colors cursor-pointer ${
+                      b.branchId === activeBranchId ? 'bg-gradient-to-r from-[#25439b] to-[#3b82f6] text-white font-semibold' : 'text-slate-300'
                     }`}
                   >
                     {b.name}
@@ -129,7 +129,7 @@ export default function Sidebar() {
         )}
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
           {visibleItems.map(item => {
             const href = item.href === '/floor-plans' && activeBranchId
               ? `/branches/${activeBranchId}/floor-plans`
@@ -142,13 +142,16 @@ export default function Sidebar() {
                 key={item.href}
                 href={href}
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative group
                   ${isActive
-                    ? 'bg-[#25439b] text-white shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                    ? 'bg-gradient-to-r from-[#25439b] to-[#3b82f6] text-white shadow-lg shadow-blue-500/10 border border-blue-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent hover:border-slate-800/30'
                   }`}
               >
-                <MenuIcon icon={item.icon} className="w-5 h-5 flex-shrink-0" />
+                {isActive && (
+                  <span className="absolute left-0 top-1/4 bottom-1/4 w-1 bg-blue-400 rounded-r-md shadow-glow shadow-blue-400" />
+                )}
+                <MenuIcon icon={item.icon} className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-105 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -156,11 +159,11 @@ export default function Sidebar() {
         </nav>
 
         {/* Bottom actions */}
-        <div className="px-3 py-3 border-t border-slate-700/50 space-y-0.5">
+        <div className="px-3 py-3 border-t border-slate-800/50 space-y-1">
           <Link
             href="/"
             onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent hover:border-slate-800/30 transition-all duration-200"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
             <span>Back to Website</span>
@@ -168,14 +171,14 @@ export default function Sidebar() {
           <Link
             href="/profile"
             onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent hover:border-slate-800/30 transition-all duration-200"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             <span>Profile</span>
           </Link>
           <button
             onClick={() => { setMobileOpen(false); logout(); }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-slate-400 hover:text-white hover:bg-slate-800/40 border border-transparent hover:border-slate-800/30 transition-all duration-200 cursor-pointer"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             <span>Logout</span>
