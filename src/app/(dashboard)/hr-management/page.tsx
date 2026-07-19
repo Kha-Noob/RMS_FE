@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import type { Employee, LeaveRequest, ForgotClockRequest, ShiftTemplate } from '@/types';
 
@@ -77,6 +77,9 @@ function EmployeesSection() {
     hireDate: '', baseSalary: '', salaryType: 'MONTHLY', branchId: '',
   });
   const [saving, setSaving] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<number[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const fetchEmployees = useCallback(async () => {
     try {
@@ -146,14 +149,34 @@ function EmployeesSection() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return;
+  const handleBulkEdit = () => {
+    if (selectedEmployeeIds.length === 0) return;
+    if (selectedEmployeeIds.length > 1) {
+      toast.error('Chỉ được phép chỉnh sửa 1 nhân viên tại một thời điểm!');
+      return;
+    }
+    const targetId = selectedEmployeeIds[0];
+    const emp = employees.find(e => e.id === targetId);
+    if (emp) {
+      openEdit(emp);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedEmployeeIds.length === 0) return;
     try {
-      await api.post(`/api/hr/employees/delete/${id}`);
-      toast.success('Employee deleted');
+      setBulkDeleting(true);
+      await Promise.all(
+        selectedEmployeeIds.map(id => api.post(`/api/hr/employees/delete/${id}`))
+      );
+      toast.success('Deleted selected employees');
+      setSelectedEmployeeIds([]);
+      setShowBulkDeleteConfirm(false);
       fetchEmployees();
-    } catch {
-      toast.error('Failed to delete employee');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete selected employees'));
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -222,6 +245,31 @@ function EmployeesSection() {
         </div>
       )}
 
+      {/* Bulk actions bar */}
+      {selectedEmployeeIds.length > 0 && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-slate-700">
+              Đã chọn {selectedEmployeeIds.length} nhân viên
+            </span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleBulkEdit}
+              className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+            >
+              Chỉnh sửa (Edit)
+            </button>
+            <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Xóa nhân viên đã chọn
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center gap-2 text-slate-500 py-12">
@@ -235,50 +283,112 @@ function EmployeesSection() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
+                  <th className={tableTh + ' w-12 text-center'}>
+                    <input
+                      type="checkbox"
+                      checked={employees.length > 0 && selectedEmployeeIds.length === employees.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedEmployeeIds(employees.map(emp => emp.id));
+                        } else {
+                          setSelectedEmployeeIds([]);
+                        }
+                      }}
+                      className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    />
+                  </th>
                   <th className={tableTh}>Name</th>
                   <th className={tableTh}>Email</th>
                   <th className={tableTh}>Department</th>
                   <th className={tableTh}>Title</th>
                   <th className={tableTh}>Branch</th>
-                  <th className={tableTh}>Status</th>
-                  <th className={tableTh}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {employees.map(emp => (
-                  <tr key={emp.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className={tableTd}>{emp.user?.name || '-'}</td>
-                    <td className={tableTd}>{emp.user?.email || '-'}</td>
-                    <td className={tableTd}>{emp.department || '-'}</td>
-                    <td className={tableTd}>{emp.title || '-'}</td>
-                    <td className={tableTd}>{emp.branch?.name || '-'}</td>
-                    <td className={tableTd}>
-                      <span className={`px-2 py-1 rounded-full text-xs border ${emp.user?.isActive ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-red-50 text-red-600 border-red-200'}`}>
-                        {emp.user?.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className={tableTd}>
-                      <div className="flex gap-2">
-                        <button onClick={() => openEdit(emp)} className="text-[#25439b] hover:text-[#1c3580] text-xs">Edit</button>
-                        <button onClick={() => handleDelete(emp.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {employees.map(emp => {
+                  const isChecked = selectedEmployeeIds.includes(emp.id);
+                  return (
+                    <tr key={emp.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isChecked ? 'bg-[#25439b]/5 hover:bg-[#25439b]/5' : ''}`}>
+                      <td className={tableTd + ' text-center w-12'}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedEmployeeIds(prev => [...prev, emp.id]);
+                            } else {
+                              setSelectedEmployeeIds(prev => prev.filter(id => id !== emp.id));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                        />
+                      </td>
+                      <td className={tableTd}>{emp.user?.name || '-'}</td>
+                      <td className={tableTd}>{emp.user?.email || '-'}</td>
+                      <td className={tableTd}>{emp.department || '-'}</td>
+                      <td className={tableTd}>{emp.title || '-'}</td>
+                      <td className={tableTd}>{emp.branch?.name || '-'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Custom bulk delete confirm modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-sm shadow-xl transform transition-all">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Xóa {selectedEmployeeIds.length} nhân viên?</h3>
+            </div>
+            
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+              Bạn có chắc chắn muốn xóa {selectedEmployeeIds.length} nhân viên đã chọn? Tất cả phân lịch và lịch sử liên quan sẽ được tự động xử lý. Hành động này không thể hoàn tác.
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                disabled={bulkDeleting}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {bulkDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Đang xóa...
+                  </>
+                ) : (
+                  'Xóa'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ─── Leave Requests Section ─── */
 function LeaveSection() {
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<number | null>(null);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -294,29 +404,40 @@ function LeaveSection() {
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
-  const handleApprove = async (id: number) => {
+  const [selectedRequestIds, setSelectedRequestIds] = useState<number[]>([]);
+  const [processingBulk, setProcessingBulk] = useState(false);
+
+  const handleBulkApprove = async () => {
+    if (selectedRequestIds.length === 0) return;
     try {
-      setProcessingId(id);
-      await api.post(`/api/hr/leave-requests/approve/${id}`);
-      toast.success('Leave request approved');
+      setProcessingBulk(true);
+      await Promise.all(
+        selectedRequestIds.map(id => api.post(`/api/hr/leave-requests/approve/${id}`))
+      );
+      toast.success('Approved selected requests');
+      setSelectedRequestIds([]);
       fetchRequests();
-    } catch {
-      toast.error('Failed to approve');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to approve requests'));
     } finally {
-      setProcessingId(null);
+      setProcessingBulk(false);
     }
   };
 
-  const handleReject = async (id: number) => {
+  const handleBulkReject = async () => {
+    if (selectedRequestIds.length === 0) return;
     try {
-      setProcessingId(id);
-      await api.post(`/api/hr/leave-requests/reject/${id}`);
-      toast.success('Leave request rejected');
+      setProcessingBulk(true);
+      await Promise.all(
+        selectedRequestIds.map(id => api.post(`/api/hr/leave-requests/reject/${id}`))
+      );
+      toast.success('Rejected selected requests');
+      setSelectedRequestIds([]);
       fetchRequests();
-    } catch {
-      toast.error('Failed to reject');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to reject requests'));
     } finally {
-      setProcessingId(null);
+      setProcessingBulk(false);
     }
   };
 
@@ -325,6 +446,33 @@ function LeaveSection() {
 
   return (
     <div className="space-y-6">
+      {/* Bulk actions bar */}
+      {selectedRequestIds.length > 0 && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between shadow-sm mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-slate-700">
+              Đã chọn {selectedRequestIds.length} yêu cầu nghỉ phép
+            </span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleBulkApprove}
+              disabled={processingBulk}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {processingBulk ? 'Processing...' : 'Duyệt (Approve)'}
+            </button>
+            <button
+              onClick={handleBulkReject}
+              disabled={processingBulk}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {processingBulk ? 'Processing...' : 'Từ chối (Reject)'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Pending Leave Requests</h2>
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -340,42 +488,54 @@ function LeaveSection() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-200">
+                    <th className={tableTh + ' w-12 text-center'}>
+                      <input
+                        type="checkbox"
+                        checked={pending.length > 0 && selectedRequestIds.length === pending.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRequestIds(pending.map(r => r.id));
+                          } else {
+                            setSelectedRequestIds([]);
+                          }
+                        }}
+                        className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                      />
+                    </th>
                     <th className={tableTh}>Employee</th>
                     <th className={tableTh}>Type</th>
                     <th className={tableTh}>Start</th>
                     <th className={tableTh}>End</th>
                     <th className={tableTh}>Reason</th>
-                    <th className={tableTh}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pending.map(r => (
-                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
-                      <td className={tableTd}>{r.leaveType}</td>
-                      <td className={tableTd}>{new Date(r.startDate).toLocaleDateString()}</td>
-                      <td className={tableTd}>{new Date(r.endDate).toLocaleDateString()}</td>
-                      <td className={tableTd}>{r.reason}</td>
-                      <td className={tableTd}>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApprove(r.id)}
-                            disabled={processingId === r.id}
-                            className={btnSuccess + ' text-xs px-3 py-1'}
-                          >
-                            {processingId === r.id ? '...' : 'Approve'}
-                          </button>
-                          <button
-                            onClick={() => handleReject(r.id)}
-                            disabled={processingId === r.id}
-                            className={btnDanger + ' text-xs px-3 py-1'}
-                          >
-                            {processingId === r.id ? '...' : 'Reject'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {pending.map(r => {
+                    const isChecked = selectedRequestIds.includes(r.id);
+                    return (
+                      <tr key={r.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isChecked ? 'bg-[#25439b]/5 hover:bg-[#25439b]/5' : ''}`}>
+                        <td className={tableTd + ' text-center w-12'}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedRequestIds(prev => [...prev, r.id]);
+                              } else {
+                                setSelectedRequestIds(prev => prev.filter(id => id !== r.id));
+                              }
+                            }}
+                            className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                          />
+                        </td>
+                        <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
+                        <td className={tableTd}>{r.leaveType}</td>
+                        <td className={tableTd}>{new Date(r.startDate).toLocaleDateString()}</td>
+                        <td className={tableTd}>{new Date(r.endDate).toLocaleDateString()}</td>
+                        <td className={tableTd}>{r.reason}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -422,7 +582,8 @@ function LeaveSection() {
 function ForgotClockSection() {
   const [requests, setRequests] = useState<ForgotClockRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processingId, setProcessingId] = useState<number | null>(null);
+  const [selectedRequestIds, setSelectedRequestIds] = useState<number[]>([]);
+  const [processingBulk, setProcessingBulk] = useState(false);
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -438,29 +599,37 @@ function ForgotClockSection() {
 
   useEffect(() => { fetchRequests(); }, [fetchRequests]);
 
-  const handleApprove = async (id: number) => {
+  const handleBulkApprove = async () => {
+    if (selectedRequestIds.length === 0) return;
     try {
-      setProcessingId(id);
-      await api.post(`/api/hr/forgot-clock/approve/${id}`);
-      toast.success('Request approved');
+      setProcessingBulk(true);
+      await Promise.all(
+        selectedRequestIds.map(id => api.post(`/api/hr/forgot-clock/approve/${id}`))
+      );
+      toast.success('Approved selected requests');
+      setSelectedRequestIds([]);
       fetchRequests();
-    } catch {
-      toast.error('Failed to approve');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to approve requests'));
     } finally {
-      setProcessingId(null);
+      setProcessingBulk(false);
     }
   };
 
-  const handleReject = async (id: number) => {
+  const handleBulkReject = async () => {
+    if (selectedRequestIds.length === 0) return;
     try {
-      setProcessingId(id);
-      await api.post(`/api/hr/forgot-clock/reject/${id}`);
-      toast.success('Request rejected');
+      setProcessingBulk(true);
+      await Promise.all(
+        selectedRequestIds.map(id => api.post(`/api/hr/forgot-clock/reject/${id}`))
+      );
+      toast.success('Rejected selected requests');
+      setSelectedRequestIds([]);
       fetchRequests();
-    } catch {
-      toast.error('Failed to reject');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to reject requests'));
     } finally {
-      setProcessingId(null);
+      setProcessingBulk(false);
     }
   };
 
@@ -469,6 +638,33 @@ function ForgotClockSection() {
 
   return (
     <div className="space-y-6">
+      {/* Bulk actions bar */}
+      {selectedRequestIds.length > 0 && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between shadow-sm mb-4">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-slate-700">
+              Đã chọn {selectedRequestIds.length} yêu cầu bổ sung công
+            </span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleBulkApprove}
+              disabled={processingBulk}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {processingBulk ? 'Processing...' : 'Duyệt (Approve)'}
+            </button>
+            <button
+              onClick={handleBulkReject}
+              disabled={processingBulk}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {processingBulk ? 'Processing...' : 'Từ chối (Reject)'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-lg font-semibold text-slate-800 mb-4">Pending Forgot Clock Requests</h2>
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
@@ -484,42 +680,54 @@ function ForgotClockSection() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-200">
+                    <th className={tableTh + ' w-12 text-center'}>
+                      <input
+                        type="checkbox"
+                        checked={pending.length > 0 && selectedRequestIds.length === pending.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedRequestIds(pending.map(r => r.id));
+                          } else {
+                            setSelectedRequestIds([]);
+                          }
+                        }}
+                        className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                      />
+                    </th>
                     <th className={tableTh}>Employee</th>
                     <th className={tableTh}>Date</th>
                     <th className={tableTh}>Clock Type</th>
                     <th className={tableTh}>Proposed Time</th>
                     <th className={tableTh}>Reason</th>
-                    <th className={tableTh}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pending.map(r => (
-                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
-                      <td className={tableTd}>{new Date(r.date).toLocaleDateString()}</td>
-                      <td className={tableTd}>{r.clockType}</td>
-                      <td className={tableTd}>{r.timeProposed}</td>
-                      <td className={tableTd}>{r.reason}</td>
-                      <td className={tableTd}>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApprove(r.id)}
-                            disabled={processingId === r.id}
-                            className={btnSuccess + ' text-xs px-3 py-1'}
-                          >
-                            {processingId === r.id ? '...' : 'Approve'}
-                          </button>
-                          <button
-                            onClick={() => handleReject(r.id)}
-                            disabled={processingId === r.id}
-                            className={btnDanger + ' text-xs px-3 py-1'}
-                          >
-                            {processingId === r.id ? '...' : 'Reject'}
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {pending.map(r => {
+                    const isChecked = selectedRequestIds.includes(r.id);
+                    return (
+                      <tr key={r.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isChecked ? 'bg-[#25439b]/5 hover:bg-[#25439b]/5' : ''}`}>
+                        <td className={tableTd + ' text-center w-12'}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedRequestIds(prev => [...prev, r.id]);
+                              } else {
+                                setSelectedRequestIds(prev => prev.filter(id => id !== r.id));
+                              }
+                            }}
+                            className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                          />
+                        </td>
+                        <td className={tableTd}>{r.employee?.user?.name || '-'}</td>
+                        <td className={tableTd}>{new Date(r.date).toLocaleDateString()}</td>
+                        <td className={tableTd}>{r.clockType}</td>
+                        <td className={tableTd}>{r.timeProposed}</td>
+                        <td className={tableTd}>{r.reason}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -570,6 +778,11 @@ function ShiftsSection() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: '', startTime: '', endTime: '', durationHours: '' });
   const [saving, setSaving] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [selectedShiftIds, setSelectedShiftIds] = useState<number[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const fetchShifts = useCallback(async () => {
     try {
@@ -624,14 +837,53 @@ function ShiftsSection() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this shift template?')) return;
+  const confirmDelete = (id: number) => {
+    setDeleteTargetId(id);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTargetId) return;
     try {
-      await api.delete(`/api/hr/shifts/${id}`);
+      setDeleting(true);
+      await api.delete(`/api/hr/shifts/${deleteTargetId}`);
       toast.success('Shift deleted');
+      setDeleteTargetId(null);
       fetchShifts();
-    } catch {
-      toast.error('Failed to delete shift');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete shift'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleBulkEdit = () => {
+    if (selectedShiftIds.length === 0) return;
+    if (selectedShiftIds.length > 1) {
+      toast.error('Chỉ được phép chỉnh sửa 1 ca làm việc tại một thời điểm!');
+      return;
+    }
+    const targetId = selectedShiftIds[0];
+    const shift = shifts.find(s => s.id === targetId);
+    if (shift) {
+      openEdit(shift);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedShiftIds.length === 0) return;
+    try {
+      setBulkDeleting(true);
+      await Promise.all(
+        selectedShiftIds.map(id => api.delete(`/api/hr/shifts/${id}`))
+      );
+      toast.success('Deleted selected shift templates');
+      setSelectedShiftIds([]);
+      setShowBulkDeleteConfirm(false);
+      fetchShifts();
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Failed to delete selected shifts'));
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -676,6 +928,31 @@ function ShiftsSection() {
         </div>
       )}
 
+      {/* Bulk actions bar */}
+      {selectedShiftIds.length > 0 && (
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-slate-700">
+              Đã chọn {selectedShiftIds.length} ca làm việc
+            </span>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleBulkEdit}
+              className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+            >
+              Chỉnh sửa (Edit)
+            </button>
+            <button
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="px-3.5 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Xóa các ca đã chọn
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center gap-2 text-slate-500 py-12">
@@ -689,33 +966,149 @@ function ShiftsSection() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-200">
+                  <th className={tableTh + ' w-12 text-center'}>
+                    <input
+                      type="checkbox"
+                      checked={shifts.length > 0 && selectedShiftIds.length === shifts.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedShiftIds(shifts.map(s => s.id));
+                        } else {
+                          setSelectedShiftIds([]);
+                        }
+                      }}
+                      className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    />
+                  </th>
                   <th className={tableTh}>Name</th>
                   <th className={tableTh}>Start Time</th>
                   <th className={tableTh}>End Time</th>
                   <th className={tableTh}>Duration</th>
-                  <th className={tableTh}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {shifts.map(s => (
-                  <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className={tableTd}>{s.name}</td>
-                    <td className={tableTd}>{s.startTime}</td>
-                    <td className={tableTd}>{s.endTime}</td>
-                    <td className={tableTd}>{s.durationHours}h</td>
-                    <td className={tableTd}>
-                      <div className="flex gap-2">
-                        <button onClick={() => openEdit(s)} className="text-[#25439b] hover:text-[#1c3580] text-xs">Edit</button>
-                        <button onClick={() => handleDelete(s.id)} className="text-red-500 hover:text-red-600 text-xs">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {shifts.map(s => {
+                  const isChecked = selectedShiftIds.includes(s.id);
+                  return (
+                    <tr key={s.id} className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${isChecked ? 'bg-[#25439b]/5 hover:bg-[#25439b]/5' : ''}`}>
+                      <td className={tableTd + ' text-center w-12'}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedShiftIds(prev => [...prev, s.id]);
+                            } else {
+                              setSelectedShiftIds(prev => prev.filter(id => id !== s.id));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                        />
+                      </td>
+                      <td className={tableTd}>{s.name}</td>
+                      <td className={tableTd}>{s.startTime}</td>
+                      <td className={tableTd}>{s.endTime}</td>
+                      <td className={tableTd}>{s.durationHours}h</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Custom delete confirm modal */}
+      {deleteTargetId !== null && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-sm shadow-xl transform transition-all">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Delete Shift Template?</h3>
+            </div>
+            
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+              Are you sure you want to delete this shift template? All employee assignments and check-in history associated with this shift template will be unlinked or removed. This action cannot be undone.
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTargetId(null)}
+                disabled={deleting}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executeDelete}
+                disabled={deleting}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {deleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom bulk delete confirm modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 w-full max-w-sm shadow-xl transform transition-all">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">Xóa {selectedShiftIds.length} ca làm việc?</h3>
+            </div>
+            
+            <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+              Bạn có chắc chắn muốn xóa {selectedShiftIds.length} ca làm việc đã chọn? Tất cả phân lịch và dữ liệu chấm công liên quan sẽ được tự động xử lý. Hành động này không thể hoàn tác.
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                disabled={bulkDeleting}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {bulkDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Đang xóa...
+                  </>
+                ) : (
+                  'Xóa'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

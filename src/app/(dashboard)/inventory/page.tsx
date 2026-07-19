@@ -230,7 +230,8 @@ function RecipesTab() {
   const [form, setForm] = useState({ name: '', description: '' });
   const [ingredients, setIngredients] = useState<{ rawMaterialId: number; quantity: number; unit: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
-
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+ 
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -240,19 +241,52 @@ function RecipesTab() {
       ]);
       setRecipes(r);
       setRawMaterials(rm);
+      setSelectedIds([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load recipes');
     } finally {
       setLoading(false);
     }
   }, []);
-
+ 
   useEffect(() => { load(); }, [load]);
+ 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(recipes.map(r => r.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(x => x !== id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete the ${selectedIds.length} selected recipe(s)?`)) return;
+    try {
+      setLoading(true);
+      await Promise.all(selectedIds.map(id => api.delete(`/api/inventory/recipes/${id}`)));
+      toast.success('Successfully deleted selected recipes');
+      setSelectedIds([]);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete selected recipes');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const addIngredient = () => {
     setIngredients([...ingredients, { rawMaterialId: 0, quantity: 0, unit: '' }]);
   };
-
+ 
   const updateIngredient = (idx: number, field: string, value: string | number) => {
     const updated = [...ingredients];
     (updated[idx] as any)[field] = value;
@@ -262,11 +296,11 @@ function RecipesTab() {
     }
     setIngredients(updated);
   };
-
+ 
   const removeIngredient = (idx: number) => {
     setIngredients(ingredients.filter((_, i) => i !== idx));
   };
-
+ 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { toast.error('Recipe name is required'); return; }
@@ -293,46 +327,62 @@ function RecipesTab() {
       setSubmitting(false);
     }
   };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this recipe?')) return;
-    try {
-      await api.delete(`/api/inventory/recipes/${id}`);
-      toast.success('Recipe deleted');
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete recipe');
-    }
-  };
-
+ 
   if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading recipes...</div>;
-
+ 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <div>
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-700">
+                Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> công thức
+              </span>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+              >
+                Xóa đã chọn
+              </button>
+            </div>
+          )}
+        </div>
         <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Recipe</button>
       </div>
-
+ 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-3 px-4 w-12">
+                <input
+                  type="checkbox"
+                  checked={recipes.length > 0 && selectedIds.length === recipes.length}
+                  onChange={e => handleSelectAll(e.target.checked)}
+                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                />
+              </th>
               <th className="py-3 px-4">Name</th>
               <th className="py-3 px-4">Description</th>
               <th className="py-3 px-4">Ingredients</th>
-              <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {recipes.map((r) => (
               <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(r.id)}
+                    onChange={e => handleSelectOne(r.id, e.target.checked)}
+                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                  />
+                </td>
                 <td className="py-3 px-4 text-slate-800">{r.name}</td>
                 <td className="py-3 px-4 text-slate-600">{r.description}</td>
                 <td className="py-3 px-4 text-slate-600">
                   {r.ingredients?.length ?? 0} items
-                </td>
-                <td className="py-3 px-4 text-right">
-                  <button onClick={() => handleDelete(r.id)} className={btnDanger}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -414,10 +464,11 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
-  const [form, setForm] = useState({ name: '', description: '', categoryId: '', price: '' });
-  const [variants, setVariants] = useState<{ name: string; price: string }[]>([]);
+  const [form, setForm] = useState({ name: '', description: '', categoryId: '', price: '', isActive: true });
+  const [variants, setVariants] = useState<{ id?: number; name: string; price: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
-
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+ 
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -427,22 +478,55 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
       ]);
       setItems(m);
       setCategories(c);
+      setSelectedIds([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load menu');
     } finally {
       setLoading(false);
     }
   }, [activeBranchId]);
-
+ 
   useEffect(() => { load(); }, [load]);
+ 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(items.map(item => item.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(x => x !== id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete the ${selectedIds.length} selected menu item(s)?`)) return;
+    try {
+      setLoading(true);
+      await Promise.all(selectedIds.map(id => api.delete(`/api/inventory/menu/${id}`)));
+      toast.success('Successfully deleted selected menu items');
+      setSelectedIds([]);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete selected items');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openCreate = () => {
     setEditingItem(null);
-    setForm({ name: '', description: '', categoryId: '', price: '' });
+    setForm({ name: '', description: '', categoryId: '', price: '', isActive: true });
     setVariants([]);
     setShowCreate(true);
   };
-
+ 
   const openEdit = (item: MenuItem) => {
     setEditingItem(item);
     setForm({
@@ -450,11 +534,12 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
       description: item.description,
       categoryId: String(item.category?.id ?? ''),
       price: String(item.price),
+      isActive: item.isActive,
     });
-    setVariants(item.variants?.map(v => ({ name: v.name, price: String(v.price) })) ?? []);
+    setVariants(item.variants?.map(v => ({ id: v.id, name: v.name, price: String(v.price) })) ?? []);
     setShowCreate(true);
   };
-
+ 
   const addVariant = () => setVariants([...variants, { name: '', price: '' }]);
   const updateVariant = (idx: number, field: string, value: string) => {
     const u = [...variants];
@@ -462,7 +547,7 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
     setVariants(u);
   };
   const removeVariant = (idx: number) => setVariants(variants.filter((_, i) => i !== idx));
-
+ 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { toast.error('Name is required'); return; }
@@ -473,7 +558,8 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
         description: form.description,
         categoryId: form.categoryId ? Number(form.categoryId) : undefined,
         price: form.price ? parseFloat(form.price) : undefined,
-        variants: variants.map(v => ({ name: v.name, price: parseFloat(v.price) || 0 })),
+        variants: variants.map(v => ({ id: v.id, name: v.name, price: parseFloat(v.price) || 0 })),
+        isActive: form.isActive,
       };
       if (editingItem) {
         await api.put(`/api/inventory/menu/${editingItem.id}`, body);
@@ -491,29 +577,41 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this menu item?')) return;
-    try {
-      await api.delete(`/api/inventory/menu/${id}`);
-      toast.success('Menu item deleted');
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete');
-    }
-  };
-
   if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading menu...</div>;
-
+ 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <div>
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-700">
+                Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> món ăn
+              </span>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+              >
+                Xóa đã chọn
+              </button>
+            </div>
+          )}
+        </div>
         <button onClick={openCreate} className={btnPrimary}>+ New Menu Item</button>
       </div>
-
+ 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-3 px-4 w-12">
+                <input
+                  type="checkbox"
+                  checked={items.length > 0 && selectedIds.length === items.length}
+                  onChange={e => handleSelectAll(e.target.checked)}
+                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                />
+              </th>
               <th className="py-3 px-4">Name</th>
               <th className="py-3 px-4">Category</th>
               <th className="py-3 px-4">Price</th>
@@ -525,6 +623,14 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
           <tbody>
             {items.map((item) => (
               <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onChange={e => handleSelectOne(item.id, e.target.checked)}
+                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                  />
+                </td>
                 <td className="py-3 px-4 text-slate-800">{item.name}</td>
                 <td className="py-3 px-4 text-slate-600">{item.category?.name ?? '—'}</td>
                 <td className="py-3 px-4 text-slate-600">${item.price?.toFixed(2)}</td>
@@ -536,14 +642,23 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
                     <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">Inactive</span>
                   )}
                 </td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Edit</button>
-                  <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm">Delete</button>
+                <td className="py-3 px-4 text-right">
+                  <button
+                    onClick={() => openEdit(item)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors"
+                    title="Edit"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil">
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                      <path d="m15 5 4 4"/>
+                    </svg>
+                    <span>Sửa</span>
+                  </button>
                 </td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-slate-400">No menu items found</td></tr>
+              <tr><td colSpan={7} className="py-8 text-center text-slate-400">No menu items found</td></tr>
             )}
           </tbody>
         </table>
@@ -572,6 +687,19 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
               <label className="block text-sm text-slate-600 mb-1">Base Price</label>
               <input type="number" step="0.01" className={inputCls} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isActive"
+              checked={form.isActive}
+              onChange={e => setForm({ ...form, isActive: e.target.checked })}
+              className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+            />
+            <label htmlFor="isActive" className="text-sm text-slate-600 font-medium cursor-pointer select-none">
+              Trạng thái kinh doanh (Active)
+            </label>
           </div>
 
           <div className="space-y-2">
@@ -612,33 +740,67 @@ function RawMaterialsTab() {
   const [editingItem, setEditingItem] = useState<RawMaterial | null>(null);
   const [form, setForm] = useState({ name: '', unit: '', minimumStock: '' });
   const [submitting, setSubmitting] = useState(false);
-
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+ 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.get<RawMaterial[]>('/api/inventory/items');
       setItems(data);
+      setSelectedIds([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load raw materials');
     } finally {
       setLoading(false);
     }
   }, []);
-
+ 
   useEffect(() => { load(); }, [load]);
+ 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(items.map(item => item.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(x => x !== id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete the ${selectedIds.length} selected raw material(s)?`)) return;
+    try {
+      setLoading(true);
+      await Promise.all(selectedIds.map(id => api.delete(`/api/inventory/items/${id}`)));
+      toast.success('Successfully deleted selected raw materials');
+      setSelectedIds([]);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete selected items');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openCreate = () => {
     setEditingItem(null);
     setForm({ name: '', unit: '', minimumStock: '' });
     setShowCreate(true);
   };
-
+ 
   const openEdit = (item: RawMaterial) => {
     setEditingItem(item);
     setForm({ name: item.name, unit: item.unit, minimumStock: String(item.minimumStock) });
     setShowCreate(true);
   };
-
+ 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { toast.error('Name is required'); return; }
@@ -662,22 +824,26 @@ function RawMaterialsTab() {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this raw material?')) return;
-    try {
-      await api.delete(`/api/inventory/items/${id}`);
-      toast.success('Raw material deleted');
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete');
-    }
-  };
-
   if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading raw materials...</div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <div>
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-700">
+                Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> nguyên liệu
+              </span>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+              >
+                Xóa đã chọn
+              </button>
+            </div>
+          )}
+        </div>
         <button onClick={openCreate} className={btnPrimary}>+ New Raw Material</button>
       </div>
 
@@ -685,6 +851,14 @@ function RawMaterialsTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-3 px-4 w-12">
+                <input
+                  type="checkbox"
+                  checked={items.length > 0 && selectedIds.length === items.length}
+                  onChange={e => handleSelectAll(e.target.checked)}
+                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                />
+              </th>
               <th className="py-3 px-4">Name</th>
               <th className="py-3 px-4">Unit</th>
               <th className="py-3 px-4">Minimum Stock</th>
@@ -694,17 +868,34 @@ function RawMaterialsTab() {
           <tbody>
             {items.map((item) => (
               <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="py-3 px-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.id)}
+                    onChange={e => handleSelectOne(item.id, e.target.checked)}
+                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                  />
+                </td>
                 <td className="py-3 px-4 text-slate-800">{item.name}</td>
                 <td className="py-3 px-4 text-slate-600">{item.unit}</td>
                 <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => openEdit(item)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Edit</button>
-                  <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-600 text-sm">Delete</button>
+                <td className="py-3 px-4 text-right">
+                  <button
+                    onClick={() => openEdit(item)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors"
+                    title="Edit"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil">
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                      <path d="m15 5 4 4"/>
+                    </svg>
+                    <span>Sửa</span>
+                  </button>
                 </td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={4} className="py-8 text-center text-slate-400">No raw materials found</td></tr>
+              <tr><td colSpan={5} className="py-8 text-center text-slate-400">No raw materials found</td></tr>
             )}
           </tbody>
         </table>
@@ -743,20 +934,54 @@ function CategoriesTab() {
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+ 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.get<Category[]>('/api/inventory/categories');
       setCategories(data);
+      setSelectedIds([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load categories');
     } finally {
       setLoading(false);
     }
   }, []);
-
+ 
   useEffect(() => { load(); }, [load]);
+ 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(categories.map(c => c.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter(x => x !== id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete the ${selectedIds.length} selected category/categories?`)) return;
+    try {
+      setLoading(true);
+      await Promise.all(selectedIds.map(id => api.delete(`/api/inventory/categories/${id}`)));
+      toast.success('Successfully deleted selected categories');
+      setSelectedIds([]);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete selected categories');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -790,7 +1015,22 @@ function CategoriesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <div>
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-slate-700">
+                Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> danh mục
+              </span>
+              <button
+                onClick={handleBulkDelete}
+                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+              >
+                Xóa đã chọn
+              </button>
+            </div>
+          )}
+        </div>
         <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Category</button>
       </div>
 
@@ -798,17 +1038,29 @@ function CategoriesTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-3 px-4 w-12">
+                <input
+                  type="checkbox"
+                  checked={categories.length > 0 && selectedIds.length === categories.length}
+                  onChange={e => handleSelectAll(e.target.checked)}
+                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                />
+              </th>
               <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {categories.map((cat) => (
               <tr key={cat.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-800">{cat.name}</td>
-                <td className="py-3 px-4 text-right">
-                  <button onClick={() => handleDelete(cat.id)} className={btnDanger}>Delete</button>
+                <td className="py-3 px-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(cat.id)}
+                    onChange={e => handleSelectOne(cat.id, e.target.checked)}
+                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                  />
                 </td>
+                <td className="py-3 px-4 text-slate-800">{cat.name}</td>
               </tr>
             ))}
             {categories.length === 0 && (

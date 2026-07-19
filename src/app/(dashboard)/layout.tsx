@@ -9,12 +9,11 @@ import { menuItems } from '@/config/menu';
 function getDefaultLandingPage(roles: string[], isUsingSystemWeb?: boolean): string {
   if (roles.includes('ADMIN') || roles.includes('MANAGER') || (roles.includes('COOPERATOR') && isUsingSystemWeb)) return '/dashboard';
   if (roles.includes('COOPERATOR')) return '/my-restaurant';
-  if (roles.includes('HR')) return '/hr-management';
-  if (roles.includes('KITCHEN') || roles.includes('CHEF')) return '/kds';
-  if (roles.includes('WAREHOUSE')) return '/inventory';
-  if (roles.includes('PROCUREMENT')) return '/procurement';
-  if (roles.includes('CASHIER')) return '/pos';
-  if (roles.includes('EMPLOYEE')) return '/schedule';
+  
+  // For all employee roles (except admin & manager): HR, CASHIER, KITCHEN, CHEF, WAREHOUSE, PROCUREMENT, EMPLOYEE
+  const employeeRoles = ['HR', 'CASHIER', 'KITCHEN', 'CHEF', 'WAREHOUSE', 'PROCUREMENT', 'EMPLOYEE'];
+  if (roles.some(r => employeeRoles.includes(r))) return '/employees';
+  
   return '/';
 }
 
