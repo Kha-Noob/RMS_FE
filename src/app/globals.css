@@ -369,6 +369,20 @@ main textarea:focus {
   background-color: #ffffff !important;
 }
 
+/* Prevent global input overrides from breaking explicitly transparent inputs (like in headers) */
+main input.bg-transparent {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  color: inherit !important;
+  padding: 0 !important;
+}
+main input.bg-transparent::-webkit-calendar-picker-indicator {
+  filter: invert(1) !important;
+  cursor: pointer;
+}
+
 /* 4. Global Button Overrides (Smooth gradients & interactive lift) */
 .bg-\[\#25439b\] {
   background: linear-gradient(135deg, #25439b 0%, #1c3580 100%) !important;
