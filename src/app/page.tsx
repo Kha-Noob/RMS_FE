@@ -461,7 +461,7 @@ export default function LandingPage() {
       return {
         id: page.tenantId,
         name: page.restaurantName,
-        rating: 4.6 + (idx % 4) * 0.1,
+        rating: Math.round((4.6 + (idx % 4) * 0.1) * 10) / 10,
         reviewsCount: 64 + (idx % 6) * 16,
         location: page.tenantId === 'tenant-1' ? 'Hải Châu, Đà Nẵng' : (page.tenantId === 'tenant-2' ? 'Lê Lợi, Đà Nẵng' : 'Hùng Vương, Đà Nẵng'),
         distance: `${0.8 + idx * 0.6} km`,
@@ -735,7 +735,7 @@ export default function LandingPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRestaurants.map((rest) => {
                 const isWishlisted = wishlistedRestaurants[rest.id] || false;
 
@@ -804,7 +804,7 @@ export default function LandingPage() {
                           {/* Stars & Reviews */}
                           <div className="flex items-center gap-1.5 text-xs">
                             <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                            <span className="font-extrabold text-slate-800">{rest.rating}</span>
+                            <span className="font-extrabold text-slate-800">{typeof rest.rating === 'number' ? rest.rating.toFixed(1) : rest.rating}</span>
                             <span className="text-slate-400">({rest.reviewsCount} {locale === 'vi' ? 'đánh giá' : 'reviews'})</span>
                           </div>
 

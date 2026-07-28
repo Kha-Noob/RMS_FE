@@ -38,6 +38,38 @@ interface PreOrderItem {
   productName: string;
 }
 
+interface BookedTableDetail {
+  startTime: string;
+  endTime: string;
+  formattedRange: string;
+  availableAtTime: string;
+  durationMinutes: number;
+}
+
+const getLocalDateString = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const TIME_SLOTS = [
+  { value: '11:00', label: '11:00 AM' },
+  { value: '11:30', label: '11:30 AM' },
+  { value: '12:00', label: '12:00 PM' },
+  { value: '12:30', label: '12:30 PM' },
+  { value: '13:00', label: '13:00 PM' },
+  { value: '17:00', label: '17:00 PM' },
+  { value: '17:30', label: '17:30 PM' },
+  { value: '18:00', label: '18:00 PM' },
+  { value: '18:30', label: '18:30 PM' },
+  { value: '19:00', label: '19:00 PM' },
+  { value: '19:30', label: '19:30 PM' },
+  { value: '20:00', label: '20:00 PM' },
+  { value: '20:30', label: '20:30 PM' },
+  { value: '21:00', label: '21:00 PM' },
+];
+
 interface MenuItem {
   id: number;
   name: string;
@@ -93,6 +125,7 @@ export default function BookingWizardPage() {
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<FloorPlan | null>(null);
   const [bookedTableIds, setBookedTableIds] = useState<number[]>([]);
+  const [bookedTableDetails, setBookedTableDetails] = useState<Record<number, BookedTableDetail>>({});
   const [selectedTableObj, setSelectedTableObj] = useState<FloorPlanObject | null>(null);
   const [selectedTableConfirmed, setSelectedTableConfirmed] = useState<boolean>(false);
   const [loadingFloorPlan, setLoadingFloorPlan] = useState<boolean>(false);
@@ -198,7 +231,7 @@ export default function BookingWizardPage() {
     };
     loadBranches();
     
-    setBookingDate(queryDate || new Date().toISOString().split('T')[0]);
+    setBookingDate(queryDate || getLocalDateString());
     if (queryTime) setBookingTime(queryTime);
     if (queryGuests) setGuests(parseInt(queryGuests) || 2);
   }, []);
@@ -212,12 +245,39 @@ export default function BookingWizardPage() {
     }
   }, [user, custName, custPhone, custEmail]);
 
+  // Auto-adjust time if selected time is in the past or < 30 minutes away
+  useEffect(() => {
+    if (!bookingDate) return;
+    const isToday = bookingDate === getLocalDateString();
+    if (isToday) {
+      const nowPlus30 = Date.now() + 30 * 60 * 1000;
+      const currentSelectedTime = new Date(`${bookingDate}T${bookingTime}:00`).getTime();
+      if (isNaN(currentSelectedTime) || currentSelectedTime < nowPlus30) {
+        const firstValid = TIME_SLOTS.find(slot => {
+          const slotTime = new Date(`${bookingDate}T${slot.value}:00`).getTime();
+          return slotTime >= nowPlus30;
+        });
+        if (firstValid) {
+          setBookingTime(firstValid.value);
+        }
+      }
+    }
+  }, [bookingDate, bookingTime]);
+
   // --- Fetch Floor Plans & Availability (Step 1 -> Step 2) ---
   const handleProceedToStep2 = async () => {
     if (!selectedBranchId) { toast.error('Vui lòng chọn chi nhánh!'); return; }
     if (!bookingDate) { toast.error('Vui lòng chọn ngày đặt bàn!'); return; }
     if (!bookingTime) { toast.error('Vui lòng chọn thời gian!'); return; }
     if (guests <= 0) { toast.error('Số lượng khách không hợp lệ!'); return; }
+
+    const selectedDateTime = new Date(`${bookingDate}T${bookingTime}:00`);
+    const minAllowedTime = new Date(Date.now() + 30 * 60 * 1000);
+
+    if (selectedDateTime < minAllowedTime) {
+      toast.error('Thời gian đặt bàn phải cách thời gian hiện tại ít nhất 30 phút và không được ở quá khứ!');
+      return;
+    }
 
     try {
       setLoadingFloorPlan(true);
@@ -235,11 +295,12 @@ export default function BookingWizardPage() {
 
       // 2. Fetch occupied/reserved table IDs for this time slot
       const isoTime = `${bookingDate}T${bookingTime}:00`;
-      const avail = await api.get<{ bookedTableIds: number[] }>(
+      const avail = await api.get<{ bookedTableIds: number[]; bookedTableDetails?: Record<number, BookedTableDetail> }>(
         `/api/public/branches/${selectedBranchId}/tables/availability`,
         { params: { time: isoTime } }
       );
       setBookedTableIds(avail.bookedTableIds || []);
+      setBookedTableDetails(avail.bookedTableDetails || {});
 
       setStep(2);
     } catch (err) {
@@ -525,7 +586,7 @@ export default function BookingWizardPage() {
                   </label>
                   <input
                     type="date"
-                    min={new Date().toISOString().split('T')[0]}
+                    min={getLocalDateString()}
                     value={bookingDate}
                     onChange={e => setBookingDate(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
@@ -541,20 +602,20 @@ export default function BookingWizardPage() {
                     onChange={e => setBookingTime(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                   >
-                    <option value="11:00">11:00 AM</option>
-                    <option value="11:30">11:30 AM</option>
-                    <option value="12:00">12:00 PM</option>
-                    <option value="12:30">12:30 PM</option>
-                    <option value="13:00">13:00 PM</option>
-                    <option value="17:00">17:00 PM</option>
-                    <option value="17:30">17:30 PM</option>
-                    <option value="18:00">18:00 PM</option>
-                    <option value="18:30">18:30 PM</option>
-                    <option value="19:00">19:00 PM</option>
-                    <option value="19:30">19:30 PM</option>
-                    <option value="20:00">20:00 PM</option>
-                    <option value="20:30">20:30 PM</option>
-                    <option value="21:00">21:00 PM</option>
+                    {TIME_SLOTS.map(slot => {
+                      const isToday = bookingDate === getLocalDateString();
+                      let isDisabled = false;
+                      if (isToday) {
+                        const slotTime = new Date(`${bookingDate}T${slot.value}:00`).getTime();
+                        const minAllowedTime = Date.now() + 30 * 60 * 1000;
+                        isDisabled = slotTime < minAllowedTime;
+                      }
+                      return (
+                        <option key={slot.value} value={slot.value} disabled={isDisabled} className={isDisabled ? 'text-slate-400 bg-slate-100' : ''}>
+                          {slot.label} {isDisabled ? '(Khóa - Cần đặt trước ≥30p)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -681,6 +742,7 @@ export default function BookingWizardPage() {
                       {(selectedPlan.floorPlanObjects || []).map(obj => {
                         const isTable = obj.objectType === 'table';
                         const isBooked = bookedTableIds.includes(obj.id);
+                        const tableDetail = bookedTableDetails[obj.id];
                         
                         // Check room filtering
                         const belongsToActiveRoom = doesRoomMatchFilter(selectedPlan.name, selectedPlan.id);
@@ -692,13 +754,13 @@ export default function BookingWizardPage() {
                         return (
                           <div
                             key={obj.id}
+                            title={isTable ? (isBooked ? `Bàn ${obj.label}: Lịch đặt ${tableDetail?.formattedRange || 'Đã đặt'}. Dự kiến trống lúc ${tableDetail?.availableAtTime || 'N/A'}` : `Bàn ${obj.label}: Trống (Khả dụng)`) : undefined}
                             onClick={() => {
                               if (isTable) {
-                                if (isBooked) {
-                                  toast.error('Bàn này đã được đặt, vui lòng chọn bàn khác màu xanh!');
-                                } else {
-                                  setSelectedTableObj(selectedTableObj?.id === obj.id ? null : obj);
-                                  setSelectedTableConfirmed(false);
+                                setSelectedTableObj(selectedTableObj?.id === obj.id ? null : obj);
+                                setSelectedTableConfirmed(false);
+                                if (isBooked && tableDetail) {
+                                  toast.info(`Bàn ${obj.label} đã có lịch đặt ${tableDetail.formattedRange}. Dự kiến trống lúc ${tableDetail.availableAtTime}.`);
                                 }
                               }
                             }}
@@ -713,7 +775,7 @@ export default function BookingWizardPage() {
                             }}
                           >
                             <div
-                              className="w-full h-full flex items-center justify-center text-[10px] font-black text-white rounded-lg shadow-sm border border-black/10"
+                              className="w-full h-full flex flex-col items-center justify-center text-[10px] font-black text-white rounded-lg shadow-sm border border-black/10 px-1"
                               style={{
                                 borderRadius: obj.shape === 'circle' ? '50%' : '6px',
                                 backgroundColor: isTable ? color : '#cbd5e1',
@@ -721,9 +783,14 @@ export default function BookingWizardPage() {
                                 opacity: isTable ? 0.9 : 0.4
                               }}
                             >
-                              <span className="text-center drop-shadow-sm select-none">
+                              <span className="text-center drop-shadow-sm select-none leading-none">
                                 {obj.label}
                               </span>
+                              {isBooked && (
+                                <span className="text-[7.5px] opacity-95 font-extrabold bg-black/40 px-1 py-0.5 rounded mt-0.5 whitespace-nowrap shadow-sm text-amber-200 leading-none">
+                                  {tableDetail?.startTime ? `Đặt ${tableDetail.startTime}` : 'Đã đặt'}
+                                </span>
+                              )}
                             </div>
                           </div>
                         );
@@ -736,65 +803,85 @@ export default function BookingWizardPage() {
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
                   <div>
                     <h3 className="font-extrabold text-slate-800 text-sm">Chi tiết vị trí chọn</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Nhấp trực tiếp vào bàn xanh để lựa chọn</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Nhấp trực tiếp vào bàn trên sơ đồ để xem thông tin</p>
                   </div>
 
                   {selectedTableObj ? (
-                    <div className="space-y-4 text-xs">
-                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-extrabold text-blue-900 text-sm">{selectedTableObj.label}</span>
-                          <span className="bg-blue-200 text-blue-800 font-bold px-2 py-0.5 rounded-full text-[9px] uppercase">
-                            Khả dụng
-                          </span>
+                    bookedTableIds.includes(selectedTableObj.id) ? (
+                      <div className="space-y-4 text-xs">
+                        <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-4 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-extrabold text-amber-950 text-sm">{selectedTableObj.label}</span>
+                            <span className="bg-amber-200 text-amber-900 border border-amber-300 font-extrabold px-2.5 py-0.5 rounded-full text-[9px] uppercase">
+                              Đã đặt / Đang bận
+                            </span>
+                          </div>
+                          <p className="text-slate-700 font-medium leading-relaxed">
+                            Khung giờ bàn đã được đặt: <span className="font-bold text-amber-900">{bookedTableDetails[selectedTableObj.id]?.formattedRange || 'Đang bận'}</span><br />
+                            Thời gian dự kiến trống bàn: <span className="font-extrabold text-emerald-700">{bookedTableDetails[selectedTableObj.id]?.availableAtTime || 'N/A'}</span>
+                          </p>
+                          <div className="bg-white/80 border border-amber-200/70 rounded-lg p-2.5 text-[11px] text-slate-600 font-medium mt-2">
+                            💡 <strong>Gợi ý:</strong> Quý khách có thể đổi giờ đặt từ sau <strong>{bookedTableDetails[selectedTableObj.id]?.availableAtTime || 'khung giờ trên'}</strong> hoặc lựa chọn bàn trống màu xanh khác.
+                          </div>
                         </div>
-                        <p className="text-slate-600 font-medium leading-relaxed">
-                          Sức chứa tối đa: <span className="font-bold text-slate-900">{parsedMeta.capacity || 4} chỗ</span><br />
-                          Vị trí khu vực: <span className="font-bold text-slate-900">{parsedMeta.zone || selectedPlan.name}</span>
-                        </p>
                       </div>
-
-                      {/* Estimated Distances (US#1) */}
-                      {estimatedDistances && (
-                        <div className="border border-slate-100 rounded-xl p-3.5 space-y-2">
-                          <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wide">Ước tính khoảng cách (Khoảng):</h4>
-                          <ul className="space-y-1.5 text-slate-600 font-medium">
-                            <li className="flex items-center justify-between">
-                              <span>🚪 Cách lối đi chính:</span>
-                              <span className="font-bold text-slate-900">{estimatedDistances.aisle}m</span>
-                            </li>
-                            <li className="flex items-center justify-between">
-                              <span>🚽 Cách nhà vệ sinh:</span>
-                              <span className="font-bold text-slate-900">~{estimatedDistances.wc}m</span>
-                            </li>
-                            <li className="flex items-center justify-between">
-                              <span>🎸 Cách sân khấu chính:</span>
-                              <span className="font-bold text-slate-900">~{estimatedDistances.stage}m</span>
-                            </li>
-                          </ul>
+                    ) : (
+                      <div className="space-y-4 text-xs">
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-extrabold text-blue-900 text-sm">{selectedTableObj.label}</span>
+                            <span className="bg-blue-200 text-blue-800 font-bold px-2 py-0.5 rounded-full text-[9px] uppercase">
+                              Khả dụng
+                            </span>
+                          </div>
+                          <p className="text-slate-600 font-medium leading-relaxed">
+                            Sức chứa tối đa: <span className="font-bold text-slate-900">{parsedMeta.capacity || 4} chỗ</span><br />
+                            Vị trí khu vực: <span className="font-bold text-slate-900">{parsedMeta.zone || selectedPlan.name}</span>
+                          </p>
                         </div>
-                      )}
 
-                      {!selectedTableConfirmed ? (
-                        <button
-                          onClick={() => {
-                            setSelectedTableConfirmed(true);
-                            toast.success(`Đã chọn vị trí bàn: ${selectedTableObj.label}`);
-                          }}
-                          className="w-full py-2.5 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl font-bold transition shadow-sm"
-                        >
-                          Xác nhận chọn bàn này
-                        </button>
-                      ) : (
-                        <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl p-3 flex items-center gap-2 font-bold">
-                          <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
-                          <span>Đã khóa bàn: {selectedTableObj.label}</span>
-                        </div>
-                      )}
-                    </div>
+                        {/* Estimated Distances (US#1) */}
+                        {estimatedDistances && (
+                          <div className="border border-slate-100 rounded-xl p-3.5 space-y-2">
+                            <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wide">Ước tính khoảng cách (Khoảng):</h4>
+                            <ul className="space-y-1.5 text-slate-600 font-medium">
+                              <li className="flex items-center justify-between">
+                                <span>🚪 Cách lối đi chính:</span>
+                                <span className="font-bold text-slate-900">{estimatedDistances.aisle}m</span>
+                              </li>
+                              <li className="flex items-center justify-between">
+                                <span>🚽 Cách nhà vệ sinh:</span>
+                                <span className="font-bold text-slate-900">~{estimatedDistances.wc}m</span>
+                              </li>
+                              <li className="flex items-center justify-between">
+                                <span>🎸 Cách sân khấu chính:</span>
+                                <span className="font-bold text-slate-900">~{estimatedDistances.stage}m</span>
+                              </li>
+                            </ul>
+                          </div>
+                        )}
+
+                        {!selectedTableConfirmed ? (
+                          <button
+                            onClick={() => {
+                              setSelectedTableConfirmed(true);
+                              toast.success(`Đã chọn vị trí bàn: ${selectedTableObj.label}`);
+                            }}
+                            className="w-full py-2.5 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl font-bold transition shadow-sm"
+                          >
+                            Xác nhận chọn bàn này
+                          </button>
+                        ) : (
+                          <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl p-3 flex items-center gap-2 font-bold">
+                            <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
+                            <span>Đã khóa bàn: {selectedTableObj.label}</span>
+                          </div>
+                        )}
+                      </div>
+                    )
                   ) : (
                     <div className="bg-slate-50 border border-slate-200/50 rounded-xl p-6 text-center text-slate-450 text-xs py-10 font-medium">
-                      Chưa có bàn nào được chọn. Vui lòng nhấp trực tiếp vào bàn trống trên sơ đồ.
+                      Chưa có bàn nào được chọn. Vui lòng nhấp trực tiếp vào bàn trên sơ đồ.
                     </div>
                   )}
 
