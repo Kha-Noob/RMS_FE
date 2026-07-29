@@ -115,6 +115,13 @@ export default function Header() {
           <Link 
             href="/#about-us-section"
             className={inactiveCls}
+            onClick={(e) => {
+              if (pathname === '/') {
+                e.preventDefault();
+                const section = document.getElementById('about-us-section');
+                section?.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
           >
             {t.navAbout}
           </Link>
