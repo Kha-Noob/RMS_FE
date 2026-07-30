@@ -161,11 +161,33 @@ export default function POSPage() {
   const isEditBlocked = isViewingPast || isSessionExpired || isServiceCompleted;
 
   const handleCompleteService = async () => {
-    if (!session) return;
+    const targetSessionId = session?.id || selectedTable?.activeSessionId;
+    if (!targetSessionId && selectedTable) {
+      try {
+        setCartLoading(true);
+        const openRes = await api.post<TableSession>('/api/pos/session/open', null, {
+          params: { tableId: selectedTable.id }
+        });
+        await api.post('/api/pos/session/complete-service', null, {
+          params: { sessionId: openRes.id }
+        });
+        toast.success(`✅ Đã hoàn thành phục vụ ${selectedTable.name}!`);
+        setSelectedTable(prev => prev ? { ...prev, status: 'SERVED' } : null);
+        setSession(openRes ? { ...openRes, status: 'SERVED' } : null);
+        loadData();
+      } catch {
+        toast.error('Lỗi khi đánh dấu hoàn thành phục vụ');
+      } finally {
+        setCartLoading(false);
+      }
+      return;
+    }
+
+    if (!targetSessionId) return;
     try {
       setCartLoading(true);
       await api.post('/api/pos/session/complete-service', null, {
-        params: { sessionId: session.id }
+        params: { sessionId: targetSessionId }
       });
       toast.success(`✅ Đã hoàn thành phục vụ ${selectedTable?.name || 'bàn'}!`);
       if (selectedTable) {
@@ -1080,6 +1102,12 @@ export default function POSPage() {
                     statusBorder = 'border-amber-200/80';
                     dotColor = 'bg-amber-500';
                     break;
+                  case 'SERVED':
+                    statusBg = 'bg-blue-50/60 hover:bg-blue-50/80';
+                    statusText = 'text-blue-700';
+                    statusBorder = 'border-blue-200/80';
+                    dotColor = 'bg-blue-500';
+                    break;
                   default:
                     statusBg = 'bg-slate-50/60 hover:bg-slate-50/80';
                     statusText = 'text-slate-700';
@@ -1252,12 +1280,14 @@ export default function POSPage() {
                 </button>
               </div>
 
-              {session && (
+              {(session || selectedTable.status === 'RESERVED' || selectedTable.status === 'OCCUPIED' || selectedTable.status === 'SERVED') && (
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
-                      Phiên #{session.id}
-                    </span>
+                    {session && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
+                        Phiên #{session.id}
+                      </span>
+                    )}
                     <span className="text-[10px] text-slate-400">
                       {cartItems.length} món
                     </span>
