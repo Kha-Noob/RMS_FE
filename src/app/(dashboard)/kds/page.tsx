@@ -88,7 +88,7 @@ export default function KDSPage() {
       return;
     }
     try {
-      const data = await api.get<KDSOrder[]>('/api/kds/orders');
+      const data = await api.get<KDSOrder[]>(`/api/kds/orders?branchId=${activeBranchId}`);
       setOrders(data);
     } catch {
       toast.error('Không tải được đơn hàng');
