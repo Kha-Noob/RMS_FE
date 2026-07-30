@@ -93,6 +93,7 @@ export default function BookingWizardPage() {
   const [floorPlans, setFloorPlans] = useState<FloorPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<FloorPlan | null>(null);
   const [bookedTableIds, setBookedTableIds] = useState<number[]>([]);
+  const [bookedTableTimes, setBookedTableTimes] = useState<Record<number, string>>({});
   const [occupiedTables, setOccupiedTables] = useState<Record<number, string>>({});
   const [selectedTableObj, setSelectedTableObj] = useState<FloorPlanObject | null>(null);
   const [selectedTableConfirmed, setSelectedTableConfirmed] = useState<boolean>(false);
@@ -174,6 +175,23 @@ export default function BookingWizardPage() {
     };
   }, [isPaying, createdBooking, locale]);
 
+  // Helper to get local YYYY-MM-DD
+  const getTodayLocalDate = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper to get default time (current time + 30 minutes)
+  const getDefaultBookingTime = () => {
+    const d = new Date(Date.now() + 30 * 60 * 1000);
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
   // --- Load Branches & Pre-fill from URL parameters ---
   useEffect(() => {
     const queryParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -199,8 +217,8 @@ export default function BookingWizardPage() {
     };
     loadBranches();
     
-    setBookingDate(queryDate || new Date().toISOString().split('T')[0]);
-    if (queryTime) setBookingTime(queryTime);
+    setBookingDate(queryDate || getTodayLocalDate());
+    setBookingTime(queryTime || getDefaultBookingTime());
     if (queryGuests) setGuests(parseInt(queryGuests) || 2);
   }, []);
 
@@ -213,12 +231,98 @@ export default function BookingWizardPage() {
     }
   }, [user, custName, custPhone, custEmail]);
 
+  // Time helper: 12-hour separate typed hour and minute inputs
+  const [typedHour, setTypedHour] = useState('11');
+  const [typedMinute, setTypedMinute] = useState('00');
+  const [timePeriod, setTimePeriod] = useState<'AM' | 'PM'>('AM');
+
+  const updateBookingTimeFromParts = (hStr: string, mStr: string, period: 'AM' | 'PM') => {
+    let h = parseInt(hStr, 10);
+    let m = parseInt(mStr, 10);
+
+    if (isNaN(h) || isNaN(m) || h < 1 || h > 12 || m < 0 || m > 59) {
+      setBookingTime('');
+      return;
+    }
+
+    let h24 = h;
+    if (period === 'PM') {
+      if (h24 < 12) h24 += 12;
+    } else {
+      if (h24 === 12) h24 = 0;
+    }
+
+    const final24 = `${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    setBookingTime(final24);
+  };
+
+  const formatTime12H = (timeStr: string) => {
+    if (!timeStr || !timeStr.includes(':')) return timeStr;
+    const [hStr, mStr] = timeStr.split(':');
+    let h = parseInt(hStr, 10);
+    let m = parseInt(mStr, 10);
+    if (isNaN(h)) h = 11;
+    if (isNaN(m)) m = 0;
+    const p = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${p}`;
+  };
+
   // --- Fetch Floor Plans & Availability (Step 1 -> Step 2) ---
   const handleProceedToStep2 = async () => {
     if (!selectedBranchId) { toast.error('Vui lòng chọn chi nhánh!'); return; }
     if (!bookingDate) { toast.error('Vui lòng chọn ngày đặt bàn!'); return; }
-    if (!bookingTime) { toast.error('Vui lòng chọn thời gian!'); return; }
     if (guests <= 0) { toast.error('Số lượng khách không hợp lệ!'); return; }
+
+    // 1. Strict 12-hour input validation (Hour 1..12, Minute 0..59)
+    const h = parseInt(typedHour, 10);
+    const m = parseInt(typedMinute, 10);
+
+    if (isNaN(h) || h < 1 || h > 12) {
+      toast.error('Giờ không hợp lệ. vui lòng nhập giờ từ 1 đến 12(ví dụ 01:15 PM)');
+      return;
+    }
+
+    if (isNaN(m) || m < 0 || m > 59) {
+      toast.error('Phút không hợp lệ! Vui lòng nhập phút từ 00 đến 59.');
+      return;
+    }
+
+    if (!bookingTime) {
+      toast.error('Vui lòng chọn giờ đặt bàn hợp lệ!');
+      return;
+    }
+
+    // Validate booking date & time: block past times and require at least 30 minutes in advance
+    const [year, month, day] = bookingDate.split('-').map(Number);
+    const [hours, minutes] = bookingTime.split(':').map(Number);
+
+    if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) {
+      toast.error('Thời gian đặt bàn không hợp lệ!');
+      return;
+    }
+
+    // Operating Hours validation: Must be between 07:00 AM (07:00) and 09:00 PM (21:00)
+    const totalMinutes = hours * 60 + minutes;
+    if (totalMinutes < 7 * 60 || totalMinutes > 21 * 60) {
+      toast.error('Giờ đặt bàn từ 7h đến 21h');
+      return;
+    }
+
+    const selectedDateTime = new Date(year, month - 1, day, hours, minutes, 0);
+    const now = new Date();
+
+    if (selectedDateTime.getTime() < now.getTime()) {
+      toast.error('Không thể chọn thời gian đặt bàn trong quá khứ!');
+      return;
+    }
+
+    const minAllowedTime = new Date(now.getTime() + 30 * 60 * 1000);
+    if (selectedDateTime.getTime() < minAllowedTime.getTime()) {
+      toast.error('Vui lòng chọn thời gian đặt bàn cách thời điểm hiện tại ít nhất 30 phút!');
+      return;
+    }
 
     try {
       setLoadingFloorPlan(true);
@@ -234,13 +338,18 @@ export default function BookingWizardPage() {
         setSelectedPlan(null);
       }
 
-      // 2. Fetch occupied/reserved table IDs for this time slot
+      // 2. Fetch occupied/reserved table IDs & times for this time slot
       const isoTime = `${bookingDate}T${bookingTime}:00`;
-      const avail = await api.get<{ bookedTableIds: number[]; occupiedTables?: Record<number, string> }>(
+      const avail = await api.get<{
+        bookedTableIds: number[];
+        bookedTableTimes?: Record<number, string>;
+        occupiedTables?: Record<number, string>;
+      }>(
         `/api/public/branches/${selectedBranchId}/tables/availability`,
         { params: { time: isoTime } }
       );
       setBookedTableIds(avail.bookedTableIds || []);
+      setBookedTableTimes(avail.bookedTableTimes || {});
       setOccupiedTables(avail.occupiedTables || {});
 
       setStep(2);
@@ -350,6 +459,21 @@ export default function BookingWizardPage() {
     const hh = String(date.getHours()).padStart(2, '0');
     const mm = String(date.getMinutes()).padStart(2, '0');
     return `${hh}:${mm}`;
+  };
+
+  const getBookedTableTimeLabel = (obj: FloorPlanObject) => {
+    const tableId = obj.tableId || obj.id;
+    if (tableId && bookedTableTimes[tableId]) {
+      const rawTime = bookedTableTimes[tableId];
+      let timePart = rawTime;
+      if (rawTime.includes('T')) {
+        timePart = rawTime.split('T')[1].substring(0, 5);
+      } else if (rawTime.length > 5) {
+        timePart = rawTime.substring(0, 5);
+      }
+      return formatTime12H(timePart);
+    }
+    return formatTime12H(bookingTime);
   };
 
   // Check if a room matches the filter
@@ -505,7 +629,7 @@ export default function BookingWizardPage() {
         
         {/* STEP 1: General Options */}
         {step === 1 && (
-          <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+          <div className="max-w-3xl mx-auto bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
             <div className="text-center space-y-1">
               <h2 className="text-xl font-extrabold text-slate-900">Thông tin cơ bản lượt đặt</h2>
               <p className="text-xs text-slate-500">Vui lòng chọn chi nhánh và thời gian cuộc hẹn của bạn</p>
@@ -529,49 +653,81 @@ export default function BookingWizardPage() {
               </div>
 
               {/* Grid Date Time Guests */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                    <Calendar className="h-3.5 w-3.5 text-blue-500" /> Chọn ngày
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1 truncate">
+                    <Calendar className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" /> Chọn ngày
                   </label>
                   <input
                     type="date"
-                    min={new Date().toISOString().split('T')[0]}
+                    min={getTodayLocalDate()}
                     value={bookingDate}
                     onChange={e => setBookingDate(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white font-medium text-slate-800"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5 text-blue-500" /> Chọn giờ
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1 truncate">
+                    <Clock className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" /> Chọn giờ (7h AM - 9h PM)
                   </label>
-                  <select
-                    value={bookingTime}
-                    onChange={e => setBookingTime(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
-                  >
-                    <option value="11:00">11:00 AM</option>
-                    <option value="11:30">11:30 AM</option>
-                    <option value="12:00">12:00 PM</option>
-                    <option value="12:30">12:30 PM</option>
-                    <option value="13:00">13:00 PM</option>
-                    <option value="17:00">17:00 PM</option>
-                    <option value="17:30">17:30 PM</option>
-                    <option value="18:00">18:00 PM</option>
-                    <option value="18:30">18:30 PM</option>
-                    <option value="19:00">19:00 PM</option>
-                    <option value="19:30">19:30 PM</option>
-                    <option value="20:00">20:00 PM</option>
-                    <option value="20:30">20:30 PM</option>
-                    <option value="21:00">21:00 PM</option>
-                  </select>
+                  <div className="flex items-center gap-1.5">
+                    {/* Hour input */}
+                    <input
+                      type="text"
+                      placeholder="11"
+                      maxLength={2}
+                      value={typedHour}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTypedHour(val);
+                        updateBookingTimeFromParts(val, typedMinute, timePeriod);
+                      }}
+                      className="w-14 min-w-0 px-2 py-2.5 rounded-xl border border-slate-350 text-sm font-bold text-slate-800 bg-white text-center focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                    <span className="font-extrabold text-slate-500 text-sm">:</span>
+                    {/* Minute input */}
+                    <input
+                      type="text"
+                      placeholder="00"
+                      maxLength={2}
+                      value={typedMinute}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTypedMinute(val);
+                        updateBookingTimeFromParts(typedHour, val, timePeriod);
+                      }}
+                      className="w-14 min-w-0 px-2 py-2.5 rounded-xl border border-slate-350 text-sm font-bold text-slate-800 bg-white text-center focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                    {/* AM / PM toggle */}
+                    <div className="flex rounded-xl overflow-hidden border border-slate-350 p-0.5 bg-slate-100 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTimePeriod('AM');
+                          updateBookingTimeFromParts(typedHour, typedMinute, 'AM');
+                        }}
+                        className={`px-2.5 py-1.5 text-xs font-black rounded-lg transition-colors cursor-pointer ${timePeriod === 'AM' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                      >
+                        AM
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTimePeriod('PM');
+                          updateBookingTimeFromParts(typedHour, typedMinute, 'PM');
+                        }}
+                        className={`px-2.5 py-1.5 text-xs font-black rounded-lg transition-colors cursor-pointer ${timePeriod === 'PM' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                      >
+                        PM
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                    <Users className="h-3.5 w-3.5 text-blue-500" /> Số lượng khách
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1 truncate">
+                    <Users className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" /> Số lượng khách
                   </label>
                   <input
                     type="number"
@@ -579,9 +735,14 @@ export default function BookingWizardPage() {
                     max={30}
                     value={guests}
                     onChange={e => setGuests(parseInt(e.target.value) || 2)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white font-medium text-slate-800"
                   />
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <Info className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                <span>Nhà hàng chỉ phục vụ đặt bàn từ 7h00 AM đến 9h00 PM (21h00) và cách thời điểm hiện tại ít nhất 30 phút.</span>
               </div>
             </div>
 
@@ -603,7 +764,7 @@ export default function BookingWizardPage() {
                   <MapPin className="h-4.5 w-4.5 text-blue-600" /> {selectedBranchName}
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  Thời gian: <span className="text-blue-600 font-bold">{bookingDate} vào lúc {bookingTime}</span> | Khách: <span className="text-blue-600 font-bold">{guests} người</span>
+                  Thời gian: <span className="text-blue-600 font-bold">{bookingDate} vào lúc {formatTime12H(bookingTime)}</span> | Khách: <span className="text-blue-600 font-bold">{guests} người</span>
                 </p>
               </div>
 
@@ -757,9 +918,9 @@ export default function BookingWizardPage() {
                             >
                               <span className="text-center drop-shadow-sm select-none flex flex-col items-center">
                                 <span className="font-extrabold">{obj.label}</span>
-                                {isTable && obj.tableId && occupiedTables[obj.tableId] && (
-                                  <span className="text-[7.5px] font-medium opacity-90 mt-0.5 bg-black/15 px-1 rounded-sm">
-                                    Vào: {getOccupiedTimeLabel(obj.tableId)}
+                                {isTable && isBooked && (
+                                  <span className="text-[7.5px] font-medium opacity-90 mt-0.5 bg-black/30 px-1.5 py-0.5 rounded-sm whitespace-nowrap">
+                                    Đã đặt ({getBookedTableTimeLabel(obj)})
                                   </span>
                                 )}
                               </span>
