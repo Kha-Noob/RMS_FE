@@ -4,17 +4,65 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { Package, BookOpen, Utensils, Wheat, Tags, ArrowRightLeft, Plus, Trash2, Edit, Loader2, X, Info, CheckCircle2 } from 'lucide-react';
 
 type Tab = 'stock' | 'recipes' | 'menu' | 'raw-materials' | 'categories' | 'transfer';
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'stock', label: 'Stock' },
-  { key: 'recipes', label: 'Recipes' },
-  { key: 'menu', label: 'Menu' },
-  { key: 'raw-materials', label: 'Raw Materials' },
-  { key: 'categories', label: 'Categories' },
-  { key: 'transfer', label: 'Branch Transfer' },
+const TABS: { key: Tab; label: string; icon: any }[] = [
+  { key: 'stock', label: 'Stock', icon: Package },
+  { key: 'recipes', label: 'Recipes', icon: BookOpen },
+  { key: 'menu', label: 'Menu', icon: Utensils },
+  { key: 'raw-materials', label: 'Raw Materials', icon: Wheat },
+  { key: 'categories', label: 'Categories', icon: Tags },
+  { key: 'transfer', label: 'Branch Transfer', icon: ArrowRightLeft },
 ];
+
+const stringToColorClass = (str: string) => {
+  const colors = [
+    'bg-blue-100 text-blue-700 border-blue-200',
+    'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'bg-violet-100 text-violet-700 border-violet-200',
+    'bg-amber-100 text-amber-700 border-amber-200',
+    'bg-rose-100 text-rose-700 border-rose-200',
+    'bg-cyan-100 text-cyan-700 border-cyan-200',
+    'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+    'bg-teal-100 text-teal-700 border-teal-200',
+  ];
+  let hash = 0;
+  if (!str) return colors[0];
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
+const getCategoryColorClass = (categoryName: string | undefined, itemName: string) => {
+  if (!categoryName) return stringToColorClass(itemName);
+  const lower = categoryName.toLowerCase();
+  
+  if (lower.includes('nướng') || lower.includes('bbq') || lower.includes('chiên') || lower.includes('quay') || lower.includes('rán')) {
+    return 'bg-rose-100 text-rose-700 border-rose-200';
+  }
+  if (lower.includes('nước') || lower.includes('lẩu') || lower.includes('canh') || lower.includes('trà') || lower.includes('uống') || lower.includes('drink') || lower.includes('giải khát')) {
+    return 'bg-cyan-100 text-cyan-700 border-cyan-200';
+  }
+  if (lower.includes('rau') || lower.includes('salad') || lower.includes('chay') || lower.includes('xanh') || lower.includes('gỏi')) {
+    return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  }
+  if (lower.includes('cơm') || lower.includes('bún') || lower.includes('phở') || lower.includes('mì') || lower.includes('cháo')) {
+    return 'bg-amber-100 text-amber-700 border-amber-200';
+  }
+  if (lower.includes('ngọt') || lower.includes('bánh') || lower.includes('tráng miệng') || lower.includes('dessert') || lower.includes('kem')) {
+    return 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200';
+  }
+  
+  return stringToColorClass(categoryName);
+};
+
+const getInitials = (name: string) => {
+  if (!name) return 'NA';
+  return name.substring(0, 2).toUpperCase();
+};
 
 interface StockItem {
   id: number;
@@ -95,23 +143,25 @@ function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-lg">
-        <div className="flex items-center justify-between p-5 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-800">{title}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-800 text-xl">✕</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white border border-slate-200/60 rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl shadow-slate-200/50 animate-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="text-lg font-bold text-slate-800 tracking-tight">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors p-1.5 rounded-full hover:bg-slate-100">
+            <X size={18} />
+          </button>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
 }
 
 // ─── Reusable Styles ────────────────────────────────────────────────────────
-const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b] text-sm';
-const btnPrimary = 'px-4 py-2 rounded-lg bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition';
-const btnDanger = 'px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm transition';
-const btnSecondary = 'px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-medium transition';
+const inputCls = 'w-full px-3.5 py-2.5 rounded-xl bg-slate-50/50 border border-slate-200 text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#25439b]/10 focus:border-[#25439b] transition-all text-sm';
+const btnPrimary = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-semibold transition-all shadow-md shadow-[#25439b]/20 hover:shadow-lg hover:shadow-[#25439b]/30 active:scale-[0.98]';
+const btnDanger = 'inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-all shadow-sm active:scale-[0.98]';
+const btnSecondary = 'inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold transition-all border border-slate-200 shadow-sm active:scale-[0.98]';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
@@ -122,23 +172,33 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Inventory Management</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Inventory Management</h1>
+          <p className="text-sm text-slate-500 mt-1">Manage your stock, recipes, and branch transfers efficiently.</p>
+        </div>
+      </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
-              activeTab === tab.key
-                ? 'border-[#25439b] text-[#25439b]'
-                : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm inline-flex overflow-x-auto max-w-full hide-scrollbar">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl whitespace-nowrap transition-all duration-200 ${
+                isActive
+                  ? 'bg-[#25439b]/10 text-[#25439b] shadow-sm'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              <Icon size={16} className={isActive ? 'text-[#25439b]' : 'text-slate-400'} />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab Content */}
@@ -178,43 +238,67 @@ function StockTab({ activeBranchId }: { activeBranchId: string | null }) {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading stock...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <Loader2 className="w-8 h-8 text-[#25439b] animate-spin mb-3" />
+      <p className="text-slate-500 font-medium">Loading stock...</p>
+    </div>
+  );
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-500 border-b border-slate-200">
-            <th className="py-3 px-4">Name</th>
-            <th className="py-3 px-4">Unit</th>
-            <th className="py-3 px-4">Current Stock</th>
-            <th className="py-3 px-4">Minimum Stock</th>
-            <th className="py-3 px-4">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-              <td className="py-3 px-4 text-slate-800">{item.name}</td>
-              <td className="py-3 px-4 text-slate-600">{item.unit}</td>
-              <td className="py-3 px-4 text-slate-600">{item.currentStock}</td>
-              <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
-              <td className="py-3 px-4">
-                {item.currentStock <= 0 ? (
-                  <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">Hết hàng</span>
-                ) : item.currentStock <= item.minimumStock ? (
-                  <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-medium">Cần nhập thêm</span>
-                ) : (
-                  <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-medium">Đủ</span>
-                )}
-              </td>
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-500 border-b border-slate-200">
+              <th className="py-4 px-5">Name</th>
+              <th className="py-4 px-5">Unit</th>
+              <th className="py-4 px-5">Current Stock</th>
+              <th className="py-4 px-5">Minimum Stock</th>
+              <th className="py-4 px-5">Status</th>
             </tr>
-          ))}
-          {items.length === 0 && (
-            <tr><td colSpan={5} className="py-8 text-center text-slate-400">No stock items found</td></tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors">
+                <td className="py-4 px-5">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold shadow-sm ${stringToColorClass(item.name)}`}>
+                      {getInitials(item.name)}
+                    </div>
+                    <span className="font-semibold text-slate-800">{item.name}</span>
+                  </div>
+                </td>
+                <td className="py-4 px-5"><span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-medium">{item.unit}</span></td>
+                <td className="py-4 px-5 text-slate-800 font-semibold">{item.currentStock}</td>
+                <td className="py-4 px-5 text-slate-500">{item.minimumStock}</td>
+                <td className="py-4 px-5">
+                  {item.currentStock <= 0 ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 text-red-700 text-xs font-semibold border border-red-200/60"><Info size={14} /> Hết hàng</span>
+                  ) : item.currentStock <= item.minimumStock ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-semibold border border-amber-200/60"><Info size={14} /> Cần nhập thêm</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-200/60"><CheckCircle2 size={14} /> Đủ</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-16 text-center">
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                      <Package className="text-slate-400 w-8 h-8" />
+                    </div>
+                    <h3 className="text-base font-semibold text-slate-800">No stock items found</h3>
+                    <p className="text-sm text-slate-500 mt-1">Stock is currently empty.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -328,69 +412,102 @@ function RecipesTab() {
     }
   };
  
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading recipes...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <Loader2 className="w-8 h-8 text-[#25439b] animate-spin mb-3" />
+      <p className="text-slate-500 font-medium">Loading recipes...</p>
+    </div>
+  );
  
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          {selectedIds.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-700">
+          {selectedIds.length > 0 ? (
+            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4">
+              <span className="text-sm font-medium text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg">
                 Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> công thức
               </span>
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+                className={btnDanger}
               >
+                <Trash2 size={16} />
                 Xóa đã chọn
               </button>
             </div>
+          ) : (
+             <div className="text-sm font-medium text-slate-500">Quản lý công thức chế biến</div>
           )}
         </div>
-        <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Recipe</button>
+        <button onClick={() => setShowCreate(true)} className={btnPrimary}>
+          <Plus size={18} />
+          New Recipe
+        </button>
       </div>
  
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4 w-12">
-                <input
-                  type="checkbox"
-                  checked={recipes.length > 0 && selectedIds.length === recipes.length}
-                  onChange={e => handleSelectAll(e.target.checked)}
-                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
-                />
-              </th>
-              <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4">Description</th>
-              <th className="py-3 px-4">Ingredients</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recipes.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50/50">
+                <th className="py-4 px-5 w-12">
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(r.id)}
-                    onChange={e => handleSelectOne(r.id, e.target.checked)}
-                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    checked={recipes.length > 0 && selectedIds.length === recipes.length}
+                    onChange={e => handleSelectAll(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
                   />
-                </td>
-                <td className="py-3 px-4 text-slate-800">{r.name}</td>
-                <td className="py-3 px-4 text-slate-600">{r.description}</td>
-                <td className="py-3 px-4 text-slate-600">
-                  {r.ingredients?.length ?? 0} items
-                </td>
+                </th>
+                <th className="py-4 px-5">Name</th>
+                <th className="py-4 px-5">Description</th>
+                <th className="py-4 px-5">Ingredients</th>
               </tr>
-            ))}
-            {recipes.length === 0 && (
-              <tr><td colSpan={4} className="py-8 text-center text-slate-400">No recipes found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {recipes.map((r) => (
+                <tr key={r.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors">
+                  <td className="py-4 px-5">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(r.id)}
+                      onChange={e => handleSelectOne(r.id, e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    />
+                  </td>
+                  <td className="py-4 px-5">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold shadow-sm ${stringToColorClass(r.name)}`}>
+                        {getInitials(r.name)}
+                      </div>
+                      <span className="font-semibold text-slate-800">{r.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-5 text-slate-600">{r.description}</td>
+                  <td className="py-4 px-5">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-blue-50 text-[#25439b] font-medium text-xs border border-blue-100">
+                      {r.ingredients?.length ?? 0} items
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {recipes.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-16 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <BookOpen className="text-slate-400 w-8 h-8" />
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-800">No recipes found</h3>
+                      <p className="text-sm text-slate-500 mt-1">Start by creating a new recipe.</p>
+                      <button onClick={() => setShowCreate(true)} className="mt-4 text-[#25439b] font-medium hover:underline flex items-center gap-1"><Plus size={16}/> Create Recipe</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Create Recipe Modal */}
@@ -577,91 +694,121 @@ function MenuTab({ activeBranchId }: { activeBranchId: string | null }) {
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading menu...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <Loader2 className="w-8 h-8 text-[#25439b] animate-spin mb-3" />
+      <p className="text-slate-500 font-medium">Loading menu...</p>
+    </div>
+  );
  
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          {selectedIds.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-700">
+          {selectedIds.length > 0 ? (
+            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4">
+              <span className="text-sm font-medium text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg">
                 Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> món ăn
               </span>
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+                className={btnDanger}
               >
+                <Trash2 size={16} />
                 Xóa đã chọn
               </button>
             </div>
+          ) : (
+             <div className="text-sm font-medium text-slate-500">Quản lý thực đơn</div>
           )}
         </div>
-        <button onClick={openCreate} className={btnPrimary}>+ New Menu Item</button>
+        <button onClick={openCreate} className={btnPrimary}>
+          <Plus size={18} />
+          New Menu Item
+        </button>
       </div>
  
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4 w-12">
-                <input
-                  type="checkbox"
-                  checked={items.length > 0 && selectedIds.length === items.length}
-                  onChange={e => handleSelectAll(e.target.checked)}
-                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
-                />
-              </th>
-              <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4">Category</th>
-              <th className="py-3 px-4">Price</th>
-              <th className="py-3 px-4">Variants</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50/50">
+                <th className="py-4 px-5 w-12">
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(item.id)}
-                    onChange={e => handleSelectOne(item.id, e.target.checked)}
-                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    checked={items.length > 0 && selectedIds.length === items.length}
+                    onChange={e => handleSelectAll(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
                   />
-                </td>
-                <td className="py-3 px-4 text-slate-800">{item.name}</td>
-                <td className="py-3 px-4 text-slate-600">{item.category?.name ?? '—'}</td>
-                <td className="py-3 px-4 text-slate-600">${item.price?.toFixed(2)}</td>
-                <td className="py-3 px-4 text-slate-600">{item.variants?.length ?? 0}</td>
-                <td className="py-3 px-4">
-                  {item.isActive ? (
-                    <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs">Active</span>
-                  ) : (
-                    <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-xs">Inactive</span>
-                  )}
-                </td>
-                <td className="py-3 px-4 text-right">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors"
-                    title="Edit"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil">
-                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                      <path d="m15 5 4 4"/>
-                    </svg>
-                    <span>Sửa</span>
-                  </button>
-                </td>
+                </th>
+                <th className="py-4 px-5">Name</th>
+                <th className="py-4 px-5">Category</th>
+                <th className="py-4 px-5">Price</th>
+                <th className="py-4 px-5">Variants</th>
+                <th className="py-4 px-5">Status</th>
+                <th className="py-4 px-5 text-right">Actions</th>
               </tr>
-            ))}
-            {items.length === 0 && (
-              <tr><td colSpan={7} className="py-8 text-center text-slate-400">No menu items found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors">
+                  <td className="py-4 px-5">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(item.id)}
+                      onChange={e => handleSelectOne(item.id, e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    />
+                  </td>
+                  <td className="py-4 px-5">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold shadow-sm ${getCategoryColorClass(item.category?.name, item.name)}`}>
+                        {getInitials(item.name)}
+                      </div>
+                      <span className="font-semibold text-slate-800">{item.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-5">
+                    <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-medium">{item.category?.name ?? '—'}</span>
+                  </td>
+                  <td className="py-4 px-5 text-slate-800 font-semibold">${item.price?.toFixed(2)}</td>
+                  <td className="py-4 px-5 text-slate-600">{item.variants?.length ?? 0}</td>
+                  <td className="py-4 px-5">
+                    {item.isActive ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-xs font-semibold border border-emerald-200/60"><CheckCircle2 size={12} /> Active</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-semibold border border-slate-200/60">Inactive</span>
+                    )}
+                  </td>
+                  <td className="py-4 px-5 text-right">
+                    <button
+                      onClick={() => openEdit(item)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors active:scale-95"
+                      title="Edit"
+                    >
+                      <Edit size={14} />
+                      <span>Sửa</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <Utensils className="text-slate-400 w-8 h-8" />
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-800">No menu items found</h3>
+                      <p className="text-sm text-slate-500 mt-1">Start by adding items to your menu.</p>
+                      <button onClick={openCreate} className="mt-4 text-[#25439b] font-medium hover:underline flex items-center gap-1"><Plus size={16}/> Create Menu Item</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Create/Edit Modal */}
@@ -824,81 +971,111 @@ function RawMaterialsTab() {
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading raw materials...</div>;
-
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <Loader2 className="w-8 h-8 text-[#25439b] animate-spin mb-3" />
+      <p className="text-slate-500 font-medium">Loading raw materials...</p>
+    </div>
+  );
+ 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          {selectedIds.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-700">
+          {selectedIds.length > 0 ? (
+            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4">
+              <span className="text-sm font-medium text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg">
                 Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> nguyên liệu
               </span>
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+                className={btnDanger}
               >
+                <Trash2 size={16} />
                 Xóa đã chọn
               </button>
             </div>
+          ) : (
+             <div className="text-sm font-medium text-slate-500">Quản lý nguyên vật liệu</div>
           )}
         </div>
-        <button onClick={openCreate} className={btnPrimary}>+ New Raw Material</button>
+        <button onClick={openCreate} className={btnPrimary}>
+          <Plus size={18} />
+          New Raw Material
+        </button>
       </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4 w-12">
-                <input
-                  type="checkbox"
-                  checked={items.length > 0 && selectedIds.length === items.length}
-                  onChange={e => handleSelectAll(e.target.checked)}
-                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
-                />
-              </th>
-              <th className="py-3 px-4">Name</th>
-              <th className="py-3 px-4">Unit</th>
-              <th className="py-3 px-4">Minimum Stock</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4">
+ 
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50/50">
+                <th className="py-4 px-5 w-12">
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(item.id)}
-                    onChange={e => handleSelectOne(item.id, e.target.checked)}
-                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    checked={items.length > 0 && selectedIds.length === items.length}
+                    onChange={e => handleSelectAll(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
                   />
-                </td>
-                <td className="py-3 px-4 text-slate-800">{item.name}</td>
-                <td className="py-3 px-4 text-slate-600">{item.unit}</td>
-                <td className="py-3 px-4 text-slate-600">{item.minimumStock}</td>
-                <td className="py-3 px-4 text-right">
-                  <button
-                    onClick={() => openEdit(item)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors"
-                    title="Edit"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-pencil">
-                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                      <path d="m15 5 4 4"/>
-                    </svg>
-                    <span>Sửa</span>
-                  </button>
-                </td>
+                </th>
+                <th className="py-4 px-5">Name</th>
+                <th className="py-4 px-5">Unit</th>
+                <th className="py-4 px-5">Minimum Stock</th>
+                <th className="py-4 px-5 text-right">Actions</th>
               </tr>
-            ))}
-            {items.length === 0 && (
-              <tr><td colSpan={5} className="py-8 text-center text-slate-400">No raw materials found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors">
+                  <td className="py-4 px-5">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(item.id)}
+                      onChange={e => handleSelectOne(item.id, e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    />
+                  </td>
+                  <td className="py-4 px-5">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold shadow-sm ${stringToColorClass(item.name)}`}>
+                        {getInitials(item.name)}
+                      </div>
+                      <span className="font-semibold text-slate-800">{item.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-5">
+                    <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-medium">{item.unit}</span>
+                  </td>
+                  <td className="py-4 px-5 text-slate-600">{item.minimumStock}</td>
+                  <td className="py-4 px-5 text-right">
+                    <button
+                      onClick={() => openEdit(item)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors active:scale-95"
+                      title="Edit"
+                    >
+                      <Edit size={14} />
+                      <span>Sửa</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-16 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <Wheat className="text-slate-400 w-8 h-8" />
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-800">No raw materials found</h3>
+                      <p className="text-sm text-slate-500 mt-1">Start by adding your first raw material.</p>
+                      <button onClick={openCreate} className="mt-4 text-[#25439b] font-medium hover:underline flex items-center gap-1"><Plus size={16}/> Create Raw Material</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title={editingItem ? 'Edit Raw Material' : 'New Raw Material'}>
@@ -1011,63 +1188,87 @@ function CategoriesTab() {
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading categories...</div>;
-
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <Loader2 className="w-8 h-8 text-[#25439b] animate-spin mb-3" />
+      <p className="text-slate-500 font-medium">Loading categories...</p>
+    </div>
+  );
+ 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          {selectedIds.length > 0 && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-slate-700">
+          {selectedIds.length > 0 ? (
+            <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4">
+              <span className="text-sm font-medium text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg">
                 Đã chọn <strong className="text-[#25439b]">{selectedIds.length}</strong> danh mục
               </span>
               <button
                 onClick={handleBulkDelete}
-                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition"
+                className={btnDanger}
               >
+                <Trash2 size={16} />
                 Xóa đã chọn
               </button>
             </div>
+          ) : (
+             <div className="text-sm font-medium text-slate-500">Quản lý danh mục</div>
           )}
         </div>
-        <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Category</button>
+        <button onClick={() => setShowCreate(true)} className={btnPrimary}>
+          <Plus size={18} />
+          New Category
+        </button>
       </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4 w-12">
-                <input
-                  type="checkbox"
-                  checked={categories.length > 0 && selectedIds.length === categories.length}
-                  onChange={e => handleSelectAll(e.target.checked)}
-                  className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
-                />
-              </th>
-              <th className="py-3 px-4">Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((cat) => (
-              <tr key={cat.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4">
+ 
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50/50">
+                <th className="py-4 px-5 w-12">
                   <input
                     type="checkbox"
-                    checked={selectedIds.includes(cat.id)}
-                    onChange={e => handleSelectOne(cat.id, e.target.checked)}
-                    className="rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    checked={categories.length > 0 && selectedIds.length === categories.length}
+                    onChange={e => handleSelectAll(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
                   />
-                </td>
-                <td className="py-3 px-4 text-slate-800">{cat.name}</td>
+                </th>
+                <th className="py-4 px-5">Name</th>
               </tr>
-            ))}
-            {categories.length === 0 && (
-              <tr><td colSpan={2} className="py-8 text-center text-slate-400">No categories found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {categories.map((cat) => (
+                <tr key={cat.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors">
+                  <td className="py-4 px-5">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(cat.id)}
+                      onChange={e => handleSelectOne(cat.id, e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-[#25439b] focus:ring-[#25439b]"
+                    />
+                  </td>
+                  <td className="py-4 px-5 font-medium text-slate-800">{cat.name}</td>
+                </tr>
+              ))}
+              {categories.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="py-16 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <Tags className="text-slate-400 w-8 h-8" />
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-800">No categories found</h3>
+                      <p className="text-sm text-slate-500 mt-1">Start by adding your first category.</p>
+                      <button onClick={() => setShowCreate(true)} className="mt-4 text-[#25439b] font-medium hover:underline flex items-center gap-1"><Plus size={16}/> Create Category</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="New Category">
@@ -1169,53 +1370,89 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
     }
   };
 
-  if (loading) return <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading transfers...</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+      <Loader2 className="w-8 h-8 text-[#25439b] animate-spin mb-3" />
+      <p className="text-slate-500 font-medium">Loading transfers...</p>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Transfer</button>
+      <div className="flex flex-wrap justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="text-sm font-medium text-slate-500">Quản lý điều chuyển chi nhánh</div>
+        <button onClick={() => setShowCreate(true)} className={btnPrimary}>
+          <Plus size={18} />
+          New Transfer
+        </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-slate-500 border-b border-slate-200">
-              <th className="py-3 px-4">ID</th>
-              <th className="py-3 px-4">From</th>
-              <th className="py-3 px-4">To</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Date</th>
-              <th className="py-3 px-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transfers.map((t) => (
-              <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="py-3 px-4 text-slate-600">#{t.id}</td>
-                <td className="py-3 px-4 text-slate-800">{t.fromBranch}</td>
-                <td className="py-3 px-4 text-slate-800">{t.toBranch}</td>
-                <td className="py-3 px-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    t.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600' :
-                    t.status === 'PENDING' ? 'bg-amber-50 text-amber-600' :
-                    'bg-slate-100 text-slate-500'
-                  }`}>{t.status}</span>
-                </td>
-                <td className="py-3 px-4 text-slate-600">{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className="py-3 px-4 text-right space-x-2">
-                  <button onClick={() => handleViewDetails(t)} className="text-[#25439b] hover:text-[#1c3580] text-sm">Details</button>
-                  {t.status === 'PENDING' && (
-                    <button onClick={() => handleApprove(t.id)} className="text-emerald-600 hover:text-emerald-700 text-sm">Approve</button>
-                  )}
-                </td>
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50/50">
+                <th className="py-4 px-5">ID</th>
+                <th className="py-4 px-5">From</th>
+                <th className="py-4 px-5">To</th>
+                <th className="py-4 px-5">Status</th>
+                <th className="py-4 px-5">Date</th>
+                <th className="py-4 px-5 text-right">Actions</th>
               </tr>
-            ))}
-            {transfers.length === 0 && (
-              <tr><td colSpan={6} className="py-8 text-center text-slate-400">No transfers found</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {transfers.map((t) => (
+                <tr key={t.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors">
+                  <td className="py-4 px-5 font-semibold text-slate-600">#{t.id}</td>
+                  <td className="py-4 px-5 font-medium text-slate-800">{t.fromBranch}</td>
+                  <td className="py-4 px-5 font-medium text-slate-800">{t.toBranch}</td>
+                  <td className="py-4 px-5">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                      t.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60' :
+                      t.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-200/60' :
+                      'bg-slate-50 text-slate-500 border-slate-200/60'
+                    }`}>
+                      {t.status}
+                    </span>
+                  </td>
+                  <td className="py-4 px-5 text-slate-600">{new Date(t.createdAt).toLocaleDateString()}</td>
+                  <td className="py-4 px-5 text-right space-x-2">
+                    <button 
+                      onClick={() => handleViewDetails(t)} 
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors active:scale-95"
+                    >
+                      <Info size={14} />
+                      <span>Details</span>
+                    </button>
+                    {t.status === 'PENDING' && (
+                      <button 
+                        onClick={() => handleApprove(t.id)} 
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors active:scale-95"
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>Approve</span>
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {transfers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <ArrowRightLeft className="text-slate-400 w-8 h-8" />
+                      </div>
+                      <h3 className="text-base font-semibold text-slate-800">No transfers found</h3>
+                      <p className="text-sm text-slate-500 mt-1">Create a transfer to move inventory between branches.</p>
+                      <button onClick={() => setShowCreate(true)} className="mt-4 text-[#25439b] font-medium hover:underline flex items-center gap-1"><Plus size={16}/> Create Transfer</button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Create Transfer Modal */}
@@ -1249,7 +1486,7 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
             <label className="block text-sm text-slate-600 mb-1">Quantity</label>
             <input type="number" step="0.01" min="0" className={inputCls} value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} required />
           </div>
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex justify-end gap-3 pt-4">
             <button type="button" onClick={() => setShowCreate(false)} className={btnSecondary}>Cancel</button>
             <button type="submit" disabled={submitting} className={btnPrimary}>{submitting ? 'Creating...' : 'Create Transfer'}</button>
           </div>
@@ -1259,14 +1496,32 @@ function TransferTab({ activeBranchId }: { activeBranchId: string | null }) {
       {/* Transfer Details Modal */}
       <Modal open={!!selectedTransfer} onClose={() => setSelectedTransfer(null)} title={`Transfer #${selectedTransfer?.id}`}>
         {selectedTransfer && (
-          <div className="space-y-3 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div><span className="text-slate-500">From:</span> <span className="text-slate-800 ml-2">{selectedTransfer.fromBranch}</span></div>
-              <div><span className="text-slate-500">To:</span> <span className="text-slate-800 ml-2">{selectedTransfer.toBranch}</span></div>
-              <div><span className="text-slate-500">Status:</span> <span className="text-slate-800 ml-2">{selectedTransfer.status}</span></div>
-              <div><span className="text-slate-500">Date:</span> <span className="text-slate-800 ml-2">{new Date(selectedTransfer.createdAt).toLocaleString()}</span></div>
+          <div className="space-y-4 text-sm">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">From</span>
+                  <span className="text-slate-800 font-medium">{selectedTransfer.fromBranch}</span>
+                </div>
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">To</span>
+                  <span className="text-slate-800 font-medium">{selectedTransfer.toBranch}</span>
+                </div>
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Status</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                    selectedTransfer.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-700' :
+                    selectedTransfer.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                    'bg-slate-200 text-slate-700'
+                  }`}>{selectedTransfer.status}</span>
+                </div>
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Date</span>
+                  <span className="text-slate-800">{new Date(selectedTransfer.createdAt).toLocaleString()}</span>
+                </div>
+              </div>
             </div>
-            <div className="border-t border-slate-200 pt-3">
+            <div className="flex justify-end pt-2">
               <button onClick={() => setSelectedTransfer(null)} className={btnSecondary}>Close</button>
             </div>
           </div>
