@@ -140,6 +140,8 @@ export default function POSPage() {
   const [paymentTimeLeft, setPaymentTimeLeft] = useState(300);
 
   const activeBranch = branches?.find(b => b.branchId === activeBranchId);
+  const today = new Date().toISOString().split('T')[0];
+  const isViewingPast = selectedDate < today;
 
   const closeCheckoutModal = () => {
     setCheckoutOpen(false);
@@ -1392,9 +1394,24 @@ export default function POSPage() {
                 <span className="text-sm text-slate-500">Tổng cộng</span>
                 <span className="text-xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</span>
               </div>
+
+              {/* Past date read-only warning */}
+              {isViewingPast && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-[11px]">
+                  <svg className="w-4 h-4 flex-shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span>Đang xem ngày <strong>{selectedDate}</strong> — Chỉ xem, không thể thêm món hoặc gửi bếp</span>
+                </div>
+              )}
+
               <button
                 onClick={() => setMenuOpen(true)}
-                className="w-full py-2.5 bg-[#25439b] hover:bg-[#1c3580] rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2"
+                disabled={isViewingPast}
+                className={`w-full py-2.5 rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2 ${
+                  isViewingPast
+                    ? 'bg-slate-300 cursor-not-allowed opacity-60'
+                    : 'bg-[#25439b] hover:bg-[#1c3580]'
+                }`}
+                title={isViewingPast ? 'Không thể thêm món khi xem ngày quá khứ' : undefined}
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Thêm món
@@ -1402,15 +1419,21 @@ export default function POSPage() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleSendToKitchen}
-                  disabled={!session || cartItems.length === 0 || cartLoading}
-                  className="py-2.5 bg-orange-500 hover:bg-orange-400 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isViewingPast || !session || cartItems.length === 0 || cartLoading}
+                  className={`py-2.5 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isViewingPast ? 'bg-slate-300' : 'bg-orange-500 hover:bg-orange-400'
+                  }`}
+                  title={isViewingPast ? 'Không thể gửi bếp khi xem ngày quá khứ' : undefined}
                 >
                   {cartLoading ? '...' : 'Gửi bếp'}
                 </button>
                 <button
                   onClick={() => setCheckoutOpen(true)}
-                  disabled={!session || cartItems.length === 0}
-                  className="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isViewingPast || !session || cartItems.length === 0}
+                  className={`py-2.5 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isViewingPast ? 'bg-slate-300' : 'bg-emerald-600 hover:bg-emerald-500'
+                  }`}
+                  title={isViewingPast ? 'Không thể thanh toán khi xem ngày quá khứ' : undefined}
                 >
                   Thanh toán
                 </button>
