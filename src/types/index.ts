@@ -57,6 +57,25 @@ export function getTableStyleLabel(style?: TableStyle | null): string {
   return TABLE_STYLE_OPTIONS.find(s => s.value === style)?.label ?? 'Tron';
 }
 
+export interface BookingDetails {
+  id: number;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  bookingTime?: string;
+  guests?: number;
+  depositAmount?: number;
+  depositPaid?: boolean;
+  paymentStatus?: string;
+  notes?: string;
+  source?: string;
+  orderedItems?: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+  }>;
+}
+
 export interface TableEntity {
   id: number;
   name: string;
@@ -76,6 +95,7 @@ export interface TableEntity {
   activeSessionId?: number | null;
   sessionOpenedAt?: string | null;
   sessionTotalAmount?: number | null;
+  bookingDetails?: BookingDetails | null;
 }
 
 export interface Room {
