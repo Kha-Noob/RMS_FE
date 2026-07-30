@@ -72,9 +72,16 @@ export interface BookingDetails {
   notes?: string;
   source?: string;
   orderedItems?: Array<{
-    name: string;
-    quantity: number;
-    price: number;
+    name?: string;
+    productName?: string;
+    variantName?: string;
+    title?: string;
+    quantity?: number;
+    qty?: number;
+    count?: number;
+    price?: number;
+    priceVnd?: number;
+    unitPrice?: number;
   }>;
 }
 

@@ -1361,7 +1361,7 @@ export default function POSPage() {
                   <div className="border-t border-amber-200">
                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100/50">
                       <svg className="w-3.5 h-3.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C6.48 2 2 6 2 11h20c0-5-4.48-9-10-9z"/><path d="M2 13h20v1a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-1z"/></svg>
-                      <span className="text-[10px] font-bold text-amber-700">🍽️ Món đặt trước</span>
+                      <span className="text-[10px] font-bold text-amber-700">🍽️ Món đặt trước ({selectedTable.bookingDetails.orderedItems.length})</span>
                     </div>
                     <div className="px-3 pb-2">
                       <table className="w-full text-[10px]">
@@ -1373,19 +1373,28 @@ export default function POSPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedTable.bookingDetails.orderedItems.map((item, idx) => (
-                            <tr key={idx} className="border-b border-amber-50 last:border-0">
-                              <td className="py-1 text-slate-700 font-medium truncate max-w-[100px]">{item.name}</td>
-                              <td className="py-1 text-center text-slate-500">×{item.quantity}</td>
-                              <td className="py-1 text-right text-emerald-600 font-semibold">{(item.price * item.quantity).toLocaleString('vi-VN')}đ</td>
-                            </tr>
-                          ))}
+                          {selectedTable.bookingDetails.orderedItems.map((item, idx) => {
+                            const name = item.name || item.productName || item.variantName || item.title || 'Món ăn';
+                            const price = Number(item.price ?? item.priceVnd ?? item.unitPrice ?? 0);
+                            const qty = Number(item.quantity ?? item.qty ?? item.count ?? 1);
+                            return (
+                              <tr key={idx} className="border-b border-amber-50 last:border-0">
+                                <td className="py-1 text-slate-700 font-medium truncate max-w-[120px]" title={name}>{name}</td>
+                                <td className="py-1 text-center text-slate-500">×{qty}</td>
+                                <td className="py-1 text-right text-emerald-600 font-semibold">{(price * qty).toLocaleString('vi-VN')}đ</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr className="border-t border-amber-200">
-                            <td colSpan={2} className="pt-1 text-slate-500">Tổng món đặt</td>
+                            <td colSpan={2} className="pt-1 text-slate-500 font-semibold">Tổng món đặt</td>
                             <td className="pt-1 text-right font-bold text-amber-700">
-                              {selectedTable.bookingDetails.orderedItems.reduce((s, i) => s + i.price * i.quantity, 0).toLocaleString('vi-VN')}đ
+                              {selectedTable.bookingDetails.orderedItems.reduce((s, item) => {
+                                const price = Number(item.price ?? item.priceVnd ?? item.unitPrice ?? 0);
+                                const qty = Number(item.quantity ?? item.qty ?? item.count ?? 1);
+                                return s + price * qty;
+                              }, 0).toLocaleString('vi-VN')}đ
                             </td>
                           </tr>
                         </tfoot>
