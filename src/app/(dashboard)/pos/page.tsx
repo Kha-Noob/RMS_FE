@@ -1373,15 +1373,38 @@ export default function POSPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedTable.bookingDetails.orderedItems.map((item, idx) => {
-                            const name = item.name || item.productName || item.variantName || item.title || 'Món ăn';
-                            const price = Number(item.price ?? item.priceVnd ?? item.unitPrice ?? 0);
-                            const qty = Number(item.quantity ?? item.qty ?? item.count ?? 1);
+                          {selectedTable.bookingDetails.orderedItems.map((rawItem: unknown, idx: number) => {
+                            let item: Record<string, unknown> = {};
+                            if (typeof rawItem === 'string') {
+                              try { item = JSON.parse(rawItem); } catch { item = { name: rawItem }; }
+                            } else if (typeof rawItem === 'object' && rawItem !== null) {
+                              item = rawItem as Record<string, unknown>;
+                            }
+
+                            let name = String(item.name || item.productName || item.variantName || item.title || item.itemName || item.dishName || '');
+                            if (!name && item.product && typeof item.product === 'object') {
+                              name = String((item.product as Record<string, unknown>).name || (item.product as Record<string, unknown>).title || '');
+                            }
+                            if (!name && item.variant && typeof item.variant === 'object') {
+                              name = String((item.variant as Record<string, unknown>).name || (item.variant as Record<string, unknown>).title || '');
+                            }
+                            if (!name) {
+                              const foundStr = Object.values(item).find(v => typeof v === 'string' && v.length > 0 && !v.startsWith('http') && isNaN(Number(v)));
+                              name = typeof foundStr === 'string' ? foundStr : 'Món ăn đặt trước';
+                            }
+
+                            const priceVal = item.price ?? item.priceVnd ?? item.unitPrice ?? item.amount ?? 0;
+                            const price = Number(priceVal) || 0;
+                            const qtyVal = item.quantity ?? item.qty ?? item.count ?? 1;
+                            const qty = Number(qtyVal) || 1;
+
                             return (
                               <tr key={idx} className="border-b border-amber-50 last:border-0">
                                 <td className="py-1 text-slate-700 font-medium truncate max-w-[120px]" title={name}>{name}</td>
                                 <td className="py-1 text-center text-slate-500">×{qty}</td>
-                                <td className="py-1 text-right text-emerald-600 font-semibold">{(price * qty).toLocaleString('vi-VN')}đ</td>
+                                <td className="py-1 text-right text-emerald-600 font-semibold">
+                                  {price > 0 ? (price * qty).toLocaleString('vi-VN') + 'đ' : '—'}
+                                </td>
                               </tr>
                             );
                           })}
@@ -1390,9 +1413,15 @@ export default function POSPage() {
                           <tr className="border-t border-amber-200">
                             <td colSpan={2} className="pt-1 text-slate-500 font-semibold">Tổng món đặt</td>
                             <td className="pt-1 text-right font-bold text-amber-700">
-                              {selectedTable.bookingDetails.orderedItems.reduce((s, item) => {
-                                const price = Number(item.price ?? item.priceVnd ?? item.unitPrice ?? 0);
-                                const qty = Number(item.quantity ?? item.qty ?? item.count ?? 1);
+                              {selectedTable.bookingDetails.orderedItems.reduce((s: number, rawItem: unknown) => {
+                                let item: Record<string, unknown> = {};
+                                if (typeof rawItem === 'string') {
+                                  try { item = JSON.parse(rawItem); } catch { item = {}; }
+                                } else if (typeof rawItem === 'object' && rawItem !== null) {
+                                  item = rawItem as Record<string, unknown>;
+                                }
+                                const price = Number(item.price ?? item.priceVnd ?? item.unitPrice ?? item.amount ?? 0) || 0;
+                                const qty = Number(item.quantity ?? item.qty ?? item.count ?? 1) || 1;
                                 return s + price * qty;
                               }, 0).toLocaleString('vi-VN')}đ
                             </td>
