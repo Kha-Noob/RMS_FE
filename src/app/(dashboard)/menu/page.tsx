@@ -49,7 +49,7 @@ export default function MenuPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
-  const [form, setForm] = useState({ name: '', description: '', categoryId: '', priceVnd: '', imageUrl: '', status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' });
+  const [form, setForm] = useState({ name: '', description: '', categoryId: '', priceVnd: '', quantity: '', imageUrl: '', status: 'ACTIVE' as 'ACTIVE' | 'INACTIVE' });
   const [variants, setVariants] = useState<{ name: string; priceVnd: string }[]>([]);
   const [filterCategory, setFilterCategory] = useState<number | null>(null);
   const [search, setSearch] = useState('');
@@ -91,6 +91,7 @@ export default function MenuPage() {
       description: '',
       categoryId: categories.length > 0 ? String(categories[0].id) : '',
       priceVnd: '',
+      quantity: '',
       imageUrl: '',
       status: 'ACTIVE'
     });
@@ -105,6 +106,7 @@ export default function MenuPage() {
       description: item.description,
       categoryId: String(item.category?.id ?? (categories.length > 0 ? categories[0].id : '')),
       priceVnd: String(item.priceVnd),
+      quantity: item.quantity !== undefined && item.quantity !== null ? String(item.quantity) : '',
       imageUrl: item.imageUrl ?? '',
       status: item.status,
     });
@@ -126,6 +128,7 @@ export default function MenuPage() {
     if (!form.name.trim()) { toast.error('Tên món ăn là bắt buộc'); return; }
     const cat = form.categoryId ? categories.find(c => c.id === Number(form.categoryId)) ?? null : (categories.length > 0 ? categories[0] : null);
     const variantData = variants.map((v, vi) => ({ id: vi + 1, name: v.name, priceVnd: parseFloat(v.priceVnd) || 0 }));
+    const parsedQty = form.quantity.trim() !== '' ? parseInt(form.quantity, 10) : null;
 
     const originalItems = [...items];
     const tempId = Date.now();
@@ -134,6 +137,7 @@ export default function MenuPage() {
       name: form.name,
       description: form.description,
       priceVnd: parseFloat(form.priceVnd) || 0,
+      quantity: parsedQty,
       imageUrl: form.imageUrl || null,
       category: cat,
       variants: variantData,
@@ -155,6 +159,7 @@ export default function MenuPage() {
         name: form.name,
         description: form.description,
         priceVnd: parseFloat(form.priceVnd) || 0,
+        quantity: parsedQty,
         imageUrl: form.imageUrl || null,
         category: cat,
         categoryId: cat?.id ?? (form.categoryId ? Number(form.categoryId) : null),
@@ -344,6 +349,7 @@ export default function MenuPage() {
                   <th className="py-3 px-4">Món ăn</th>
                   <th className="py-3 px-4">Danh mục</th>
                   <th className="py-3 px-4">Giá bán</th>
+                  <th className="py-3 px-4">Số lượng</th>
                   <th className="py-3 px-4">Biến thể</th>
                   <th className="py-3 px-4">Trạng thái</th>
                   <th className="py-3 px-4 text-right">Thao tác</th>
@@ -396,6 +402,15 @@ export default function MenuPage() {
                     </td>
                     <td className="py-3 px-4 text-slate-600">{item.category?.name ?? '—'}</td>
                     <td className="py-3 px-4 text-slate-800 font-medium">{formatVND(item.priceVnd)}</td>
+                    <td className="py-3 px-4 text-slate-600 font-medium">
+                      {item.quantity !== undefined && item.quantity !== null ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700">
+                          {item.quantity}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-normal">—</span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-slate-600">{item.variants?.length ?? 0}</td>
                     <td className="py-3 px-4">
                       <button onClick={() => handleToggleStatus(item)} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${item.status === 'ACTIVE' ? 'bg-emerald-500' : 'bg-slate-300'}`} title={item.status === 'ACTIVE' ? 'Đang bán — nhấn để ngừng bán' : 'Ngừng bán — nhấn để bán lại'}>
@@ -421,7 +436,7 @@ export default function MenuPage() {
                   </tr>
                 ))}
                 {filteredItems.length === 0 && (
-                  <tr><td colSpan={7} className="py-12 text-center text-slate-400">Chưa có món ăn nào. Hãy thêm món ăn đầu tiên!</td></tr>
+                  <tr><td colSpan={8} className="py-12 text-center text-slate-400">Chưa có món ăn nào. Hãy thêm món ăn đầu tiên!</td></tr>
                 )}
               </tbody>
             </table>
@@ -439,7 +454,7 @@ export default function MenuPage() {
             <label className="block text-sm text-slate-600 mb-1">Mô tả</label>
             <textarea className={inputCls} rows={2} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Mô tả ngắn gọn về món ăn" />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-sm text-slate-600 mb-1">Danh mục</label>
               <select className={inputCls} value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })}>
@@ -450,6 +465,10 @@ export default function MenuPage() {
             <div>
               <label className="block text-sm text-slate-600 mb-1">Giá bán (VNĐ)</label>
               <input type="number" step="1000" min="0" className={inputCls} value={form.priceVnd} onChange={e => setForm({ ...form, priceVnd: e.target.value })} placeholder="0" />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">Số lượng</label>
+              <input type="number" step="1" min="0" className={inputCls} value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} placeholder="Để trống nếu không GH" />
             </div>
           </div>
           <div>

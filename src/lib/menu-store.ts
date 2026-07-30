@@ -13,6 +13,7 @@ export interface MenuItem {
   priceVnd: number;
   imageUrl: string | null;
   category: { id: number; name: string } | null;
+  quantity?: number | null;
   variants: MenuVariant[];
   status: 'ACTIVE' | 'INACTIVE';
 }
@@ -69,7 +70,7 @@ export async function deleteMenuItem(id: number): Promise<void> {
 }
 
 export async function deleteMenuItemsBulk(ids: number[]): Promise<void> {
-  return api.delete('/api/menu/bulk', { body: ids });
+  return api.delete('/api/menu/bulk', { body: JSON.stringify(ids) });
 }
 
 // ─── Menu Categories ────────────────────────────────────────────────────────
