@@ -1105,6 +1105,13 @@ export default function POSPage() {
                           <span>{table.sessionTotalAmount.toLocaleString('vi-VN')}đ</span>
                         </div>
                       )}
+                      {/* Show booking time for RESERVED tables */}
+                      {table.status === 'RESERVED' && table.bookingDetails?.bookingTime && (
+                        <div className="flex items-center gap-1 text-[11px] text-amber-600 font-bold mt-0.5">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          <span>{new Date(table.bookingDetails.bookingTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/50">
                         <span className="text-[9px] uppercase font-extrabold tracking-wider opacity-70 text-slate-400">Trạng thái</span>
                         <span className={`text-[10px] font-black ${statusText}`}>
@@ -1796,13 +1803,13 @@ export default function POSPage() {
                   </p>
                   <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[10px]">
                     <span className="text-slate-450 font-bold">Ngân hàng:</span>
-                    <span className="font-extrabold text-slate-800">{activeBranch?.bankName || 'Vietcombank'}</span>
+                    <span className="font-extrabold text-slate-800">{activeBranch?.bankName || 'MB Bank'}</span>
                     
                     <span className="text-slate-450 font-bold">Số tài khoản:</span>
-                    <span className="font-black text-indigo-700 select-all">{activeBranch?.bankAccountNo || '1012938475'}</span>
+                    <span className="font-black text-indigo-700 select-all">{activeBranch?.bankAccountNo || '0862807412'}</span>
                     
                     <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
-                    <span className="font-extrabold text-slate-800 uppercase">{activeBranch?.bankAccountName || 'LITEFLOW RESTAURANT GROUP'}</span>
+                    <span className="font-extrabold text-slate-800 uppercase">{activeBranch?.bankAccountName || 'LE DUC THUAN'}</span>
 
                     <span className="text-slate-450 font-bold">Nội dung:</span>
                     <span className="font-extrabold text-slate-850 select-all">RMSPOS{session?.id}</span>
@@ -1813,43 +1820,53 @@ export default function POSPage() {
 
                   <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
                     <img 
-                      src={`https://img.vietqr.io/image/${getVietQrBankId(activeBranch?.bankName || 'Vietcombank')}-${activeBranch?.bankAccountNo || '1012938475'}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMSPOS${session?.id}`)}&accountName=${encodeURIComponent(activeBranch?.bankAccountName || 'LITEFLOW RESTAURANT GROUP')}`}
+                      src={`https://img.vietqr.io/image/${getVietQrBankId(activeBranch?.bankName || 'MB Bank')}-${activeBranch?.bankAccountNo || '0862807412'}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMSPOS${session?.id}`)}&accountName=${encodeURIComponent(activeBranch?.bankAccountName || 'LE DUC THUAN')}`}
                       alt="VietQR Payment Code"
                       className="w-36 h-36 object-contain rounded-lg border border-slate-100 shadow-sm"
                     />
                     <p className="text-[8px] text-rose-500 font-black text-center animate-pulse mt-1">
                       * Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét
                     </p>
-                    
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          if (payosOrderCode) {
-                            setProcessing(true);
-                            await api.post('/api/public/webhook/payos', {
-                              signature: 'mock-signature',
-                              data: {
-                                orderCode: payosOrderCode,
-                                amount: total,
-                                description: `RMSPOS${session?.id}`,
-                                reference: `MOCK_REF_${Date.now()}`
-                              }
-                            });
-                            toast.success('Gửi webhook giả lập thành công!');
-                          }
-                        } catch {
-                          toast.error('Lỗi khi giả lập thanh toán');
-                        } finally {
-                          setProcessing(false);
-                        }
-                      }}
-                      disabled={processing}
-                      className="mt-2 w-full py-1.5 px-3 bg-gradient-to-r from-emerald-550 to-teal-650 hover:from-emerald-650 hover:to-teal-755 text-white rounded-lg text-[9px] font-black transition shadow-sm cursor-pointer animate-pulse"
-                    >
-                      ⚡ Giả lập Banking tự động nhận diện
-                    </button>
                   </div>
+                </div>
+
+                {/* Manual confirm payment button */}
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-[11px] text-emerald-700 font-semibold">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+                    Đã nhận tiền? Xác nhận thủ công
+                  </div>
+                  <p className="text-[10px] text-slate-500">Dùng khi không thể tự động kiểm tra giao dịch (local/dev)</p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!session || !selectedTable) return;
+                      try {
+                        setProcessing(true);
+                        await api.post(`/api/pos/session/${session.id}/complete`, null, {
+                          params: { paymentMethod: 'BANK_TRANSFER' }
+                        });
+                        toast.success('✅ Đã xác nhận thanh toán thành công!');
+                        closeCheckoutModal();
+                        setSession(null);
+                        setCartItems([]);
+                        setSelectedTable(null);
+                        loadData();
+                      } catch {
+                        toast.error('Lỗi xác nhận thanh toán');
+                      } finally {
+                        setProcessing(false);
+                      }
+                    }}
+                    disabled={processing}
+                    className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                  >
+                    {processing ? (
+                      <><svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/></svg>Đang xử lý...</>
+                    ) : (
+                      <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>Xác nhận đã nhận chuyển khoản</>
+                    )}
+                  </button>
                 </div>
 
                 <div className="pt-2 border-t border-slate-100">
