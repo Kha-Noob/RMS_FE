@@ -1058,12 +1058,41 @@ export default function EventsPage() {
                     </p>
                   </div>
 
-                  {/* Timer display */}
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full text-amber-700 font-extrabold text-[10px]">
-                    <Clock className="w-3.5 h-3.5 animate-pulse" />
-                    <span>
-                      {Math.floor(paymentTimeLeft / 60)}:{(paymentTimeLeft % 60).toString().padStart(2, '0')}
-                    </span>
+                  {/* Timer & Confirmation Button */}
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full text-amber-700 font-extrabold text-[10px]">
+                      <Clock className="w-3.5 h-3.5 animate-pulse" />
+                      <span>
+                        {Math.floor(paymentTimeLeft / 60)}:{(paymentTimeLeft % 60).toString().padStart(2, '0')}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const amount = bookingEvent ? (parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) * bookingForm.guests * selectedDates.length : 0;
+                          const description = payingBookingIds.map(id => `VE ${id}`).join(', ');
+                          
+                          await api.post('/api/public/webhook/banking', {
+                            error: 0,
+                            data: [
+                              {
+                                description: description,
+                                amount: amount,
+                                when: new Date().toISOString()
+                              }
+                            ]
+                          });
+                          toast.success(locale === 'vi' ? 'Hệ thống đã nhận diện giao dịch chuyển khoản thành công!' : 'System verified bank transfer successfully!');
+                        } catch (err) {
+                          toast.error('Lỗi khi xác nhận giao dịch');
+                        }
+                      }}
+                      className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition shadow-md cursor-pointer flex items-center justify-center gap-1.5 animate-bounce"
+                    >
+                      ✅ {locale === 'vi' ? 'Tôi đã chuyển khoản - Xác nhận hoàn tất ngay' : 'I Have Transferred - Confirm Now'}
+                    </button>
                   </div>
 
                   {/* Bank Info & VietQR */}
@@ -1081,6 +1110,14 @@ export default function EventsPage() {
                         
                         <span className="text-slate-400 font-bold">{locale === 'vi' ? 'Chủ tài khoản:' : 'Holder Name:'}</span>
                         <span className="font-extrabold text-slate-850 uppercase">{bookingEvent.bankAccountName}</span>
+
+                        <span className="text-slate-400 font-bold">{locale === 'vi' ? 'Nội dung:' : 'Transfer Memo:'}</span>
+                        <span className="font-extrabold text-slate-850 select-all">VE {bookingForm.phone}</span>
+
+                        <span className="text-slate-400 font-bold">{locale === 'vi' ? 'Số tiền:' : 'Amount:'}</span>
+                        <span className="font-extrabold text-emerald-600">
+                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format((parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) * bookingForm.guests * selectedDates.length)}
+                        </span>
                       </div>
                       
                       <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
@@ -1104,33 +1141,6 @@ export default function EventsPage() {
                             💳 {locale === 'vi' ? 'Thanh toán tự động qua PayOS' : 'Pay Automatically via PayOS'}
                           </a>
                         )}
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              // Simulate bank transfer callback to Casso webhook
-                              const amount = (parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) * bookingForm.guests * selectedDates.length;
-                              const description = payingBookingIds.map(id => `VE ${id}`).join(', ');
-                              
-                              await api.post('/api/public/webhook/banking', {
-                                error: 0,
-                                data: [
-                                  {
-                                    description: description,
-                                    amount: amount,
-                                    when: new Date().toISOString()
-                                  }
-                                ]
-                              });
-                              toast.success(locale === 'vi' ? 'Hệ thống đã tự động nhận diện giao dịch chuyển khoản thành công!' : 'System automatically detected successful bank transfer!');
-                            } catch (err) {
-                              toast.error('Simulation failed');
-                            }
-                          }}
-                          className="mt-2 w-full py-1.5 px-3 bg-gradient-to-r from-emerald-550 to-teal-650 hover:from-emerald-650 hover:to-teal-750 text-white rounded-lg text-[9px] font-black transition shadow-sm cursor-pointer animate-pulse"
-                        >
-                          ⚡ {locale === 'vi' ? 'Giả lập Banking tự động nhận diện' : 'Simulate Auto-Banking Webhook'}
-                        </button>
                       </div>
                     </div>
                   )}
@@ -1297,13 +1307,14 @@ export default function EventsPage() {
                           
                           <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Chủ tài khoản:' : 'Holder Name:'}</span>
                           <span className="font-extrabold text-slate-800 uppercase">{bookingEvent.bankAccountName}</span>
-                          
-                          {bookingEvent.bankBranch && (
-                            <>
-                              <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Chi nhánh:' : 'Branch:'}</span>
-                              <span className="font-bold text-slate-700">{bookingEvent.bankBranch}</span>
-                            </>
-                          )}
+
+                          <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Nội dung:' : 'Transfer Memo:'}</span>
+                          <span className="font-extrabold text-slate-800 select-all">VE {bookingForm.phone}</span>
+
+                          <span className="text-slate-450 font-bold">{locale === 'vi' ? 'Số tiền:' : 'Amount:'}</span>
+                          <span className="font-extrabold text-emerald-600">
+                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format((parseInt(bookingEvent.price.replace(/[^0-9]/g, '')) || 0) * bookingForm.guests * selectedDates.length)}
+                          </span>
                         </div>
                         {/* VietQR Code Display */}
                         <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
