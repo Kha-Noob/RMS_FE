@@ -4,6 +4,31 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { ShoppingCart, Truck, FileCheck, Eye, Plus, Package, CheckCircle2, Info } from 'lucide-react';
+
+const stringToColorClass = (str: string) => {
+  const colors = [
+    'bg-blue-100 text-blue-700 border-blue-200',
+    'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'bg-violet-100 text-violet-700 border-violet-200',
+    'bg-amber-100 text-amber-700 border-amber-200',
+    'bg-rose-100 text-rose-700 border-rose-200',
+    'bg-cyan-100 text-cyan-700 border-cyan-200',
+    'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+    'bg-teal-100 text-teal-700 border-teal-200',
+  ];
+  let hash = 0;
+  if (!str) return colors[0];
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
+const getInitials = (name: string) => {
+  if (!name) return 'NA';
+  return name.substring(0, 2).toUpperCase();
+};
 
 const inputCls = 'w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b] text-sm';
 const btnPrimary = 'px-4 py-2 rounded-lg bg-[#25439b] hover:bg-[#1c3580] text-white text-sm font-medium transition';
@@ -116,56 +141,95 @@ export default function ProcurementPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800">Procurement Management</h1>
-        <button onClick={() => setShowCreate(true)} className={btnPrimary}>+ New Purchase Order</button>
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+            <ShoppingCart className="text-[#25439b]" />
+            Procurement Management
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">Manage purchase orders and receive goods</p>
+        </div>
+        <button onClick={() => setShowCreate(true)} className={`${btnPrimary} flex items-center gap-2`}>
+          <Plus size={18} />
+          New Purchase Order
+        </button>
       </div>
 
       {loading ? (
-        <div className="text-slate-500 py-8 text-center flex items-center justify-center gap-2"><div className="w-4 h-4 border-2 border-slate-200 border-t-[#25439b] rounded-full animate-spin" /> Loading purchase orders...</div>
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-[#25439b] rounded-full animate-spin mb-3" />
+          <p className="text-slate-500 font-medium">Loading purchase orders...</p>
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-500 border-b border-slate-200">
-                <th className="py-3 px-4">PO #</th>
-                <th className="py-3 px-4">Supplier</th>
-                <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Amount</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((po) => (
-                <tr key={po.id} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="py-3 px-4 text-slate-800 font-medium">#{po.id}</td>
-                  <td className="py-3 px-4 text-slate-600">{po.supplier?.name}</td>
-                  <td className="py-3 px-4 text-slate-600">{new Date(po.orderDate).toLocaleDateString()}</td>
-                  <td className="py-3 px-4 text-slate-600">${po.totalAmount?.toFixed(2)}</td>
-                  <td className="py-3 px-4">
-                    <StatusBadge status={po.status} />
-                  </td>
-                  <td className="py-3 px-4 text-right space-x-2">
-                    <button onClick={() => viewDetails(po)} className="text-[#25439b] hover:text-[#1c3580] text-sm">View</button>
-                    {po.status === 'PENDING' && (
-                      <button onClick={() => approvePO(po.id)} className="text-emerald-600 hover:text-emerald-700 text-sm">Approve</button>
-                    )}
-                    {po.status === 'APPROVED' && (
-                      <>
-                        <button onClick={() => { setShowGRN(true); setViewingPO(po); }} className="text-amber-600 hover:text-amber-700 text-sm">GRN</button>
-                        <button onClick={() => { setShowMatch(true); setViewingPO(po); }} className="text-purple-600 hover:text-purple-700 text-sm">Match</button>
-                      </>
-                    )}
-                  </td>
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50/50">
+                  <th className="py-4 px-5">PO #</th>
+                  <th className="py-4 px-5">Supplier</th>
+                  <th className="py-4 px-5">Date</th>
+                  <th className="py-4 px-5">Amount</th>
+                  <th className="py-4 px-5">Status</th>
+                  <th className="py-4 px-5 text-right">Actions</th>
                 </tr>
-              ))}
-              {orders.length === 0 && (
-                <tr><td colSpan={6} className="py-8 text-center text-slate-400">No purchase orders found</td></tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {orders.map((po) => (
+                  <tr key={po.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors">
+                    <td className="py-4 px-5 font-semibold text-[#25439b]">#{po.id}</td>
+                    <td className="py-4 px-5">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold shadow-sm ${stringToColorClass(po.supplier?.name)}`}>
+                          {getInitials(po.supplier?.name)}
+                        </div>
+                        <span className="font-semibold text-slate-800">{po.supplier?.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-5 text-slate-600 font-medium">{new Date(po.orderDate).toLocaleDateString()}</td>
+                    <td className="py-4 px-5 text-slate-800 font-bold">${po.totalAmount?.toFixed(2)}</td>
+                    <td className="py-4 px-5">
+                      <StatusBadge status={po.status} />
+                    </td>
+                    <td className="py-4 px-5 text-right space-x-2">
+                      <button onClick={() => viewDetails(po)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-[#25439b] bg-[#25439b]/5 hover:bg-[#25439b]/10 transition-colors" title="View Details">
+                        <Eye size={14} /> View
+                      </button>
+                      {po.status === 'PENDING' && (
+                        <button onClick={() => approvePO(po.id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors" title="Approve">
+                          <CheckCircle2 size={14} /> Approve
+                        </button>
+                      )}
+                      {po.status === 'APPROVED' && (
+                        <>
+                          <button onClick={() => { setShowGRN(true); setViewingPO(po); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-amber-600 bg-amber-50 hover:bg-amber-100 transition-colors" title="Good Receive Note">
+                            <Truck size={14} /> GRN
+                          </button>
+                          <button onClick={() => { setShowMatch(true); setViewingPO(po); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 transition-colors" title="Match Invoice">
+                            <FileCheck size={14} /> Match
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {orders.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                          <Package className="text-slate-400 w-8 h-8" />
+                        </div>
+                        <h3 className="text-base font-semibold text-slate-800">No purchase orders found</h3>
+                        <p className="text-sm text-slate-500 mt-1">Start by creating a new purchase order.</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -218,16 +282,18 @@ export default function ProcurementPage() {
 
 // --- Status Badge ---
 function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    PENDING: 'bg-amber-50 text-amber-600',
-    APPROVED: 'bg-emerald-50 text-emerald-600',
-    RECEIVED: 'bg-[#25439b]/10 text-[#25439b]',
-    MATCHED: 'bg-purple-50 text-purple-600',
-    CANCELLED: 'bg-red-50 text-red-600',
+  const badgeProps: Record<string, { color: string; icon: React.ReactNode }> = {
+    PENDING: { color: 'bg-amber-50 text-amber-600 border-amber-200/60', icon: <Info size={14} /> },
+    APPROVED: { color: 'bg-emerald-50 text-emerald-600 border-emerald-200/60', icon: <CheckCircle2 size={14} /> },
+    RECEIVED: { color: 'bg-blue-50 text-[#25439b] border-blue-200/60', icon: <Truck size={14} /> },
+    MATCHED: { color: 'bg-purple-50 text-purple-600 border-purple-200/60', icon: <FileCheck size={14} /> },
+    CANCELLED: { color: 'bg-red-50 text-red-600 border-red-200/60', icon: <Info size={14} /> },
   };
+  const style = badgeProps[status] || { color: 'bg-slate-100 text-slate-500 border-slate-200/60', icon: <Info size={14} /> };
+  
   return (
-    <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[status] || 'bg-slate-100 text-slate-500'}`}>
-      {status}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${style.color}`}>
+      {style.icon} {status}
     </span>
   );
 }
