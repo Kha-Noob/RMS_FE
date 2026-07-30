@@ -44,6 +44,8 @@ export interface Employee {
   branch: Branch | null;
 }
 
+export type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED' | 'SERVED';
+
 export type TableStyle = 'ROUND' | 'SQUARE' | 'RECTANGLE' | 'VIP';
 
 export const TABLE_STYLE_OPTIONS: { value: TableStyle; label: string; icon: string }[] = [

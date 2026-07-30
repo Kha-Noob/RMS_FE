@@ -60,24 +60,27 @@ interface ActiveSessionResponse {
   total: number;
 }
 
-type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED';
+type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED' | 'SERVED';
 
 const statusColor: Record<TableStatus, string> = {
   EMPTY: 'bg-green-600 hover:bg-green-500',
   OCCUPIED: 'bg-red-600 hover:bg-red-500',
   RESERVED: 'bg-yellow-600 hover:bg-yellow-500',
+  SERVED: 'bg-blue-600 hover:bg-blue-500',
 };
 
 const statusLabel: Record<TableStatus, string> = {
   EMPTY: 'Trống',
   OCCUPIED: 'Đang dùng',
   RESERVED: 'Đặt trước',
+  SERVED: 'Phục vụ xong',
 };
 
 const statusDotColor: Record<TableStatus, string> = {
   EMPTY: 'bg-green-500',
   OCCUPIED: 'bg-red-500',
   RESERVED: 'bg-yellow-500',
+  SERVED: 'bg-blue-500',
 };
 
 const getVietQrBankId = (bankName: string) => {
@@ -142,6 +145,40 @@ export default function POSPage() {
   const activeBranch = branches?.find(b => b.branchId === activeBranchId);
   const today = new Date().toISOString().split('T')[0];
   const isViewingPast = selectedDate < today;
+
+  // Block adding items if session has been open for more than 5 hours or if service is completed
+  const SESSION_LIMIT_HOURS = 5;
+  const isSessionExpired = (() => {
+    const openedAt = selectedTable?.sessionOpenedAt;
+    if (!openedAt) return false;
+    const elapsedMs = Date.now() - new Date(openedAt).getTime();
+    return elapsedMs >= SESSION_LIMIT_HOURS * 60 * 60 * 1000;
+  })();
+
+  const isServiceCompleted = selectedTable?.status === 'SERVED' || session?.status === 'SERVED';
+
+  // Either past date, expired session, or completed service blocks editing
+  const isEditBlocked = isViewingPast || isSessionExpired || isServiceCompleted;
+
+  const handleCompleteService = async () => {
+    if (!session) return;
+    try {
+      setCartLoading(true);
+      await api.post('/api/pos/session/complete-service', null, {
+        params: { sessionId: session.id }
+      });
+      toast.success(`✅ Đã hoàn thành phục vụ ${selectedTable?.name || 'bàn'}!`);
+      if (selectedTable) {
+        setSelectedTable(prev => prev ? { ...prev, status: 'SERVED' } : null);
+      }
+      setSession(prev => prev ? { ...prev, status: 'SERVED' } : null);
+      loadData();
+    } catch {
+      toast.error('Lỗi khi đánh dấu hoàn thành phục vụ');
+    } finally {
+      setCartLoading(false);
+    }
+  };
 
   const closeCheckoutModal = () => {
     setCheckoutOpen(false);
@@ -1216,13 +1253,33 @@ export default function POSPage() {
               </div>
 
               {session && (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
-                    Phiên #{session.id}
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    {cartItems.length} món
-                  </span>
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
+                      Phiên #{session.id}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {cartItems.length} món
+                    </span>
+                  </div>
+
+                  {/* Nút Hoàn thành phục vụ */}
+                  {isServiceCompleted ? (
+                    <span className="text-[11px] px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg border border-blue-200 flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      Phục vụ xong
+                    </span>
+                  ) : (
+                    <button
+                      onClick={handleCompleteService}
+                      disabled={cartLoading}
+                      className="text-[11px] px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors shadow-sm flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                      title="Đánh dấu bàn đã phục vụ xong"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      Hoàn thành
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1372,16 +1429,16 @@ export default function POSPage() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleUpdateQuantity(item.detailId, -1)}
-                          disabled={cartLoading}
-                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 transition-colors"
+                          disabled={cartLoading || isEditBlocked}
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           -
                         </button>
                         <span className="text-sm w-6 text-center text-slate-700 font-medium">{item.quantity}</span>
                         <button
                           onClick={() => handleUpdateQuantity(item.detailId, 1)}
-                          disabled={cartLoading}
-                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 transition-colors"
+                          disabled={cartLoading || isEditBlocked}
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           +
                         </button>
@@ -1410,15 +1467,31 @@ export default function POSPage() {
                 </div>
               )}
 
+              {/* Session expired (5h limit) warning */}
+              {!isViewingPast && isSessionExpired && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-[11px]">
+                  <svg className="w-4 h-4 flex-shrink-0 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <span>Bàn đã mở quá <strong>{SESSION_LIMIT_HOURS} giờ</strong> — Không thể thêm món mới</span>
+                </div>
+              )}
+
+              {/* Service completed warning */}
+              {!isViewingPast && !isSessionExpired && isServiceCompleted && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-[11px]">
+                  <svg className="w-4 h-4 flex-shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                  <span>Bàn đã <strong>phục vụ xong</strong> — Chỉ xem, không thể thêm món hoặc gửi bếp</span>
+                </div>
+              )}
+
               <button
                 onClick={() => setMenuOpen(true)}
-                disabled={isViewingPast}
+                disabled={isEditBlocked}
                 className={`w-full py-2.5 rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2 ${
-                  isViewingPast
+                  isEditBlocked
                     ? 'bg-slate-300 cursor-not-allowed opacity-60'
                     : 'bg-[#25439b] hover:bg-[#1c3580]'
                 }`}
-                title={isViewingPast ? 'Không thể thêm món khi xem ngày quá khứ' : undefined}
+                title={isSessionExpired ? `Bàn đã mở quá ${SESSION_LIMIT_HOURS} giờ` : isViewingPast ? 'Không thể thêm món khi xem ngày quá khứ' : undefined}
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Thêm món
@@ -1426,11 +1499,11 @@ export default function POSPage() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleSendToKitchen}
-                  disabled={isViewingPast || !session || cartItems.length === 0 || cartLoading}
+                  disabled={isEditBlocked || !session || cartItems.length === 0 || cartLoading}
                   className={`py-2.5 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isViewingPast ? 'bg-slate-300' : 'bg-orange-500 hover:bg-orange-400'
+                    isEditBlocked ? 'bg-slate-300' : 'bg-orange-500 hover:bg-orange-400'
                   }`}
-                  title={isViewingPast ? 'Không thể gửi bếp khi xem ngày quá khứ' : undefined}
+                  title={isSessionExpired ? `Bàn đã mở quá ${SESSION_LIMIT_HOURS} giờ` : isViewingPast ? 'Không thể gửi bếp khi xem ngày quá khứ' : undefined}
                 >
                   {cartLoading ? '...' : 'Gửi bếp'}
                 </button>
