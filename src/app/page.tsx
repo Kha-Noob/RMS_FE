@@ -735,7 +735,7 @@ export default function LandingPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredRestaurants.map((rest) => {
                 const isWishlisted = wishlistedRestaurants[rest.id] || false;
 
@@ -767,7 +767,7 @@ export default function LandingPage() {
                 };
 
                 return (
-                  <div key={rest.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between relative">
+                  <div key={rest.id} className="group bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_-6px_rgba(37,99,235,0.15)] hover:border-blue-300 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden relative">
                     
                     {/* Top-Right Heart Wishlist */}
                     <button 
@@ -776,50 +776,54 @@ export default function LandingPage() {
                         e.stopPropagation();
                         handleToggleWishlist(rest.id);
                       }}
-                      className="absolute top-3 right-3 h-8.5 w-8.5 rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-20"
+                      className="absolute top-3.5 right-3.5 h-9 w-9 rounded-full bg-white/85 backdrop-blur-md shadow-md border border-white/40 hover:bg-white hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-20 cursor-pointer"
                     >
-                      <Heart className={`h-4.5 w-4.5 transition-colors ${isWishlisted ? 'text-rose-500 fill-rose-500' : 'text-slate-400 hover:text-rose-500'}`} />
+                      <Heart className={`h-4.5 w-4.5 transition-colors ${isWishlisted ? 'text-rose-500 fill-rose-500' : 'text-slate-500 hover:text-rose-500'}`} />
                     </button>
 
                     <Link href={`/restaurant-page/${rest.id}`} className="flex-1 flex flex-col cursor-pointer">
-                      {/* Restaurant Image */}
-                      <div className="h-48 w-full relative overflow-hidden bg-slate-100">
-                        <img src={rest.imageUrl} alt={rest.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      {/* Restaurant Image Container - Taller Vertical Height */}
+                      <div className="h-64 w-full relative overflow-hidden bg-slate-100">
+                        <img src={rest.imageUrl} alt={rest.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-slate-950/10 to-transparent z-10" />
                         
                         {/* Top-Left Badge */}
                         {badgeText && (
-                          <span className="absolute top-3 left-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white text-[10px] font-black px-2.5 py-1 rounded-lg shadow-md z-10">
+                          <span className="absolute top-3.5 left-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[10px] font-black tracking-wider uppercase px-3 py-1 rounded-lg shadow-md z-20 border border-white/20">
                             {badgeText}
                           </span>
                         )}
+
+                        {/* Bottom Overlay Info (Rating & Location tag) */}
+                        <div className="absolute bottom-3 left-3.5 right-3.5 flex items-center justify-between z-20 text-white">
+                          <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md border border-white/20 px-2.5 py-1 rounded-full text-[11px] font-bold">
+                            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                            <span>{Number(rest.rating).toFixed(1)}</span>
+                            <span className="text-white/70 text-[10px] font-normal">({rest.reviewsCount})</span>
+                          </div>
+                          <span className="text-[10px] font-semibold bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10">
+                            {rest.distance}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Information Body */}
-                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                        <div className="space-y-2 text-left">
-                          <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                      {/* Information Body - Compact Height */}
+                      <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+                        <div className="space-y-1.5 text-left">
+                          <h3 className="font-extrabold text-base text-slate-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
                             {rest.name}
                           </h3>
-                          
-                          {/* Stars & Reviews */}
-                          <div className="flex items-center gap-1.5 text-xs">
-                            <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                            <span className="font-extrabold text-slate-800">{rest.rating}</span>
-                            <span className="text-slate-400">({rest.reviewsCount} {locale === 'vi' ? 'đánh giá' : 'reviews'})</span>
-                          </div>
 
-                          {/* Location & Distance */}
-                          <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
+                          {/* Location */}
+                          <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                             <span className="truncate">{rest.location}</span>
-                            <span className="text-slate-300">•</span>
-                            <span className="shrink-0">{rest.distance}</span>
                           </p>
 
                           {/* Category Badges */}
-                          <div className="flex flex-wrap gap-1 pt-1">
+                          <div className="flex flex-wrap gap-1.5 pt-0.5">
                             {rest.categories.map((cat, idx) => (
-                              <span key={idx} className="bg-slate-50 text-slate-500 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-slate-100">
+                              <span key={idx} className="bg-slate-100/90 text-slate-600 text-[10px] font-medium px-2 py-0.5 rounded-md border border-slate-200/50 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                                 {translateCategory(cat)}
                               </span>
                             ))}
@@ -828,13 +832,13 @@ export default function LandingPage() {
                       </div>
                     </Link>
 
-                    {/* Book Now Button */}
-                    <div className="px-5 pb-5 pt-0">
+                    {/* Book Now Button Container */}
+                    <div className="px-4 pb-4 pt-0">
                       <button
                         onClick={() => router.push('/booking')}
-                        className="w-full bg-gradient-to-r from-blue-600 to-indigo-650 hover:from-blue-700 hover:to-indigo-750 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all duration-300 flex items-center justify-center gap-1.5 group-hover:shadow-md cursor-pointer"
+                        className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-blue-100 hover:from-blue-700 hover:via-blue-600 hover:to-blue-200 text-white text-xs font-black py-2.5 px-5 rounded-full shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/35 transition-all duration-300 flex items-center justify-center gap-2 group-hover:scale-[1.01] cursor-pointer active:scale-[0.98]"
                       >
-                        <Calendar className="h-4 w-4" />
+                        <Calendar className="h-4 w-4 text-white group-hover:rotate-12 transition-transform" />
                         <span>{t.gridBtnBook}</span>
                       </button>
                     </div>
@@ -875,38 +879,39 @@ export default function LandingPage() {
             </div>
 
             {/* Grid of Events */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {translatedEvents.map((evt) => (
-                <div key={evt.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between">
-                  {/* Event Banner */}
-                  <div className="h-44 w-full relative overflow-hidden bg-slate-100">
+                <div key={evt.id} className="group bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_-6px_rgba(37,99,235,0.15)] hover:border-blue-300 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden">
+                  {/* Event Banner - Taller Vertical Height */}
+                  <div className="h-64 w-full relative overflow-hidden bg-slate-100">
                     <img 
                       src={evt.imageUrl || 'https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&q=80&w=400'} 
                       alt={evt.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                     />
-                    <span className="absolute top-3 left-3 bg-blue-600 text-white text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider shadow">
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-slate-950/10 to-transparent z-10" />
+                    <span className="absolute top-3.5 left-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-wider shadow-md z-20 border border-white/20">
                       {evt.tag || 'Sự kiện'}
                     </span>
                   </div>
 
-                  {/* Body Info */}
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-2 text-left">
-                      <span className="text-[10px] font-extrabold text-blue-600">
+                  {/* Body Info - Compact Height */}
+                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                    <div className="space-y-1.5 text-left">
+                      <span className="text-xs font-extrabold text-blue-600">
                         {evt.restaurantName}
                       </span>
-                      <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                      <h3 className="font-extrabold text-base text-slate-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
                         {evt.title}
                       </h3>
                       
-                      <div className="space-y-1 text-slate-500 text-[11px]">
-                        <p className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          <span>{evt.date} - {evt.time}</span>
+                      <div className="space-y-1 text-slate-500 text-xs pt-0.5">
+                        <p className="flex items-center gap-2">
+                          <Calendar className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                          <span>{evt.date} • {evt.time}</span>
                         </p>
-                        <p className="flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        <p className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                           <span className="truncate">{evt.location}</span>
                         </p>
                       </div>
@@ -915,18 +920,19 @@ export default function LandingPage() {
                     {/* Footer / CTA */}
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] text-slate-400 block uppercase font-bold">
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">
                           {locale === 'vi' ? 'Giá vé' : 'Ticket Price'}
                         </span>
-                        <span className="text-xs font-black text-slate-800">
+                        <span className="text-sm font-black text-blue-700">
                           {evt.price}
                         </span>
                       </div>
                       <Link
                         href={`/events?id=${evt.id}`}
-                        className="bg-blue-600 hover:bg-blue-750 text-white text-xs font-bold py-2 px-3 rounded-lg shadow-sm transition-all"
+                        className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-100 hover:from-blue-700 hover:via-blue-600 hover:to-blue-200 text-white text-xs font-black py-2 px-4 rounded-full shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/35 transition-all duration-300 flex items-center gap-1.5 active:scale-[0.98]"
                       >
-                        {locale === 'vi' ? 'Đăng ký' : 'Register'}
+                        <span>{locale === 'vi' ? 'Đăng ký' : 'Register'}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-white" />
                       </Link>
                     </div>
                   </div>
@@ -959,20 +965,21 @@ export default function LandingPage() {
             {/* Grid list of Custom Pages */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {customPages.map((page) => (
-                <div key={page.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-300 flex flex-col justify-between">
-                  {/* cover image */}
-                  <div className="h-44 w-full relative overflow-hidden bg-slate-150">
+                <div key={page.id} className="group bg-white rounded-2xl border border-slate-200/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_-6px_rgba(37,99,235,0.15)] hover:border-blue-300 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between overflow-hidden">
+                  {/* cover image - Taller Vertical Height */}
+                  <div className="h-64 w-full relative overflow-hidden bg-slate-100">
                     <img 
                       src={page.coverImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80'} 
                       alt={page.restaurantName} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/60 via-slate-950/10 to-transparent z-10" />
                   </div>
 
-                  {/* Body */}
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  {/* Body - Compact Height */}
+                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                     <div className="space-y-1.5 text-left">
-                      <h3 className="font-extrabold text-sm text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
+                      <h3 className="font-extrabold text-base text-slate-900 line-clamp-1 group-hover:text-blue-600 transition-colors">
                         {page.restaurantName}
                       </h3>
                       <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
@@ -983,9 +990,10 @@ export default function LandingPage() {
                     {/* Action button */}
                     <Link
                       href={`/restaurant-page/${page.tenantId}`}
-                      className="w-full bg-blue-600 hover:bg-blue-750 text-white text-xs font-bold py-2.5 px-4 rounded-xl shadow-sm hover:brightness-105 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                      className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-blue-100 hover:from-blue-700 hover:via-blue-600 hover:to-blue-200 text-white text-xs font-black py-2.5 px-5 rounded-full shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/35 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
                     >
                       <span>{locale === 'vi' ? 'Ghé thăm nhà hàng' : 'Visit Restaurant'}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-white" />
                     </Link>
                   </div>
                 </div>
