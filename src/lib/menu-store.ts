@@ -45,11 +45,19 @@ export async function getMenuItem(id: number): Promise<MenuItem> {
 }
 
 export async function createMenuItem(item: Omit<MenuItem, 'id'>): Promise<MenuItem> {
-  return api.post<MenuItem>('/api/menu', item);
+  const payload = {
+    ...item,
+    categoryId: item.category?.id ?? null,
+  };
+  return api.post<MenuItem>('/api/menu', payload);
 }
 
 export async function updateMenuItem(id: number, item: Partial<MenuItem>): Promise<MenuItem> {
-  return api.put<MenuItem>(`/api/menu/${id}`, item);
+  const payload = {
+    ...item,
+    categoryId: item.category?.id ?? null,
+  };
+  return api.put<MenuItem>(`/api/menu/${id}`, payload);
 }
 
 export async function patchMenuItemStatus(id: number, status: 'ACTIVE' | 'INACTIVE'): Promise<MenuItem> {

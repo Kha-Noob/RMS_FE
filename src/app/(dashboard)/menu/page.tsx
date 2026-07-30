@@ -86,7 +86,14 @@ export default function MenuPage() {
   // ─── Form Helpers ────────────────────────────────────────────────────────
   const openCreate = () => {
     setEditingItem(null);
-    setForm({ name: '', description: '', categoryId: '', priceVnd: '', imageUrl: '', status: 'ACTIVE' });
+    setForm({
+      name: '',
+      description: '',
+      categoryId: categories.length > 0 ? String(categories[0].id) : '',
+      priceVnd: '',
+      imageUrl: '',
+      status: 'ACTIVE'
+    });
     setVariants([]);
     setShowForm(true);
   };
@@ -96,7 +103,7 @@ export default function MenuPage() {
     setForm({
       name: item.name,
       description: item.description,
-      categoryId: String(item.category?.id ?? ''),
+      categoryId: String(item.category?.id ?? (categories.length > 0 ? categories[0].id : '')),
       priceVnd: String(item.priceVnd),
       imageUrl: item.imageUrl ?? '',
       status: item.status,
@@ -117,7 +124,7 @@ export default function MenuPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { toast.error('Tên món ăn là bắt buộc'); return; }
-    const cat = form.categoryId ? categories.find(c => c.id === Number(form.categoryId)) ?? null : null;
+    const cat = form.categoryId ? categories.find(c => c.id === Number(form.categoryId)) ?? null : (categories.length > 0 ? categories[0] : null);
     const variantData = variants.map((v, vi) => ({ id: vi + 1, name: v.name, priceVnd: parseFloat(v.priceVnd) || 0 }));
 
     const originalItems = [...items];
@@ -144,17 +151,22 @@ export default function MenuPage() {
     // 2. Background Sync
     try {
       setSubmitting(true);
+      const payload: any = {
+        name: form.name,
+        description: form.description,
+        priceVnd: parseFloat(form.priceVnd) || 0,
+        imageUrl: form.imageUrl || null,
+        category: cat,
+        categoryId: cat?.id ?? (form.categoryId ? Number(form.categoryId) : null),
+        variants: variantData,
+        status: form.status,
+      };
+
       if (editingItem) {
-        await updateMenuItem(editingItem.id, {
-          name: form.name, description: form.description, priceVnd: parseFloat(form.priceVnd) || 0,
-          imageUrl: form.imageUrl || null, category: cat, variants: variantData, status: form.status,
-        });
+        await updateMenuItem(editingItem.id, payload);
         toast.success('Cập nhật món ăn thành công');
       } else {
-        await createMenuItem({
-          name: form.name, description: form.description, priceVnd: parseFloat(form.priceVnd) || 0,
-          imageUrl: form.imageUrl || null, category: cat, variants: variantData, status: form.status,
-        });
+        await createMenuItem(payload);
         toast.success('Thêm món ăn thành công');
       }
       await load(true); // Silent reload in background to sync database IDs

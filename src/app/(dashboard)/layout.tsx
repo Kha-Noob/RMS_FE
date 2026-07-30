@@ -73,7 +73,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="absolute bottom-0 left-[20%] w-[600px] h-[600px] bg-blue-200/10 rounded-full blur-3xl -z-10 pointer-events-none" />
 
         <Sidebar />
-        <main className="lg:ml-64 min-h-screen flex items-center justify-center p-6 relative z-10">
+        <main className="lg:ml-64 min-h-screen flex items-center justify-center p-6 relative">
           <div className="w-full max-w-md p-8 rounded-2xl bg-white border border-slate-200/60 shadow-xl text-center flex flex-col items-center gap-5">
             <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 shadow-inner">
               <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
@@ -105,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="absolute bottom-0 left-[20%] w-[600px] h-[600px] bg-blue-200/10 rounded-full blur-3xl -z-10 pointer-events-none" />
 
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen relative z-10">
+      <main className="lg:ml-64 min-h-screen relative">
         <div className="p-4 lg:p-6 max-w-[1600px]">
           {children}
         </div>
