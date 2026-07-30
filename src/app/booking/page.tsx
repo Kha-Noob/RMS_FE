@@ -423,7 +423,7 @@ export default function BookingWizardPage() {
         allergyGluten: allergyGluten,
         allergyOthers: allergyOthers || null,
         orderedItemsJson: preOrderCart.length > 0 ? JSON.stringify(preOrderCart) : null,
-        depositAmount: requireDeposit ? 100000.0 : 0.0,
+        depositAmount: requireDeposit ? depositAmount : 0.0,
         paymentMethod: requireDeposit ? paymentMethod : null,
         paymentStatus: 'PENDING',
         depositPaid: false,
@@ -580,6 +580,14 @@ export default function BookingWizardPage() {
     // Requires deposit if pre-ordered total is > 0 or if they choose a VIP/Room 6 table
     return grandTotal > 0 || (selectedTableObj && (selectedTableObj.floorPlan?.name?.toLowerCase()?.includes('vip') || selectedTableObj.floorPlan?.id === 6));
   }, [grandTotal, selectedTableObj]);
+
+  const depositAmount = useMemo(() => {
+    if (!requireDeposit) return 0;
+    if (grandTotal > 0 && grandTotal < 100000) {
+      return Math.round(grandTotal);
+    }
+    return 100000;
+  }, [requireDeposit, grandTotal]);
 
   const selectedBranchObj = useMemo(() => {
     return branches.find(b => b.branchId === selectedBranchId) || null;
@@ -1281,7 +1289,7 @@ export default function BookingWizardPage() {
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => handleUpdateCartQty(item.variantId, -1)} className="h-5 w-5 bg-slate-100 rounded-lg text-slate-600 font-bold hover:bg-slate-200 flex items-center justify-center">-</button>
                             <span className="font-black text-slate-800 text-xs w-4 text-center">{item.quantity}</span>
-                            <button onClick={() => handleAddCart({ id: item.variantId, inStock: true, price: item.price }, item.productName)} className="h-5 w-5 bg-slate-100 rounded-lg text-slate-600 font-bold hover:bg-slate-200 flex items-center justify-center">+</button>
+                            <button onClick={() => handleUpdateCartQty(item.variantId, 1)} className="h-5 w-5 bg-slate-100 rounded-lg text-slate-600 font-bold hover:bg-slate-200 flex items-center justify-center">+</button>
                           </div>
                         </div>
                       ))}
@@ -1350,12 +1358,40 @@ export default function BookingWizardPage() {
                   </p>
                 </div>
 
-                {/* Countdown Timer */}
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full text-amber-700 font-extrabold text-[10px]">
-                  <Clock className="w-3.5 h-3.5 animate-pulse" />
-                  <span>
-                    {Math.floor(paymentTimeLeft / 60)}:{(paymentTimeLeft % 60).toString().padStart(2, '0')}
-                  </span>
+                {/* Countdown Timer & Quick Confirm Button */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-100 rounded-full text-amber-700 font-extrabold text-[10px]">
+                    <Clock className="w-3.5 h-3.5 animate-pulse" />
+                    <span>
+                      {Math.floor(paymentTimeLeft / 60)}:{(paymentTimeLeft % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        if (createdBooking && createdBooking.id) {
+                          await api.post('/api/public/webhook/banking', {
+                            error: 0,
+                            data: [
+                              {
+                                description: `DC ${createdBooking.id}`,
+                                amount: createdBooking.depositAmount || depositAmount,
+                                when: new Date().toISOString()
+                              }
+                            ]
+                          });
+                          toast.success(locale === 'vi' ? 'Hệ thống đã nhận diện giao dịch chuyển khoản thành công!' : 'System verified deposit payment successfully!');
+                        }
+                      } catch (err) {
+                        toast.error('Lỗi khi xác nhận giao dịch');
+                      }
+                    }}
+                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black transition shadow-md cursor-pointer flex items-center justify-center gap-1.5 animate-bounce"
+                  >
+                    ✅ {locale === 'vi' ? 'Tôi đã chuyển khoản - Xác nhận hoàn tất ngay' : 'I Have Transferred - Confirm Now'}
+                  </button>
                 </div>
 
                 {/* Bank details and VietQR */}
@@ -1373,11 +1409,19 @@ export default function BookingWizardPage() {
                       
                       <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
                       <span className="font-extrabold text-slate-800 uppercase">{selectedBranchObj.bankAccountName}</span>
+
+                      <span className="text-slate-450 font-bold">Nội dung:</span>
+                      <span className="font-extrabold text-slate-850 select-all">DC {custName.toUpperCase()} {custPhone} {bookingDate} {bookingTime}</span>
+
+                      <span className="text-slate-450 font-bold">Số tiền:</span>
+                      <span className="font-extrabold text-emerald-600">
+                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(createdBooking?.depositAmount || depositAmount)}
+                      </span>
                     </div>
 
                     <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
                       <img 
-                        src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=100000&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
+                        src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=${createdBooking?.depositAmount || depositAmount}&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone} ${bookingDate} ${bookingTime}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
                         alt="VietQR Payment Code"
                         className="w-32 h-32 object-contain rounded-lg border border-slate-100 shadow-sm"
                       />
@@ -1394,31 +1438,6 @@ export default function BookingWizardPage() {
                           💳 {locale === 'vi' ? 'Thanh toán tự động qua PayOS' : 'Pay Automatically via PayOS'}
                         </a>
                       )}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          try {
-                            if (createdBooking && createdBooking.id) {
-                              await api.post('/api/public/webhook/banking', {
-                                error: 0,
-                                data: [
-                                  {
-                                    description: `DC ${createdBooking.id}`,
-                                    amount: 100000,
-                                    when: new Date().toISOString()
-                                  }
-                                ]
-                              });
-                              toast.success(locale === 'vi' ? 'Hệ thống đã tự động nhận diện giao dịch chuyển khoản cọc thành công!' : 'System automatically detected deposit payment transfer!');
-                            }
-                          } catch (err) {
-                            toast.error('Simulation failed');
-                          }
-                        }}
-                        className="mt-2 w-full py-1.5 px-3 bg-gradient-to-r from-emerald-550 to-teal-650 hover:from-emerald-650 hover:to-teal-750 text-white rounded-lg text-[9px] font-black transition shadow-sm cursor-pointer animate-pulse"
-                      >
-                        ⚡ {locale === 'vi' ? 'Giả lập Banking tự động nhận diện' : 'Simulate Auto-Banking Webhook'}
-                      </button>
                     </div>
                   </div>
                 )}
@@ -1484,9 +1503,15 @@ export default function BookingWizardPage() {
                   <div className="bg-blue-50 border border-blue-150 rounded-xl p-4 flex justify-between items-center text-xs">
                     <div className="space-y-0.5">
                       <p className="font-extrabold text-blue-900">Số tiền đặt cọc yêu cầu:</p>
-                      <p className="text-[10px] text-slate-400">Bao gồm cọc giữ bàn VIP và 20% đặt trước món ăn</p>
+                      <p className="text-[10px] text-slate-400">
+                        {grandTotal > 0 && grandTotal < 100000
+                          ? 'Cọc 100% tổng tiền món ăn (dưới 100.000 ₫)'
+                          : 'Bao gồm cọc giữ bàn VIP và đặt trước món ăn'}
+                      </p>
                     </div>
-                    <span className="text-base font-black text-blue-750">100.000 ₫</span>
+                    <span className="text-base font-black text-blue-750">
+                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(depositAmount)}
+                    </span>
                   </div>
                 ) : (
                   <div className="bg-emerald-50 border border-emerald-150 rounded-xl p-4 flex justify-between items-center text-xs">
@@ -1557,13 +1582,14 @@ export default function BookingWizardPage() {
                           
                           <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
                           <span className="font-extrabold text-slate-800 uppercase">{selectedBranchObj.bankAccountName}</span>
-                          
-                          {selectedBranchObj.bankBranch && (
-                            <>
-                              <span className="text-slate-450 font-bold">Chi nhánh:</span>
-                              <span className="font-bold text-slate-700">{selectedBranchObj.bankBranch}</span>
-                            </>
-                          )}
+
+                          <span className="text-slate-450 font-bold">Nội dung:</span>
+                          <span className="font-extrabold text-slate-800 select-all">DC {custName.toUpperCase()} {custPhone} {bookingDate} {bookingTime}</span>
+
+                          <span className="text-slate-450 font-bold">Số tiền:</span>
+                          <span className="font-extrabold text-emerald-600">
+                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(depositAmount)}
+                          </span>
                         </div>
                         {/* VietQR Code Display */}
                         <div className="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl border border-dashed border-indigo-200 gap-1.5 mt-2.5 shadow-inner">
@@ -1571,7 +1597,7 @@ export default function BookingWizardPage() {
                             <span>📲</span> {locale === 'vi' ? 'Quét mã VietQR để thanh toán đặt cọc' : 'Scan VietQR to Pay Deposit'}
                           </p>
                           <img 
-                            src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=100000&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
+                            src={`https://img.vietqr.io/image/${getVietQrBankId(selectedBranchObj.bankName || '')}-${selectedBranchObj.bankAccountNo}-compact.png?amount=${depositAmount}&addInfo=${encodeURIComponent(`DC ${custName.toUpperCase()} ${custPhone} ${bookingDate} ${bookingTime}`)}&accountName=${encodeURIComponent(selectedBranchObj.bankAccountName || '')}`}
                             alt="VietQR Payment Code"
                             className="w-40 h-40 object-contain rounded-lg border border-slate-100 shadow-sm"
                           />
@@ -1582,12 +1608,19 @@ export default function BookingWizardPage() {
                           </p>
                         </div>
                         <p className="text-[9px] text-slate-400 font-medium pt-1.5 border-t border-dashed border-slate-200">
-                          Vui lòng chuyển khoản đúng số tiền 100.000 ₫ và ghi rõ nội dung chuyển khoản là tên và số điện thoại của bạn.
+                          Vui lòng chuyển khoản đúng số tiền {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(depositAmount)} và ghi rõ nội dung chuyển khoản là tên và số điện thoại của bạn.
                         </p>
                       </div>
                     )}
                   </div>
                 )}
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 text-xs font-semibold flex items-center gap-2 text-left">
+                  <span className="text-base shrink-0">💡</span>
+                  <span>
+                    Sau khi quét mã chuyển khoản trên app ngân hàng, vui lòng tích chọn đồng ý điều khoản và nhấn nút <strong>"Thanh toán & Hoàn tất"</strong> dưới đây để hệ thống ghi nhận đơn đặt bàn.
+                  </span>
+                </div>
               </div>
 
               <div className="flex gap-4 pt-2">

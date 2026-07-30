@@ -637,7 +637,8 @@ export default function BookingHistoryPage() {
                 const accNo = branchObj ? branchObj.bankAccountNo : '123456789';
                 const accName = branchObj ? branchObj.bankAccountName : 'LITEFLOW RESTAURANT';
                 const addInfo = `DC ${paymentBooking.customerName ? paymentBooking.customerName.toUpperCase() : ''} ${paymentBooking.customerPhone || ''}`;
-                const qrUrl = `https://img.vietqr.io/image/${bankId}-${accNo}-compact.png?amount=100000&addInfo=${encodeURIComponent(addInfo)}&accountName=${encodeURIComponent(accName)}`;
+                const depositAmt = paymentBooking.depositAmount || 100000;
+                const qrUrl = `https://img.vietqr.io/image/${bankId}-${accNo}-compact.png?amount=${depositAmt}&addInfo=${encodeURIComponent(addInfo)}&accountName=${encodeURIComponent(accName)}`;
 
                 return (
                   <div className="w-full space-y-4">
@@ -674,7 +675,7 @@ export default function BookingHistoryPage() {
                             data: [
                               {
                                 description: `DC ${paymentBooking.id}`,
-                                amount: 100000,
+                                amount: paymentBooking.depositAmount || 100000,
                                 when: new Date().toISOString()
                               }
                             ]
