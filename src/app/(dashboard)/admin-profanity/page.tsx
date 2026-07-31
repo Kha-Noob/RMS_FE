@@ -142,10 +142,10 @@ export default function AdminProfanityPage() {
                 <div>từ_cấm_chửi_thề</div>
               </div>
 
-              <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 flex gap-2 text-rose-800">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex gap-2 text-emerald-800">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5 text-emerald-600" />
                 <div>
-                  <strong>Lưu ý:</strong> Việc nạp tệp từ cấm mới sẽ thay thế hoàn toàn danh sách từ cấm hiện tại của hệ thống.
+                  <strong>Lưu ý:</strong> Việc nạp tệp từ cấm mới sẽ tự động <strong>cộng dồn (tích lũy)</strong> vào danh sách từ cấm hiện tại của hệ thống.
                 </div>
               </div>
             </div>
