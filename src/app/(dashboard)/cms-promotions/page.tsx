@@ -94,9 +94,16 @@ export default function CmsPromotionsPage() {
       toast.error(locale === 'vi' ? 'Vui lòng nhập mã khuyến mãi.' : 'Please enter promo code.');
       return;
     }
-    if (discountValue <= 0) {
-      toast.error(locale === 'vi' ? 'Giá trị giảm giá phải lớn hơn 0.' : 'Discount value must be greater than 0.');
-      return;
+    if (type === 'PercentDiscount') {
+      if (discountValue < 1 || discountValue > 100) {
+        toast.error(locale === 'vi' ? 'Số % giảm giá chỉ được phép từ 1% đến 100%.' : 'Discount percentage must be between 1% and 100%.');
+        return;
+      }
+    } else {
+      if (discountValue <= 0) {
+        toast.error(locale === 'vi' ? 'Giá trị giảm giá phải lớn hơn 0.' : 'Discount value must be greater than 0.');
+        return;
+      }
     }
 
     try {
@@ -551,11 +558,17 @@ export default function CmsPromotionsPage() {
                       className="w-full pl-3 pr-8 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 text-sm transition"
                       required
                       min={1}
+                      max={type === 'PercentDiscount' ? 100 : undefined}
                     />
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                       {type === 'PercentDiscount' ? <Percent className="w-3.5 h-3.5" /> : <span className="text-xs font-bold">đ</span>}
                     </div>
                   </div>
+                  {type === 'PercentDiscount' && (
+                    <p className="text-[10px] text-amber-600 font-semibold mt-0.5">
+                      {locale === 'vi' ? 'Cho phép từ 1% đến 100%' : 'Allowed range: 1% to 100%'}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1">

@@ -140,6 +140,30 @@ export default function POSPage() {
 
   const activeBranch = branches?.find(b => b.branchId === activeBranchId);
 
+  // Booking List Modal states
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [bookingListDate, setBookingListDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [bookingList, setBookingList] = useState<any[]>([]);
+  const [bookingListLoading, setBookingListLoading] = useState(false);
+
+  const fetchBookingsForDate = useCallback(async (dateStr: string) => {
+    if (!activeBranchId) return;
+    setBookingListLoading(true);
+    try {
+      const res = await api.get<any[]>('/api/pos/bookings', {
+        params: { branchId: activeBranchId, date: dateStr }
+      });
+      setBookingList(res);
+    } catch {
+      toast.error('Lỗi khi tải danh sách đặt bàn');
+      setBookingList([]);
+    } finally {
+      setBookingListLoading(false);
+    }
+  }, [activeBranchId]);
+
+
+
   const closeCheckoutModal = () => {
     setCheckoutOpen(false);
     setShowPayOSScreen(false);
@@ -987,12 +1011,31 @@ export default function POSPage() {
                 360°
               </button>
             )}
-<button
+
+            {/* Icon Lịch đặt bàn (Bookings List Button) */}
+            <button
+              onClick={() => {
+                setBookingModalOpen(true);
+                fetchBookingsForDate(bookingListDate);
+              }}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shadow-sm flex items-center gap-1.5 relative cursor-pointer"
+              title="Danh sách bàn đặt trước"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+              <span>Lịch đặt bàn</span>
+              {tables.filter(t => t.status === 'RESERVED').length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-black bg-rose-500 text-white rounded-full animate-pulse">
+                  {tables.filter(t => t.status === 'RESERVED').length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => { setManagerOpen(true); setManagerTab('rooms'); }}
               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               title="Quản lý bàn & phòng"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
           </div>
         </div>
@@ -1102,6 +1145,13 @@ export default function POSPage() {
                           <span>{table.sessionTotalAmount.toLocaleString('vi-VN')}đ</span>
                         </div>
                       )}
+                      {/* Show booking time for RESERVED tables */}
+                      {table.status === 'RESERVED' && table.bookingDetails?.bookingTime && (
+                        <div className="flex items-center gap-1 text-[11px] text-amber-600 font-bold mt-0.5">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                          <span>{new Date(table.bookingDetails.bookingTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/50">
                         <span className="text-[9px] uppercase font-extrabold tracking-wider opacity-70 text-slate-400">Trạng thái</span>
                         <span className={`text-[10px] font-black ${statusText}`}>
@@ -1117,34 +1167,38 @@ export default function POSPage() {
         </div>
 
         {/* Bottom bar: Merge/Split actions */}
-        <div className="px-4 py-2 bg-white border-t border-slate-200 flex items-center gap-2">
-          <button
-            onClick={() => { setMergeMode(!mergeMode); setMergeTableIds([]); }}
-            className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
-              mergeMode ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-            }`}
-          >
-            {mergeMode ? `Gộp (${mergeTableIds.length})` : 'Gộp bàn'}
-          </button>
-          <button
-            onClick={() => setSplitMode(!splitMode)}
-            className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
-              splitMode ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-            }`}
-            disabled={!selectedTable || selectedTable.status !== 'OCCUPIED'}
-          >
-            Tách bill
-          </button>
-          <div className="flex-1" />
-          <div className="text-xs text-slate-400">
-            {tables.filter(t => t.status === 'EMPTY').length} trống / {tables.length} tổng
+        <div className="px-4 py-2 bg-white border-t border-slate-200">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="text-[10px] text-slate-400">
+              {tables.filter(t => t.status === 'EMPTY').length} trống · {tables.filter(t => t.status === 'RESERVED').length} đặt trước · {tables.length} tổng
+            </div>
+          </div>
+          {/* Merge/Split row */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setMergeMode(!mergeMode); setMergeTableIds([]); }}
+              className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
+                mergeMode ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {mergeMode ? `Gộp (${mergeTableIds.length})` : 'Gộp bàn'}
+            </button>
+            <button
+              onClick={() => setSplitMode(!splitMode)}
+              className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
+                splitMode ? 'bg-orange-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+              disabled={!selectedTable || selectedTable.status !== 'OCCUPIED'}
+            >
+              Tách bill
+            </button>
           </div>
         </div>
       </div>
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      {/* ═══════════════════════════════════════════════════════════════
           RIGHT PANEL: Table Detail / Order Info
-          â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+          ═══════════════════════════════════════════════════════════════ */}
       <div className="w-96 min-w-[340px] border-l border-slate-200 flex flex-col bg-white">
         {selectedTable ? (
           <>
@@ -1173,17 +1227,141 @@ export default function POSPage() {
                 </button>
               </div>
 
-              {session && (
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
-                    Phiên #{session.id}
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    {cartItems.length} món
-                  </span>
+              {(session || selectedTable.status === 'RESERVED' || selectedTable.status === 'OCCUPIED') && (
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {session && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-medium">
+                        Phiên #{session.id}
+                      </span>
+                    )}
+                    <span className="text-[10px] text-slate-400">
+                      {cartItems.length} món
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
+
+            {/* Reservation details banner — shown when table has bookingDetails */}
+            {selectedTable?.bookingDetails && (
+              <div className="mx-4 my-3 rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-amber-100/70 border-b border-amber-200">
+                  <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg>
+                  <span className="text-xs font-bold text-amber-700">📌 Thông tin Đặt trước</span>
+                </div>
+                <div className="px-3 py-2 space-y-1">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-500">Khách hàng</span>
+                    <span className="font-semibold text-slate-700">{selectedTable.bookingDetails.customerName}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-slate-500">SĐT</span>
+                    <span className="font-semibold text-slate-700">{selectedTable.bookingDetails.customerPhone}</span>
+                  </div>
+                  {selectedTable.bookingDetails.bookingTime && (
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500">Giờ đặt</span>
+                      <span className="font-semibold text-slate-700">
+                        {new Date(selectedTable.bookingDetails.bookingTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  )}
+                  {selectedTable.bookingDetails.guests && (
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500">Số khách</span>
+                      <span className="font-semibold text-slate-700">{selectedTable.bookingDetails.guests} người</span>
+                    </div>
+                  )}
+                  {selectedTable.bookingDetails.depositAmount != null && selectedTable.bookingDetails.depositAmount > 0 && (
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500">Tiền cọc</span>
+                      <span className="font-semibold text-emerald-600">{selectedTable.bookingDetails.depositAmount.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  )}
+                  {selectedTable.bookingDetails.notes && (
+                    <div className="mt-1 text-[10px] italic text-amber-700 bg-amber-100 rounded px-2 py-1">
+                      📝 {selectedTable.bookingDetails.notes}
+                    </div>
+                  )}
+                </div>
+                {/* Pre-ordered dishes */}
+                {selectedTable.bookingDetails.orderedItems && selectedTable.bookingDetails.orderedItems.length > 0 && (
+                  <div className="border-t border-amber-200">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100/50">
+                      <svg className="w-3.5 h-3.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C6.48 2 2 6 2 11h20c0-5-4.48-9-10-9z"/><path d="M2 13h20v1a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-1z"/></svg>
+                      <span className="text-[10px] font-bold text-amber-700">🍽️ Món đặt trước ({selectedTable.bookingDetails.orderedItems.length})</span>
+                    </div>
+                    <div className="px-3 pb-2">
+                      <table className="w-full text-[10px]">
+                        <thead>
+                          <tr className="text-slate-400 border-b border-amber-100">
+                            <th className="text-left py-1">Món</th>
+                            <th className="text-center py-1">SL</th>
+                            <th className="text-right py-1">Thành tiền</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedTable.bookingDetails.orderedItems.map((rawItem: unknown, idx: number) => {
+                            let item: Record<string, unknown> = {};
+                            if (typeof rawItem === 'string') {
+                              try { item = JSON.parse(rawItem); } catch { item = { name: rawItem }; }
+                            } else if (typeof rawItem === 'object' && rawItem !== null) {
+                              item = rawItem as Record<string, unknown>;
+                            }
+
+                            let name = String(item.name || item.productName || item.variantName || item.title || item.itemName || item.dishName || '');
+                            if (!name && item.product && typeof item.product === 'object') {
+                              name = String((item.product as Record<string, unknown>).name || (item.product as Record<string, unknown>).title || '');
+                            }
+                            if (!name && item.variant && typeof item.variant === 'object') {
+                              name = String((item.variant as Record<string, unknown>).name || (item.variant as Record<string, unknown>).title || '');
+                            }
+                            if (!name) {
+                              const foundStr = Object.values(item).find(v => typeof v === 'string' && v.length > 0 && !v.startsWith('http') && isNaN(Number(v)));
+                              name = typeof foundStr === 'string' ? foundStr : 'Món ăn đặt trước';
+                            }
+
+                            const priceVal = item.price ?? item.priceVnd ?? item.unitPrice ?? item.amount ?? 0;
+                            const price = Number(priceVal) || 0;
+                            const qtyVal = item.quantity ?? item.qty ?? item.count ?? 1;
+                            const qty = Number(qtyVal) || 1;
+
+                            return (
+                              <tr key={idx} className="border-b border-amber-50 last:border-0">
+                                <td className="py-1 text-slate-700 font-medium truncate max-w-[120px]" title={name}>{name}</td>
+                                <td className="py-1 text-center text-slate-500">×{qty}</td>
+                                <td className="py-1 text-right text-emerald-600 font-semibold">
+                                  {price > 0 ? (price * qty).toLocaleString('vi-VN') + 'đ' : '—'}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-amber-200">
+                            <td colSpan={2} className="pt-1 text-slate-500 font-semibold">Tổng món đặt</td>
+                            <td className="pt-1 text-right font-bold text-amber-700">
+                              {selectedTable.bookingDetails.orderedItems.reduce((s: number, rawItem: unknown) => {
+                                let item: Record<string, unknown> = {};
+                                if (typeof rawItem === 'string') {
+                                  try { item = JSON.parse(rawItem); } catch { item = {}; }
+                                } else if (typeof rawItem === 'object' && rawItem !== null) {
+                                  item = rawItem as Record<string, unknown>;
+                                }
+                                const price = Number(item.price ?? item.priceVnd ?? item.unitPrice ?? item.amount ?? 0) || 0;
+                                const qty = Number(item.quantity ?? item.qty ?? item.count ?? 1) || 1;
+                                return s + price * qty;
+                              }, 0).toLocaleString('vi-VN')}đ
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* QR Ordering section */}
             <div className="p-4 border-b border-slate-200 bg-slate-50">
@@ -1277,9 +1455,10 @@ export default function POSPage() {
                 <span className="text-sm text-slate-500">Tổng cộng</span>
                 <span className="text-xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</span>
               </div>
+
               <button
                 onClick={() => setMenuOpen(true)}
-                className="w-full py-2.5 bg-[#25439b] hover:bg-[#1c3580] rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2 bg-[#25439b] hover:bg-[#1c3580]"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Thêm món
@@ -1288,7 +1467,7 @@ export default function POSPage() {
                 <button
                   onClick={handleSendToKitchen}
                   disabled={!session || cartItems.length === 0 || cartLoading}
-                  className="py-2.5 bg-orange-500 hover:bg-orange-400 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="py-2.5 rounded-xl text-sm font-medium text-white transition-colors bg-orange-500 hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {cartLoading ? '...' : 'Gửi bếp'}
                 </button>
@@ -1658,13 +1837,13 @@ export default function POSPage() {
                   </p>
                   <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-[10px]">
                     <span className="text-slate-450 font-bold">Ngân hàng:</span>
-                    <span className="font-extrabold text-slate-800">{activeBranch?.bankName || 'Vietcombank'}</span>
+                    <span className="font-extrabold text-slate-800">{activeBranch?.bankName || 'MB Bank'}</span>
                     
                     <span className="text-slate-450 font-bold">Số tài khoản:</span>
-                    <span className="font-black text-indigo-700 select-all">{activeBranch?.bankAccountNo || '1012938475'}</span>
+                    <span className="font-black text-indigo-700 select-all">{activeBranch?.bankAccountNo || '0862807412'}</span>
                     
                     <span className="text-slate-450 font-bold">Chủ tài khoản:</span>
-                    <span className="font-extrabold text-slate-800 uppercase">{activeBranch?.bankAccountName || 'LITEFLOW RESTAURANT GROUP'}</span>
+                    <span className="font-extrabold text-slate-800 uppercase">{activeBranch?.bankAccountName || 'LE DUC THUAN'}</span>
 
                     <span className="text-slate-450 font-bold">Nội dung:</span>
                     <span className="font-extrabold text-slate-850 select-all">RMSPOS{session?.id}</span>
@@ -1675,43 +1854,53 @@ export default function POSPage() {
 
                   <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
                     <img 
-                      src={`https://img.vietqr.io/image/${getVietQrBankId(activeBranch?.bankName || 'Vietcombank')}-${activeBranch?.bankAccountNo || '1012938475'}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMSPOS${session?.id}`)}&accountName=${encodeURIComponent(activeBranch?.bankAccountName || 'LITEFLOW RESTAURANT GROUP')}`}
+                      src={`https://img.vietqr.io/image/${getVietQrBankId(activeBranch?.bankName || 'MB Bank')}-${activeBranch?.bankAccountNo || '0862807412'}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMSPOS${session?.id}`)}&accountName=${encodeURIComponent(activeBranch?.bankAccountName || 'LE DUC THUAN')}`}
                       alt="VietQR Payment Code"
                       className="w-36 h-36 object-contain rounded-lg border border-slate-100 shadow-sm"
                     />
                     <p className="text-[8px] text-rose-500 font-black text-center animate-pulse mt-1">
                       * Vui lòng giữ nguyên số tiền và nội dung chuyển khoản khi quét
                     </p>
-                    
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          if (payosOrderCode) {
-                            setProcessing(true);
-                            await api.post('/api/public/webhook/payos', {
-                              signature: 'mock-signature',
-                              data: {
-                                orderCode: payosOrderCode,
-                                amount: total,
-                                description: `RMSPOS${session?.id}`,
-                                reference: `MOCK_REF_${Date.now()}`
-                              }
-                            });
-                            toast.success('Gửi webhook giả lập thành công!');
-                          }
-                        } catch {
-                          toast.error('Lỗi khi giả lập thanh toán');
-                        } finally {
-                          setProcessing(false);
-                        }
-                      }}
-                      disabled={processing}
-                      className="mt-2 w-full py-1.5 px-3 bg-gradient-to-r from-emerald-550 to-teal-650 hover:from-emerald-650 hover:to-teal-755 text-white rounded-lg text-[9px] font-black transition shadow-sm cursor-pointer animate-pulse"
-                    >
-                      ⚡ Giả lập Banking tự động nhận diện
-                    </button>
                   </div>
+                </div>
+
+                {/* Manual confirm payment button */}
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-[11px] text-emerald-700 font-semibold">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+                    Đã nhận tiền? Xác nhận thủ công
+                  </div>
+                  <p className="text-[10px] text-slate-500">Dùng khi không thể tự động kiểm tra giao dịch (local/dev)</p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!session || !selectedTable) return;
+                      try {
+                        setProcessing(true);
+                        await api.post(`/api/pos/session/${session.id}/complete`, null, {
+                          params: { paymentMethod: 'BANK_TRANSFER' }
+                        });
+                        toast.success('✅ Đã xác nhận thanh toán thành công!');
+                        closeCheckoutModal();
+                        setSession(null);
+                        setCartItems([]);
+                        setSelectedTable(null);
+                        loadData();
+                      } catch {
+                        toast.error('Lỗi xác nhận thanh toán');
+                      } finally {
+                        setProcessing(false);
+                      }
+                    }}
+                    disabled={processing}
+                    className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                  >
+                    {processing ? (
+                      <><svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83"/></svg>Đang xử lý...</>
+                    ) : (
+                      <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>Xác nhận đã nhận chuyển khoản</>
+                    )}
+                  </button>
                 </div>
 
                 <div className="pt-2 border-t border-slate-100">
@@ -1882,6 +2071,196 @@ export default function POSPage() {
         </div>
         );
       })()}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          BOOKINGS LIST MODAL (Lịch Đặt Bàn Theo Ngày)
+          ═══════════════════════════════════════════════════════════════ */}
+      {bookingModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold tracking-tight">Danh sách bàn đặt trước</h3>
+                  <p className="text-[11px] text-slate-300">Xem các lịch hẹn đặt bàn của nhà hàng theo từng ngày</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBookingModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            {/* Date Selector Row */}
+            <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Chọn ngày:</span>
+                <input
+                  type="date"
+                  value={bookingListDate}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setBookingListDate(newDate);
+                    fetchBookingsForDate(newDate);
+                  }}
+                  className="text-xs font-semibold px-3 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+                />
+                {bookingListDate !== new Date().toISOString().split('T')[0] && (
+                  <button
+                    onClick={() => {
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      setBookingListDate(todayStr);
+                      fetchBookingsForDate(todayStr);
+                    }}
+                    className="text-xs px-2.5 py-1.5 rounded-xl bg-indigo-100 text-indigo-700 font-bold hover:bg-indigo-200 transition-colors cursor-pointer"
+                  >
+                    Hôm nay
+                  </button>
+                )}
+              </div>
+              <div className="text-xs font-semibold text-slate-500">
+                Tổng số: <strong className="text-indigo-600">{bookingList.length}</strong> lượt đặt
+              </div>
+            </div>
+
+            {/* Bookings List Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+              {bookingListLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <svg className="w-8 h-8 animate-spin mb-2 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="10"/></svg>
+                  <span className="text-xs font-medium">Đang tải danh sách đặt bàn...</span>
+                </div>
+              ) : bookingList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
+                  <svg className="w-12 h-12 mb-2 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <p className="text-sm font-bold text-slate-600">Không có lịch đặt bàn nào</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Không tìm thấy đơn đặt bàn cho ngày {bookingListDate}</p>
+                </div>
+              ) : (
+                bookingList.map((item: any) => {
+                  const bookingTimeFormatted = item.bookingTime
+                    ? new Date(item.bookingTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                    : '--:--';
+                  const fullDateFormatted = item.bookingTime
+                    ? new Date(item.bookingTime).toLocaleDateString('vi-VN')
+                    : bookingListDate;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md transition-all space-y-3"
+                    >
+                      {/* Item Top Bar */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 border border-amber-300/80 font-black text-sm flex items-center gap-1.5 shadow-sm">
+                            <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            {bookingTimeFormatted}
+                          </div>
+                          <div>
+                            <div className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                              <span>{item.tableLabel || `Bàn ID #${item.tableId || 'Chưa xếp'}`}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+                                {item.guests || 2} khách
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-medium">
+                              Ngày: {fullDateFormatted}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                            item.depositPaid || item.paymentStatus === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {item.depositPaid || item.paymentStatus === 'PAID' ? 'Đã cọc' : 'Chưa cọc'}
+                            {item.depositAmount ? ` (${item.depositAmount.toLocaleString('vi-VN')}đ)` : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Customer Info */}
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Khách hàng</span>
+                          <span className="font-bold text-slate-800">{item.customerName || 'Khách đặt bàn'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Số điện thoại</span>
+                          <span className="font-bold text-indigo-700 select-all">{item.customerPhone || 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      {/* Pre-ordered Items Section */}
+                      {item.orderedItems && item.orderedItems.length > 0 && (
+                        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-1.5">
+                          <div className="text-[11px] font-extrabold text-indigo-900 flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            Món ăn đặt trước ({item.orderedItems.length}):
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {item.orderedItems.map((prod: any, pIdx: number) => (
+                              <div key={pIdx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-indigo-100 text-xs shadow-2xs">
+                                <span className="font-medium text-slate-800 truncate">
+                                  {prod.name || prod.productName} {prod.variantName ? `(${prod.variantName})` : ''}
+                                </span>
+                                <span className="font-black text-indigo-700 ml-2">x{prod.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Customer Notes */}
+                      {item.notes && item.notes.trim() !== '' && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 flex items-start gap-2">
+                          <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          <div>
+                            <strong className="font-extrabold text-amber-800">Ghi chú của khách: </strong>
+                            <span>{item.notes}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dietary / Allergies */}
+                      {(item.dietaryNotes || item.allergyPeanut || item.allergyGluten || item.allergyOthers) && (
+                        <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded-xl">
+                          <strong>Lưu ý ăn uống: </strong>
+                          {[
+                            item.dietaryNotes,
+                            item.allergyPeanut ? 'Dị ứng đậu phụng' : null,
+                            item.allergyGluten ? 'Dị ứng Gluten' : null,
+                            item.allergyOthers
+                          ].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setBookingModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Slide-in animation */}
       <style jsx global>{`

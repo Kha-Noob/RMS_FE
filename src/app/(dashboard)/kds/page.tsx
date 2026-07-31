@@ -11,6 +11,7 @@ interface KDSOrder {
   tableName: string;
   status: string;
   createdAt: string;
+  sessionOpenedAt?: string | null;
   items: KDSDetail[];
 }
 
@@ -252,9 +253,16 @@ export default function KDSPage() {
                           <span className="text-sm font-bold text-slate-800">{order.tableName || `#${order.id}`}</span>
                           <span className="text-[10px] text-slate-400">#{order.id}</span>
                         </div>
-                        <span className="text-[11px] text-slate-400 font-semibold">
-                          ⏱ {timeElapsed(order.createdAt)}
-                        </span>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[11px] text-slate-400 font-semibold">
+                            ⏱ {timeElapsed(order.createdAt)}
+                          </span>
+                          {order.sessionOpenedAt && (
+                            <span className="text-[10px] text-violet-500 font-medium">
+                              🪑 Vào: {new Date(order.sessionOpenedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-1 mb-3">

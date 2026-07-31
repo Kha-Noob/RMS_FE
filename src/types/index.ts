@@ -44,6 +44,8 @@ export interface Employee {
   branch: Branch | null;
 }
 
+export type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED' | 'SERVED';
+
 export type TableStyle = 'ROUND' | 'SQUARE' | 'RECTANGLE' | 'VIP';
 
 export const TABLE_STYLE_OPTIONS: { value: TableStyle; label: string; icon: string }[] = [
@@ -55,6 +57,32 @@ export const TABLE_STYLE_OPTIONS: { value: TableStyle; label: string; icon: stri
 
 export function getTableStyleLabel(style?: TableStyle | null): string {
   return TABLE_STYLE_OPTIONS.find(s => s.value === style)?.label ?? 'Tron';
+}
+
+export interface BookingDetails {
+  id: number;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  bookingTime?: string;
+  guests?: number;
+  depositAmount?: number;
+  depositPaid?: boolean;
+  paymentStatus?: string;
+  notes?: string;
+  source?: string;
+  orderedItems?: Array<{
+    name?: string;
+    productName?: string;
+    variantName?: string;
+    title?: string;
+    quantity?: number;
+    qty?: number;
+    count?: number;
+    price?: number;
+    priceVnd?: number;
+    unitPrice?: number;
+  }>;
 }
 
 export interface TableEntity {
@@ -76,6 +104,7 @@ export interface TableEntity {
   activeSessionId?: number | null;
   sessionOpenedAt?: string | null;
   sessionTotalAmount?: number | null;
+  bookingDetails?: BookingDetails | null;
 }
 
 export interface Room {
