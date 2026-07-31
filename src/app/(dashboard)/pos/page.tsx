@@ -488,7 +488,7 @@ export default function POSPage() {
       }
 
       if (table.status === 'EMPTY' || table.status === 'RESERVED') {
-        const res = await api.post<TableSession>('/api/pos/session/open', null, { params: { tableId: table.id } });
+        const res = await api.postForm<TableSession>('/api/pos/session/open', { tableId: table.id });
         await loadData();
         return res;
       }
@@ -543,26 +543,16 @@ export default function POSPage() {
     let active = true;
     let ws: WebSocket | null = null;
     
-    function connect() {
-      if (!active) return;
-      ws = connectWebSocket('/ws/kds');
-      
+    const connect = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.hostname}:8080/ws/kds`;
+      ws = new WebSocket(wsUrl);
+
       ws.onmessage = (event) => {
-        const text = event.data;
-        if (text === 'ORDER_STATE_CHANGED' || text === 'NEW_ORDER_SUBMITTED' || text.includes('KDS_READY_ALERT')) {
+        if (event.data === 'TABLE_STATUS_CHANGED' || event.data === 'NEW_ORDER_SUBMITTED') {
           loadData();
           if (selectedTable) {
-            api.get('/api/pos/session/active', { params: { tableId: selectedTable.id } })
-              .then(() => {
-                loadSession(selectedTable);
-              })
-              .catch(() => {
-                toast.success('Thanh toán thành công qua chuyển khoản!');
-                closeCheckoutModal();
-                setSession(null);
-                setCartItems([]);
-                setSelectedTable(null);
-              });
+            loadSession(selectedTable);
           }
         }
       };
@@ -650,48 +640,32 @@ export default function POSPage() {
   const addItemCanConfirm = addItemProduct && !addItemNeedsVariant;
 
   const handleUpdateQuantity = async (detailId: number, delta: number) => {
-    if (!session || !selectedTable) return;
+    const target = cartItems.find(i => i.detailId === detailId);
+    if (!target) return;
 
-    // 1. If it is a local draft item (detailId > 1,000,000,000,000), update strictly locally
-    if (detailId > 1000000000000) {
-      setCartItems(prev => {
-        const item = prev.find(i => i.detailId === detailId);
-        if (!item) return prev;
-        const newQty = item.quantity + delta;
-        if (newQty <= 0) return prev.filter(i => i.detailId !== detailId);
-        return prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i);
-      });
+    const newQty = target.quantity + delta;
+
+    if (target.status === 'PENDING') {
+      if (newQty <= 0) {
+        setCartItems(prev => prev.filter(i => i.detailId !== detailId));
+      } else {
+        setCartItems(prev => prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i));
+      }
       return;
     }
 
-    // 2. If it is an existing database item, sync changes with server
+    if (newQty <= 0) {
+      toast.error('Không thể xóa món đã gửi bếp từ POS.');
+      return;
+    }
+
+    if (!selectedTable) return;
     const originalItems = [...cartItems];
-    setCartItems(prev => {
-      const item = prev.find(i => i.detailId === detailId);
-      if (!item) return prev;
-      const newQty = item.quantity + delta;
-      if (newQty <= 0) return prev.filter(i => i.detailId !== detailId);
-      return prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i);
-    });
+
+    setCartItems(prev => prev.map(i => i.detailId === detailId ? { ...i, quantity: newQty } : i));
 
     try {
-      let currentSession = session;
-      if (currentSession.id > 1000000000000) {
-        currentSession = await ensureSession(selectedTable);
-        setSession(currentSession);
-      }
-      const item = originalItems.find(i => i.detailId === detailId);
-      if (!item) return;
-      const newQty = item.quantity + delta;
-      if (newQty <= 0) {
-        await api.delete(`/api/pos/session/${currentSession.id}/item/${detailId}`);
-      } else {
-        await api.put(`/api/pos/session/${currentSession.id}/item/${detailId}`, null, {
-          params: { quantity: newQty },
-        });
-      }
-
-      // Quietly reload session from backend in background to sync actual database IDs
+      await api.put(`/api/pos/order/items/${detailId}`, { quantity: newQty });
       const res = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: selectedTable.id } });
       setSession({
         id: res.sessionId,
@@ -739,8 +713,8 @@ export default function POSPage() {
       await loadSession(selectedTable);
       await loadData();
       toast.success('Đã gửi lên bếp');
-    } catch {
-      toast.error('Gửi bếp thất bại');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Gửi bếp thất bại'));
     } finally {
       setCartLoading(false);
     }
