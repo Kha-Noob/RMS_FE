@@ -39,6 +39,7 @@ export default function CmsReviewsPage() {
   const [customReplyVi, setCustomReplyVi] = useState('');
   const [customReplyEn, setCustomReplyEn] = useState('');
   const [activeLangTab, setActiveLangTab] = useState<'vi' | 'en'>('vi');
+  const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState<Record<number, number>>({});
 
   // Ingestion Widget states
   const [showIngest, setShowIngest] = useState(false);
@@ -101,8 +102,12 @@ export default function CmsReviewsPage() {
 
   const handleStartCustomReply = (rev: CustomerReview) => {
     setReplyingReviewId(rev.id);
-    setCustomReplyVi(rev.responseVi || '');
-    setCustomReplyEn(rev.responseEn || '');
+    // Use selected suggestion if available, else first suggestion or raw text
+    const idx = selectedSuggestionIdx[rev.id] ?? 0;
+    const viSuggestions = (rev.responseVi || '').split('|||');
+    const enSuggestions = (rev.responseEn || '').split('|||');
+    setCustomReplyVi(viSuggestions[idx]?.trim() || rev.responseVi || '');
+    setCustomReplyEn(enSuggestions[idx]?.trim() || rev.responseEn || '');
     setActiveLangTab('vi');
   };
 
@@ -506,16 +511,79 @@ export default function CmsReviewsPage() {
                         </div>
                       </div>
                     ) : (
-                      /* Display Suggestion Responses */
-                      <div className="space-y-2">
-                        <div className="text-xs text-slate-700">
-                          <span className="font-bold text-slate-500 block text-[9px] uppercase tracking-wider mb-0.5">Tiếng Việt (VI):</span>
-                          <p className="italic bg-white p-2.5 rounded-xl border border-slate-100">{rev.responseVi || 'Chưa tạo gợi ý.'}</p>
-                        </div>
-                        <div className="text-xs text-slate-700">
-                          <span className="font-bold text-slate-500 block text-[9px] uppercase tracking-wider mb-0.5">Tiếng Anh (EN):</span>
-                          <p className="italic bg-white p-2.5 rounded-xl border border-slate-100">{rev.responseEn || 'Chưa tạo gợi ý.'}</p>
-                        </div>
+                      /* Display Suggestion Responses - 3 AI suggestions */
+                      <div className="space-y-3">
+                        {(() => {
+                          const viSuggestions = (rev.responseVi || '').split('|||').map(s => s.trim()).filter(Boolean);
+                          const enSuggestions = (rev.responseEn || '').split('|||').map(s => s.trim()).filter(Boolean);
+                          const hasSuggestions = viSuggestions.length > 0;
+                          const selectedIdx = selectedSuggestionIdx[rev.id] ?? 0;
+
+                          if (!hasSuggestions) {
+                            return (
+                              <p className="text-slate-400 italic text-xs py-2">Chưa tạo gợi ý AI.</p>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-2.5">
+                              {/* Language tabs */}
+                              <div className="flex gap-1.5 text-[10px] font-bold">
+                                <span className="text-indigo-600 uppercase tracking-wider">Gợi ý trả lời — chọn 1 để duyệt:</span>
+                              </div>
+
+                              {/* VI Suggestions */}
+                              <div className="space-y-1.5">
+                                <span className="font-bold text-slate-500 block text-[9px] uppercase tracking-wider">🇻🇳 Tiếng Việt:</span>
+                                {viSuggestions.map((suggestion, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => setSelectedSuggestionIdx(prev => ({ ...prev, [rev.id]: idx }))}
+                                    className={`w-full text-left p-2.5 rounded-xl border text-xs leading-relaxed transition-all cursor-pointer ${
+                                      selectedIdx === idx
+                                        ? 'bg-indigo-50 border-indigo-400 text-indigo-900 shadow-sm ring-1 ring-indigo-300'
+                                        : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                                    }`}
+                                  >
+                                    <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black mr-1.5 shrink-0 ${
+                                      selectedIdx === idx ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
+                                    }`}>
+                                      {idx + 1}
+                                    </span>
+                                    <span className="italic">{suggestion}</span>
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* EN Suggestions */}
+                              {enSuggestions.length > 0 && (
+                                <div className="space-y-1.5">
+                                  <span className="font-bold text-slate-500 block text-[9px] uppercase tracking-wider">🇬🇧 English:</span>
+                                  {enSuggestions.map((suggestion, idx) => (
+                                    <button
+                                      key={idx}
+                                      type="button"
+                                      onClick={() => setSelectedSuggestionIdx(prev => ({ ...prev, [rev.id]: idx }))}
+                                      className={`w-full text-left p-2.5 rounded-xl border text-xs leading-relaxed transition-all cursor-pointer ${
+                                        selectedIdx === idx
+                                          ? 'bg-indigo-50 border-indigo-400 text-indigo-900 shadow-sm ring-1 ring-indigo-300'
+                                          : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                                      }`}
+                                    >
+                                      <span className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-black mr-1.5 shrink-0 ${
+                                        selectedIdx === idx ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
+                                      }`}>
+                                        {idx + 1}
+                                      </span>
+                                      <span className="italic">{suggestion}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {!rev.isApproved && (
                           <div className="flex gap-2 justify-end pt-2">
@@ -528,11 +596,25 @@ export default function CmsReviewsPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleApprove(rev.id)}
+                              onClick={async () => {
+                                const idx = selectedSuggestionIdx[rev.id] ?? 0;
+                                const viSuggestions = (rev.responseVi || '').split('|||').map(s => s.trim()).filter(Boolean);
+                                const enSuggestions = (rev.responseEn || '').split('|||').map(s => s.trim()).filter(Boolean);
+                                try {
+                                  await api.post(`/api/admin/reviews/${rev.id}/reply`, {
+                                    responseVi: viSuggestions[idx] || rev.responseVi || '',
+                                    responseEn: enSuggestions[idx] || rev.responseEn || '',
+                                  });
+                                  toast.success('Đã duyệt gợi ý trả lời thành công.');
+                                  loadReviews();
+                                } catch (err: any) {
+                                  toast.error('Lỗi khi duyệt: ' + err.message);
+                                }
+                              }}
                               className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 shadow flex items-center gap-1 cursor-pointer"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              Duyệt câu trả lời này
+                              Duyệt gợi ý #{(selectedSuggestionIdx[rev.id] ?? 0) + 1}
                             </button>
                           </div>
                         )}
@@ -548,3 +630,4 @@ export default function CmsReviewsPage() {
     </div>
   );
 }
+
