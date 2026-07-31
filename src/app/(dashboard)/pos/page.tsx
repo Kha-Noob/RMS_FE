@@ -603,8 +603,10 @@ export default function POSPage() {
         return prev.map(i => i.detailId === existing.detailId ? { ...i, quantity: i.quantity + quantity } : i);
       }
       const tempDetailId = Date.now(); // Temp ID > 1000000000000
+      const targetVariantId = variant?.id ?? product.variants?.[0]?.id;
       return [...prev, {
         detailId: tempDetailId,
+        variantId: targetVariantId,
         productName: product.name,
         variantName,
         sizeName,
@@ -717,15 +719,17 @@ export default function POSPage() {
       for (const item of cartItems) {
         if (item.status === 'PENDING') {
           const p = products.find(prod => prod.name === item.productName);
-          if (p) {
-            const v = p.variants.find(varnt => varnt.name === item.variantName);
+          let targetVariantId = item.variantId;
+          if (!targetVariantId && p) {
+            const v = p.variants.find(varnt => varnt.name === item.variantName) || p.variants[0];
+            targetVariantId = v?.id;
+          }
+          if (targetVariantId) {
             await api.postForm('/api/pos/order/add', {
               sessionId: currentSession.id,
-              menuItemId: p.id,
-              variantId: v?.id ?? '',
-              sizeId: '',
+              variantId: targetVariantId,
               quantity: item.quantity,
-              note: item.notes,
+              notes: item.notes || '',
             });
           }
         }
@@ -819,15 +823,17 @@ export default function POSPage() {
       for (const item of cartItems) {
         if (item.status === 'PENDING') {
           const p = products.find(prod => prod.name === item.productName);
-          if (p) {
-            const v = p.variants.find(varnt => varnt.name === item.variantName);
+          let targetVariantId = item.variantId;
+          if (!targetVariantId && p) {
+            const v = p.variants.find(varnt => varnt.name === item.variantName) || p.variants[0];
+            targetVariantId = v?.id;
+          }
+          if (targetVariantId) {
             await api.postForm('/api/pos/order/add', {
               sessionId: currentSession.id,
-              menuItemId: p.id,
-              variantId: v?.id ?? '',
-              sizeId: '',
+              variantId: targetVariantId,
               quantity: item.quantity,
-              note: item.notes,
+              notes: item.notes || '',
             }).catch(() => null);
           }
         }

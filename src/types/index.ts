@@ -163,6 +163,7 @@ export interface TableSession {
 
 export interface CartItem {
   detailId: number;
+  variantId?: number;
   productName: string;
   variantName: string;
   sizeName?: string;
