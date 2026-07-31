@@ -522,27 +522,24 @@ export default function CmsReviewsPage() {
                             return <p className="text-slate-400 italic text-xs py-2">Đang tạo gợi ý AI...</p>;
                           }
 
-                          const labels = ['Xin lỗi / Khắc phục', 'Hỏi thêm / Ghi nhận', 'Cảm ơn / Mời lại'];
-                          const colors = [
-                            { card: 'border-rose-100 bg-rose-50/40 hover:bg-rose-50', badge: 'bg-rose-100 text-rose-700', btn: 'bg-rose-600 hover:bg-rose-700' },
-                            { card: 'border-amber-100 bg-amber-50/40 hover:bg-amber-50', badge: 'bg-amber-100 text-amber-700', btn: 'bg-amber-600 hover:bg-amber-700' },
-                            { card: 'border-emerald-100 bg-emerald-50/40 hover:bg-emerald-50', badge: 'bg-emerald-100 text-emerald-700', btn: 'bg-emerald-600 hover:bg-emerald-700' },
-                          ];
+                          const labels = rev.rating >= 4
+                            ? ['Cảm ơn nhiệt tình', 'Tự hào / Chia sẻ', 'Cam kết chất lượng']
+                            : rev.rating === 3
+                            ? ['Ghi nhận cân bằng', 'Hỏi để cải thiện', 'Hứa khắc phục']
+                            : ['Xin lỗi chân thành', 'Hỏi để giải quyết', 'Cam kết & Ưu đãi'];
 
-                          // Map color based on sentiment
-                          const sentiment = rev.sentiment;
-                          const colorSet = sentiment === 'NEGATIVE'
-                            ? [colors[0], colors[1], colors[0]]
-                            : sentiment === 'NEUTRAL'
-                            ? [colors[1], colors[1], colors[2]]
-                            : [colors[2], colors[2], colors[2]];
+                          const colors = [
+                            { card: 'border-indigo-100 bg-indigo-50/40', badge: 'bg-indigo-100 text-indigo-700', btn: 'bg-indigo-600 hover:bg-indigo-700' },
+                            { card: 'border-violet-100 bg-violet-50/40', badge: 'bg-violet-100 text-violet-700', btn: 'bg-violet-600 hover:bg-violet-700' },
+                            { card: 'border-fuchsia-100 bg-fuchsia-50/40', badge: 'bg-fuchsia-100 text-fuchsia-700', btn: 'bg-fuchsia-600 hover:bg-fuchsia-700' },
+                          ];
 
                           return (
                             <div className="space-y-2">
                               <span className="text-[9px] font-extrabold text-indigo-600 uppercase tracking-wider block">🤖 AI gợi ý {viSuggestions.length} câu trả lời:</span>
                               {viSuggestions.map((viText, idx) => {
                                 const enText = enSuggestions[idx] || '';
-                                const c = colorSet[idx] || colors[2];
+                                const c = colors[idx] || colors[2];
                                 const label = labels[idx] || `Gợi ý ${idx + 1}`;
                                 return (
                                   <div key={idx} className={`rounded-xl border p-3 space-y-1.5 transition-all ${c.card}`}>
