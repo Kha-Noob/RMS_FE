@@ -211,8 +211,13 @@ export default function AdminProfanityPage() {
           <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col min-h-[400px]">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-slate-800 text-base">Từ ngữ cấm đang hoạt động</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Hiện đang chặn tổng cộng {activeWords.length} từ.</p>
+                <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
+                  Từ ngữ cấm đang hoạt động
+                  <span className="text-[10px] bg-amber-50 text-amber-700 font-semibold px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                    👁️ Rê chuột để xem từ
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Hiện đang chặn tổng cộng {activeWords.length} từ. Các từ được làm mờ để đảm bảo môi trường hiển thị.</p>
               </div>
               <button
                 onClick={loadActiveWords}
@@ -243,10 +248,13 @@ export default function AdminProfanityPage() {
                   {filteredWords.map((word, idx) => (
                     <span 
                       key={idx} 
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-100 text-xs font-semibold shadow-sm animate-fade-in"
+                      title="Di chuột vào để xem nội dung từ cấm"
+                      className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 hover:border-rose-300 text-xs font-semibold shadow-2xs transition-all duration-200 cursor-pointer"
                     >
-                      <ShieldAlert className="h-3 w-3 text-rose-500" />
-                      {word}
+                      <ShieldAlert className="h-3 w-3 text-rose-500 flex-shrink-0" />
+                      <span className="filter blur-[4px] group-hover:blur-none transition-all duration-200 select-none group-hover:select-text">
+                        {word}
+                      </span>
                     </span>
                   ))}
                 </div>
