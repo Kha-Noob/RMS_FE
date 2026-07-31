@@ -804,18 +804,20 @@ export default function POSPage() {
         return;
       }
       if (paymentMethod === 'BANK_TRANSFER') {
-        const res = await api.postForm<{ checkoutUrl: string; orderCode: number }>('/api/pos/checkout/payos', {
-          sessionId: session.id,
-        });
-        if (res.checkoutUrl) {
-          setPayosCheckoutUrl(res.checkoutUrl);
-          setPayosOrderCode(res.orderCode);
-          setPaymentTimeLeft(300);
-          setShowPayOSScreen(true);
-        } else {
-          toast.error('Không tạo được liên kết thanh toán.');
+        try {
+          const res = await api.postForm<{ checkoutUrl: string; orderCode: number }>('/api/pos/checkout/payos', {
+            sessionId: session.id,
+          });
+          if (res.checkoutUrl) {
+            setPayosCheckoutUrl(res.checkoutUrl);
+            setPayosOrderCode(res.orderCode);
+            setPaymentTimeLeft(300);
+            setShowPayOSScreen(true);
+            return;
+          }
+        } catch {
+          // If PayOS link generation fails, proceed to direct payment confirmation
         }
-        return;
       }
       await api.postForm('/api/pos/checkout/confirm', {
         sessionId: session.id,
@@ -828,8 +830,8 @@ export default function POSPage() {
       setCartItems([]);
       setSelectedTable(null);
       await loadData();
-    } catch {
-      toast.error('Thanh toán thất bại');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, 'Thanh toán thất bại'));
     } finally {
       setProcessing(false);
     }
