@@ -1961,8 +1961,10 @@ export default function POSPage() {
                       if (!session || !selectedTable) return;
                       try {
                         setProcessing(true);
-                        await api.post(`/api/pos/session/${session.id}/complete`, null, {
-                          params: { paymentMethod: 'BANK_TRANSFER' }
+                        await api.postForm('/api/pos/checkout/confirm', {
+                          sessionId: session.id,
+                          amount: finalTotal,
+                          paymentMethod: 'BANK_TRANSFER',
                         });
                         toast.success('✅ Đã xác nhận thanh toán thành công!');
                         closeCheckoutModal();
@@ -1970,8 +1972,8 @@ export default function POSPage() {
                         setCartItems([]);
                         setSelectedTable(null);
                         loadData();
-                      } catch {
-                        toast.error('Lỗi xác nhận thanh toán');
+                      } catch (err) {
+                        toast.error(getApiErrorMessage(err, 'Lỗi xác nhận thanh toán'));
                       } finally {
                         setProcessing(false);
                       }
