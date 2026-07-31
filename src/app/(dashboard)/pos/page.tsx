@@ -138,6 +138,12 @@ export default function POSPage() {
   const [payosOrderCode, setPayosOrderCode] = useState<number | null>(null);
   const [paymentTimeLeft, setPaymentTimeLeft] = useState(300);
 
+  // Promotion / Discount states in POS
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; type: string; value: number; discountAmount: number } | null>(null);
+  const [availablePromos, setAvailablePromos] = useState<any[]>([]);
+  const [promoLoading, setPromoLoading] = useState(false);
+
   const activeBranch = branches?.find(b => b.branchId === activeBranchId);
 
   // Booking List Modal states
@@ -162,13 +168,28 @@ export default function POSPage() {
     }
   }, [activeBranchId]);
 
-
+  const openCheckoutModal = async () => {
+    setCheckoutOpen(true);
+    setPromoCodeInput('');
+    setAppliedPromo(null);
+    try {
+      let promos: any[] = [];
+      try {
+        promos = await api.get<any[]>('/api/public/promotions');
+      } catch {
+        promos = await api.get<any[]>('/api/manager/promotions');
+      }
+      setAvailablePromos(promos || []);
+    } catch {}
+  };
 
   const closeCheckoutModal = () => {
     setCheckoutOpen(false);
     setShowPayOSScreen(false);
     setPayosCheckoutUrl('');
     setPayosOrderCode(null);
+    setPromoCodeInput('');
+    setAppliedPromo(null);
   };
 
   useEffect(() => {
@@ -708,6 +729,69 @@ export default function POSPage() {
     }
   };
 
+  const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const handleApplyPromoCode = async (codeToApply?: string) => {
+    const targetCode = (codeToApply ?? promoCodeInput).trim();
+    if (!targetCode) {
+      toast.warning('Vui lòng nhập mã giảm giá');
+      return;
+    }
+    setPromoLoading(true);
+    try {
+      let promos: any[] = availablePromos;
+      if (promos.length === 0) {
+        try {
+          promos = await api.get<any[]>('/api/public/promotions');
+        } catch {
+          promos = await api.get<any[]>('/api/manager/promotions');
+        }
+        setAvailablePromos(promos || []);
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const match = (promos || []).find((p: any) => 
+        p.promoCode && p.promoCode.toLowerCase().trim() === targetCode.toLowerCase() &&
+        p.isActive !== false &&
+        (!p.startDate || p.startDate <= todayStr) &&
+        (!p.endDate || p.endDate >= todayStr)
+      );
+
+      if (!match) {
+        toast.error(`Mã giảm giá "${targetCode}" không hợp lệ hoặc đã hết hạn.`);
+        return;
+      }
+
+      const minVal = match.minOrderValue ?? 0;
+      if (total < minVal) {
+        toast.error(`Mã ${match.promoCode} áp dụng cho đơn từ ${minVal.toLocaleString('vi-VN')}đ (Tổng đơn hiện tại: ${total.toLocaleString('vi-VN')}đ).`);
+        return;
+      }
+
+      let discount = 0;
+      if (match.type === 'PercentDiscount' || match.discountType === 'PERCENTAGE') {
+        discount = Math.round((total * match.discountValue) / 100);
+      } else {
+        discount = Math.min(total, match.discountValue);
+      }
+
+      setAppliedPromo({
+        code: match.promoCode,
+        type: match.type || match.discountType,
+        value: match.discountValue,
+        discountAmount: discount
+      });
+      toast.success(`🎉 Đã áp dụng mã "${match.promoCode}"! Giảm ${discount.toLocaleString('vi-VN')}đ`);
+    } catch {
+      toast.error('Lỗi khi kiểm tra mã giảm giá');
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const promoDiscountAmount = appliedPromo ? appliedPromo.discountAmount : 0;
+  const finalTotal = Math.max(0, total - promoDiscountAmount);
+
   const handleCheckout = async () => {
     if (!session) return;
     setProcessing(true);
@@ -735,7 +819,7 @@ export default function POSPage() {
       }
       await api.postForm('/api/pos/checkout/confirm', {
         sessionId: session.id,
-        amount: total,
+        amount: finalTotal,
         paymentMethod,
       });
       toast.success('Thanh toán thành công');
@@ -946,8 +1030,6 @@ export default function POSPage() {
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
   };
-
-  const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   if (loading) {
     return (
@@ -1472,7 +1554,7 @@ export default function POSPage() {
                   {cartLoading ? '...' : 'Gửi bếp'}
                 </button>
                 <button
-                  onClick={() => setCheckoutOpen(true)}
+                  onClick={openCheckoutModal}
                   disabled={!session || cartItems.length === 0}
                   className="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -1849,12 +1931,12 @@ export default function POSPage() {
                     <span className="font-extrabold text-slate-850 select-all">RMSPOS{session?.id}</span>
 
                     <span className="text-slate-450 font-bold">Số tiền:</span>
-                    <span className="font-extrabold text-emerald-600">{(total).toLocaleString('vi-VN')}đ</span>
+                    <span className="font-extrabold text-emerald-600">{(finalTotal).toLocaleString('vi-VN')}đ</span>
                   </div>
 
                   <div className="flex flex-col items-center justify-center p-2 bg-white rounded-xl border border-dashed border-indigo-200 gap-1 mt-2 shadow-inner">
                     <img 
-                      src={`https://img.vietqr.io/image/${getVietQrBankId(activeBranch?.bankName || 'MB Bank')}-${activeBranch?.bankAccountNo || '0862807412'}-compact.png?amount=${total}&addInfo=${encodeURIComponent(`RMSPOS${session?.id}`)}&accountName=${encodeURIComponent(activeBranch?.bankAccountName || 'LE DUC THUAN')}`}
+                      src={`https://img.vietqr.io/image/${getVietQrBankId(activeBranch?.bankName || 'MB Bank')}-${activeBranch?.bankAccountNo || '0862807412'}-compact.png?amount=${finalTotal}&addInfo=${encodeURIComponent(`RMSPOS${session?.id}`)}&accountName=${encodeURIComponent(activeBranch?.bankAccountName || 'LE DUC THUAN')}`}
                       alt="VietQR Payment Code"
                       className="w-36 h-36 object-contain rounded-lg border border-slate-100 shadow-sm"
                     />
@@ -1918,12 +2000,115 @@ export default function POSPage() {
               </div>
             ) : (
               <div className="p-4 space-y-4">
-                <div className="bg-slate-50 rounded-xl p-4">
-                  <div className="text-sm text-slate-500 mb-1">Tổng tiền</div>
-                  <div className="text-2xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</div>
+                {/* Total Summary */}
+                <div className="bg-slate-50 rounded-xl p-4 space-y-1.5 border border-slate-100">
+                  <div className="flex justify-between items-center text-xs text-slate-500 font-medium">
+                    <span>Tổng tiền món (Bill gốc):</span>
+                    <span className="font-bold text-slate-700">{total.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                  {appliedPromo && (
+                    <div className="flex justify-between items-center text-xs text-rose-600 font-bold">
+                      <span className="flex items-center gap-1">
+                        <span>🏷️</span> Giảm giá ({appliedPromo.code}):
+                      </span>
+                      <span>-{appliedPromo.discountAmount.toLocaleString('vi-VN')}đ</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                    <span className="text-sm font-extrabold text-slate-800">Thành tiền thanh toán:</span>
+                    <span className="text-2xl font-black text-emerald-600">
+                      {finalTotal.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
                 </div>
+
+                {/* Promo Code Input Box */}
+                <div className="bg-indigo-50/60 rounded-xl p-3.5 border border-indigo-100/80 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="flex items-center gap-1.5 text-indigo-900">
+                      <svg className="w-4 h-4 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                      Mã giảm giá (CMS Promotions)
+                    </span>
+                    {appliedPromo && (
+                      <button
+                        type="button"
+                        onClick={() => { setAppliedPromo(null); setPromoCodeInput(''); toast.info('Đã hủy dùng mã giảm giá'); }}
+                        className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer"
+                      >
+                        Bỏ chọn mã
+                      </button>
+                    )}
+                  </div>
+
+                  {!appliedPromo ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={promoCodeInput}
+                        onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                        placeholder="Nhập mã (VD: DAILE20)..."
+                        className="flex-1 px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-slate-800 tracking-wider uppercase focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyPromoCode();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPromoCode()}
+                        disabled={promoLoading || !promoCodeInput.trim()}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shadow-sm"
+                      >
+                        {promoLoading ? 'Kiểm tra...' : 'Áp dụng'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-emerald-100/90 border border-emerald-300 p-2.5 rounded-xl text-xs shadow-2xs">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-emerald-700 text-white text-[10px] font-black rounded-lg tracking-wider uppercase">
+                          {appliedPromo.code}
+                        </span>
+                        <span className="font-extrabold text-emerald-950">
+                          Đã giảm {appliedPromo.discountAmount.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        {appliedPromo.type === 'PercentDiscount' || appliedPromo.type === 'PERCENTAGE' ? `-${appliedPromo.value}%` : `-${appliedPromo.value.toLocaleString()}đ`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Available Promo Tags Suggestion */}
+                  {availablePromos.length > 0 && !appliedPromo && (
+                    <div className="pt-1 flex flex-wrap gap-1 items-center">
+                      <span className="text-[10px] text-slate-400 font-semibold">Gợi ý mã:</span>
+                      {availablePromos
+                        .filter((p: any) => p.isActive !== false && p.promoCode)
+                        .map((p: any) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setPromoCodeInput(p.promoCode);
+                              handleApplyPromoCode(p.promoCode);
+                            }}
+                            className="px-2 py-0.5 bg-white hover:bg-indigo-100 border border-indigo-200/80 rounded-lg text-[10px] font-bold text-indigo-700 transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                          >
+                            <span>🏷️</span>
+                            <span>{p.promoCode}</span>
+                            <span className="text-[9px] text-indigo-500">
+                              ({p.discountValue}{p.type === 'PercentDiscount' ? '%' : 'k'})
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
                 <div>
-                  <div className="text-sm text-slate-500 mb-2">Phương thức thanh toán</div>
+                  <div className="text-sm text-slate-500 mb-2 font-medium">Phương thức thanh toán</div>
                   <div className="grid grid-cols-1 gap-2">
                     {[
                       { key: 'CASH' as const, label: 'Tiền mặt', desc: 'Thanh toán bằng tiền mặt' },
@@ -1947,9 +2132,9 @@ export default function POSPage() {
                 <button
                   onClick={handleCheckout}
                   disabled={processing}
-                  className="w-full py-3 bg-[#25439b] hover:bg-[#1c3580] rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                  className="w-full py-3 bg-[#25439b] hover:bg-[#1c3580] rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-md"
                 >
-                  {processing ? 'Đang xử lý...' : 'Xác nhận thanh toán'}
+                  {processing ? 'Đang xử lý...' : `Xác nhận thanh toán (${finalTotal.toLocaleString('vi-VN')}đ)`}
                 </button>
               </div>
             )}
