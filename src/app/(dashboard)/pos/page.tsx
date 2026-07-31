@@ -60,27 +60,24 @@ interface ActiveSessionResponse {
   total: number;
 }
 
-type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED' | 'SERVED';
+type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED';
 
 const statusColor: Record<TableStatus, string> = {
   EMPTY: 'bg-green-600 hover:bg-green-500',
   OCCUPIED: 'bg-red-600 hover:bg-red-500',
   RESERVED: 'bg-yellow-600 hover:bg-yellow-500',
-  SERVED: 'bg-blue-600 hover:bg-blue-500',
 };
 
 const statusLabel: Record<TableStatus, string> = {
   EMPTY: 'Trống',
   OCCUPIED: 'Đang dùng',
   RESERVED: 'Đặt trước',
-  SERVED: 'Phục vụ xong',
 };
 
 const statusDotColor: Record<TableStatus, string> = {
   EMPTY: 'bg-green-500',
   OCCUPIED: 'bg-red-500',
   RESERVED: 'bg-yellow-500',
-  SERVED: 'bg-blue-500',
 };
 
 const getVietQrBankId = (bankName: string) => {
@@ -120,7 +117,6 @@ export default function POSPage() {
   const [tables, setTables] = useState<TableEntity[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedTable, setSelectedTable] = useState<TableEntity | null>(null);
   const [session, setSession] = useState<TableSession | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -143,64 +139,30 @@ export default function POSPage() {
   const [paymentTimeLeft, setPaymentTimeLeft] = useState(300);
 
   const activeBranch = branches?.find(b => b.branchId === activeBranchId);
-  const today = new Date().toISOString().split('T')[0];
-  const isViewingPast = selectedDate < today;
 
-  // Block adding items if session has been open for more than 5 hours or if service is completed
-  const SESSION_LIMIT_HOURS = 5;
-  const isSessionExpired = (() => {
-    const openedAt = selectedTable?.sessionOpenedAt;
-    if (!openedAt) return false;
-    const elapsedMs = Date.now() - new Date(openedAt).getTime();
-    return elapsedMs >= SESSION_LIMIT_HOURS * 60 * 60 * 1000;
-  })();
+  // Booking List Modal states
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [bookingListDate, setBookingListDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [bookingList, setBookingList] = useState<any[]>([]);
+  const [bookingListLoading, setBookingListLoading] = useState(false);
 
-  const isServiceCompleted = selectedTable?.status === 'SERVED' || session?.status === 'SERVED';
-
-  // Either past date, expired session, or completed service blocks editing
-  const isEditBlocked = isViewingPast || isSessionExpired || isServiceCompleted;
-
-  const handleCompleteService = async () => {
-    const targetSessionId = session?.id || selectedTable?.activeSessionId;
-    if (!targetSessionId && selectedTable) {
-      try {
-        setCartLoading(true);
-        const openRes = await api.post<TableSession>('/api/pos/session/open', null, {
-          params: { tableId: selectedTable.id }
-        });
-        await api.post('/api/pos/session/complete-service', null, {
-          params: { sessionId: openRes.id }
-        });
-        toast.success(`✅ Đã hoàn thành phục vụ ${selectedTable.name}!`);
-        setSelectedTable(prev => prev ? { ...prev, status: 'SERVED' } : null);
-        setSession(openRes ? { ...openRes, status: 'SERVED' } : null);
-        loadData();
-      } catch {
-        toast.error('Lỗi khi đánh dấu hoàn thành phục vụ');
-      } finally {
-        setCartLoading(false);
-      }
-      return;
-    }
-
-    if (!targetSessionId) return;
+  const fetchBookingsForDate = useCallback(async (dateStr: string) => {
+    if (!activeBranchId) return;
+    setBookingListLoading(true);
     try {
-      setCartLoading(true);
-      await api.post('/api/pos/session/complete-service', null, {
-        params: { sessionId: targetSessionId }
+      const res = await api.get<any[]>('/api/pos/bookings', {
+        params: { branchId: activeBranchId, date: dateStr }
       });
-      toast.success(`✅ Đã hoàn thành phục vụ ${selectedTable?.name || 'bàn'}!`);
-      if (selectedTable) {
-        setSelectedTable(prev => prev ? { ...prev, status: 'SERVED' } : null);
-      }
-      setSession(prev => prev ? { ...prev, status: 'SERVED' } : null);
-      loadData();
+      setBookingList(res);
     } catch {
-      toast.error('Lỗi khi đánh dấu hoàn thành phục vụ');
+      toast.error('Lỗi khi tải danh sách đặt bàn');
+      setBookingList([]);
     } finally {
-      setCartLoading(false);
+      setBookingListLoading(false);
     }
-  };
+  }, [activeBranchId]);
+
+
 
   const closeCheckoutModal = () => {
     setCheckoutOpen(false);
@@ -272,7 +234,7 @@ export default function POSPage() {
     try {
       const branchId = activeBranchId;
       const results = await Promise.allSettled([
-        api.get<TableEntity[]>('/api/pos/tables', { params: { branchId, date: selectedDate } }),
+        api.get<TableEntity[]>('/api/pos/tables', { params: { branchId } }),
         api.get<Room[]>('/api/pos/rooms', { params: { branchId } }),
         api.get<ProductWithVariants[]>('/api/pos/products', { params: { branchId } }),
       ]);
@@ -357,7 +319,7 @@ export default function POSPage() {
         setLoading(false);
       }
     }
-  }, [activeBranchId, selectedDate]);
+  }, [activeBranchId]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -1049,12 +1011,31 @@ export default function POSPage() {
                 360°
               </button>
             )}
-<button
+
+            {/* Icon Lịch đặt bàn (Bookings List Button) */}
+            <button
+              onClick={() => {
+                setBookingModalOpen(true);
+                fetchBookingsForDate(bookingListDate);
+              }}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors shadow-sm flex items-center gap-1.5 relative cursor-pointer"
+              title="Danh sách bàn đặt trước"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+              <span>Lịch đặt bàn</span>
+              {tables.filter(t => t.status === 'RESERVED').length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-black bg-rose-500 text-white rounded-full animate-pulse">
+                  {tables.filter(t => t.status === 'RESERVED').length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={() => { setManagerOpen(true); setManagerTab('rooms'); }}
               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               title="Quản lý bàn & phòng"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
           </div>
         </div>
@@ -1101,12 +1082,6 @@ export default function POSPage() {
                     statusText = 'text-amber-700';
                     statusBorder = 'border-amber-200/80';
                     dotColor = 'bg-amber-500';
-                    break;
-                  case 'SERVED':
-                    statusBg = 'bg-blue-50/60 hover:bg-blue-50/80';
-                    statusText = 'text-blue-700';
-                    statusBorder = 'border-blue-200/80';
-                    dotColor = 'bg-blue-500';
                     break;
                   default:
                     statusBg = 'bg-slate-50/60 hover:bg-slate-50/80';
@@ -1191,37 +1166,9 @@ export default function POSPage() {
           )}
         </div>
 
-        {/* Bottom bar: Date picker + Merge/Split actions */}
+        {/* Bottom bar: Merge/Split actions */}
         <div className="px-4 py-2 bg-white border-t border-slate-200">
-          {/* Date picker row */}
-          <div className="flex items-center gap-2 mb-2">
-            <svg className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            <span className="text-[11px] text-slate-500 font-medium flex-shrink-0">Ngày xem:</span>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => {
-                setSelectedDate(e.target.value);
-                setSelectedTable(null);
-                setSession(null);
-                setCartItems([]);
-              }}
-              className="text-[11px] border border-slate-200 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-400 bg-slate-50 cursor-pointer"
-            />
-            {selectedDate !== new Date().toISOString().split('T')[0] && (
-              <button
-                onClick={() => {
-                  setSelectedDate(new Date().toISOString().split('T')[0]);
-                  setSelectedTable(null);
-                  setSession(null);
-                  setCartItems([]);
-                }}
-                className="text-[10px] px-2 py-1 rounded-md bg-violet-100 text-violet-600 hover:bg-violet-200 transition-colors font-medium"
-              >
-                Hôm nay
-              </button>
-            )}
-            <div className="flex-1" />
+          <div className="flex items-center justify-between gap-2 mb-2">
             <div className="text-[10px] text-slate-400">
               {tables.filter(t => t.status === 'EMPTY').length} trống · {tables.filter(t => t.status === 'RESERVED').length} đặt trước · {tables.length} tổng
             </div>
@@ -1280,7 +1227,7 @@ export default function POSPage() {
                 </button>
               </div>
 
-              {(session || selectedTable.status === 'RESERVED' || selectedTable.status === 'OCCUPIED' || selectedTable.status === 'SERVED') && (
+              {(session || selectedTable.status === 'RESERVED' || selectedTable.status === 'OCCUPIED') && (
                 <div className="mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {session && (
@@ -1292,24 +1239,6 @@ export default function POSPage() {
                       {cartItems.length} món
                     </span>
                   </div>
-
-                  {/* Nút Hoàn thành phục vụ */}
-                  {isServiceCompleted ? (
-                    <span className="text-[11px] px-2.5 py-1 bg-blue-50 text-blue-700 font-bold rounded-lg border border-blue-200 flex items-center gap-1">
-                      <svg className="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      Phục vụ xong
-                    </span>
-                  ) : (
-                    <button
-                      onClick={handleCompleteService}
-                      disabled={cartLoading}
-                      className="text-[11px] px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors shadow-sm flex items-center gap-1 disabled:opacity-50 cursor-pointer"
-                      title="Đánh dấu bàn đã phục vụ xong"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      Hoàn thành
-                    </button>
-                  )}
                 </div>
               )}
             </div>
@@ -1497,16 +1426,16 @@ export default function POSPage() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleUpdateQuantity(item.detailId, -1)}
-                          disabled={cartLoading || isEditBlocked}
-                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          disabled={cartLoading}
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 transition-colors"
                         >
                           -
                         </button>
                         <span className="text-sm w-6 text-center text-slate-700 font-medium">{item.quantity}</span>
                         <button
                           onClick={() => handleUpdateQuantity(item.detailId, 1)}
-                          disabled={cartLoading || isEditBlocked}
-                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          disabled={cartLoading}
+                          className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-sm text-slate-500 disabled:opacity-50 transition-colors"
                         >
                           +
                         </button>
@@ -1527,39 +1456,9 @@ export default function POSPage() {
                 <span className="text-xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</span>
               </div>
 
-              {/* Past date read-only warning */}
-              {isViewingPast && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-[11px]">
-                  <svg className="w-4 h-4 flex-shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  <span>Đang xem ngày <strong>{selectedDate}</strong> — Chỉ xem, không thể thêm món hoặc gửi bếp</span>
-                </div>
-              )}
-
-              {/* Session expired (5h limit) warning */}
-              {!isViewingPast && isSessionExpired && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-[11px]">
-                  <svg className="w-4 h-4 flex-shrink-0 text-rose-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  <span>Bàn đã mở quá <strong>{SESSION_LIMIT_HOURS} giờ</strong> — Không thể thêm món mới</span>
-                </div>
-              )}
-
-              {/* Service completed warning */}
-              {!isViewingPast && !isSessionExpired && isServiceCompleted && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 text-[11px]">
-                  <svg className="w-4 h-4 flex-shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
-                  <span>Bàn đã <strong>phục vụ xong</strong> — Chỉ xem, không thể thêm món hoặc gửi bếp</span>
-                </div>
-              )}
-
               <button
                 onClick={() => setMenuOpen(true)}
-                disabled={isEditBlocked}
-                className={`w-full py-2.5 rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2 ${
-                  isEditBlocked
-                    ? 'bg-slate-300 cursor-not-allowed opacity-60'
-                    : 'bg-[#25439b] hover:bg-[#1c3580]'
-                }`}
-                title={isSessionExpired ? `Bàn đã mở quá ${SESSION_LIMIT_HOURS} giờ` : isViewingPast ? 'Không thể thêm món khi xem ngày quá khứ' : undefined}
+                className="w-full py-2.5 rounded-xl text-sm font-medium text-white transition-colors flex items-center justify-center gap-2 bg-[#25439b] hover:bg-[#1c3580]"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Thêm món
@@ -1567,21 +1466,15 @@ export default function POSPage() {
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={handleSendToKitchen}
-                  disabled={isEditBlocked || !session || cartItems.length === 0 || cartLoading}
-                  className={`py-2.5 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isEditBlocked ? 'bg-slate-300' : 'bg-orange-500 hover:bg-orange-400'
-                  }`}
-                  title={isSessionExpired ? `Bàn đã mở quá ${SESSION_LIMIT_HOURS} giờ` : isViewingPast ? 'Không thể gửi bếp khi xem ngày quá khứ' : undefined}
+                  disabled={!session || cartItems.length === 0 || cartLoading}
+                  className="py-2.5 rounded-xl text-sm font-medium text-white transition-colors bg-orange-500 hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {cartLoading ? '...' : 'Gửi bếp'}
                 </button>
                 <button
                   onClick={() => setCheckoutOpen(true)}
-                  disabled={isViewingPast || !session || cartItems.length === 0}
-                  className={`py-2.5 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isViewingPast ? 'bg-slate-300' : 'bg-emerald-600 hover:bg-emerald-500'
-                  }`}
-                  title={isViewingPast ? 'Không thể thanh toán khi xem ngày quá khứ' : undefined}
+                  disabled={!session || cartItems.length === 0}
+                  className="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Thanh toán
                 </button>
@@ -2178,6 +2071,196 @@ export default function POSPage() {
         </div>
         );
       })()}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          BOOKINGS LIST MODAL (Lịch Đặt Bàn Theo Ngày)
+          ═══════════════════════════════════════════════════════════════ */}
+      {bookingModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold tracking-tight">Danh sách bàn đặt trước</h3>
+                  <p className="text-[11px] text-slate-300">Xem các lịch hẹn đặt bàn của nhà hàng theo từng ngày</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBookingModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            {/* Date Selector Row */}
+            <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Chọn ngày:</span>
+                <input
+                  type="date"
+                  value={bookingListDate}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setBookingListDate(newDate);
+                    fetchBookingsForDate(newDate);
+                  }}
+                  className="text-xs font-semibold px-3 py-1.5 border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+                />
+                {bookingListDate !== new Date().toISOString().split('T')[0] && (
+                  <button
+                    onClick={() => {
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      setBookingListDate(todayStr);
+                      fetchBookingsForDate(todayStr);
+                    }}
+                    className="text-xs px-2.5 py-1.5 rounded-xl bg-indigo-100 text-indigo-700 font-bold hover:bg-indigo-200 transition-colors cursor-pointer"
+                  >
+                    Hôm nay
+                  </button>
+                )}
+              </div>
+              <div className="text-xs font-semibold text-slate-500">
+                Tổng số: <strong className="text-indigo-600">{bookingList.length}</strong> lượt đặt
+              </div>
+            </div>
+
+            {/* Bookings List Body */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+              {bookingListLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <svg className="w-8 h-8 animate-spin mb-2 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="10"/></svg>
+                  <span className="text-xs font-medium">Đang tải danh sách đặt bàn...</span>
+                </div>
+              ) : bookingList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl">
+                  <svg className="w-12 h-12 mb-2 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  <p className="text-sm font-bold text-slate-600">Không có lịch đặt bàn nào</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Không tìm thấy đơn đặt bàn cho ngày {bookingListDate}</p>
+                </div>
+              ) : (
+                bookingList.map((item: any) => {
+                  const bookingTimeFormatted = item.bookingTime
+                    ? new Date(item.bookingTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                    : '--:--';
+                  const fullDateFormatted = item.bookingTime
+                    ? new Date(item.bookingTime).toLocaleDateString('vi-VN')
+                    : bookingListDate;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md transition-all space-y-3"
+                    >
+                      {/* Item Top Bar */}
+                      <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-800 border border-amber-300/80 font-black text-sm flex items-center gap-1.5 shadow-sm">
+                            <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            {bookingTimeFormatted}
+                          </div>
+                          <div>
+                            <div className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                              <span>{item.tableLabel || `Bàn ID #${item.tableId || 'Chưa xếp'}`}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+                                {item.guests || 2} khách
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-medium">
+                              Ngày: {fullDateFormatted}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                            item.depositPaid || item.paymentStatus === 'PAID'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {item.depositPaid || item.paymentStatus === 'PAID' ? 'Đã cọc' : 'Chưa cọc'}
+                            {item.depositAmount ? ` (${item.depositAmount.toLocaleString('vi-VN')}đ)` : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Customer Info */}
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Khách hàng</span>
+                          <span className="font-bold text-slate-800">{item.customerName || 'Khách đặt bàn'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Số điện thoại</span>
+                          <span className="font-bold text-indigo-700 select-all">{item.customerPhone || 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      {/* Pre-ordered Items Section */}
+                      {item.orderedItems && item.orderedItems.length > 0 && (
+                        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-1.5">
+                          <div className="text-[11px] font-extrabold text-indigo-900 flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                            Món ăn đặt trước ({item.orderedItems.length}):
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                            {item.orderedItems.map((prod: any, pIdx: number) => (
+                              <div key={pIdx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-indigo-100 text-xs shadow-2xs">
+                                <span className="font-medium text-slate-800 truncate">
+                                  {prod.name || prod.productName} {prod.variantName ? `(${prod.variantName})` : ''}
+                                </span>
+                                <span className="font-black text-indigo-700 ml-2">x{prod.quantity}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Customer Notes */}
+                      {item.notes && item.notes.trim() !== '' && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-900 flex items-start gap-2">
+                          <svg className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          <div>
+                            <strong className="font-extrabold text-amber-800">Ghi chú của khách: </strong>
+                            <span>{item.notes}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Dietary / Allergies */}
+                      {(item.dietaryNotes || item.allergyPeanut || item.allergyGluten || item.allergyOthers) && (
+                        <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 p-2 rounded-xl">
+                          <strong>Lưu ý ăn uống: </strong>
+                          {[
+                            item.dietaryNotes,
+                            item.allergyPeanut ? 'Dị ứng đậu phụng' : null,
+                            item.allergyGluten ? 'Dị ứng Gluten' : null,
+                            item.allergyOthers
+                          ].filter(Boolean).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                onClick={() => setBookingModalOpen(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Slide-in animation */}
       <style jsx global>{`
