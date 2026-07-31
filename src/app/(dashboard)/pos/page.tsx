@@ -474,7 +474,20 @@ export default function POSPage() {
 
   const ensureSession = async (table: TableEntity): Promise<TableSession> => {
     try {
-      if (table.status === 'EMPTY') {
+      try {
+        const res = await api.get<ActiveSessionResponse>('/api/pos/session/active', { params: { tableId: table.id } });
+        if (res && res.sessionId) {
+          return {
+            id: res.sessionId,
+            table: table,
+            status: res.status,
+          };
+        }
+      } catch {
+        // No active session exists in DB yet
+      }
+
+      if (table.status === 'EMPTY' || table.status === 'RESERVED') {
         const res = await api.post<TableSession>('/api/pos/session/open', null, { params: { tableId: table.id } });
         await loadData();
         return res;
@@ -793,12 +806,36 @@ export default function POSPage() {
   const finalTotal = Math.max(0, total - promoDiscountAmount);
 
   const handleCheckout = async () => {
-    if (!session) return;
+    if (!session || !selectedTable) return;
     setProcessing(true);
     try {
+      let currentSession = session;
+      if (currentSession.id > 1000000000000) {
+        currentSession = await ensureSession(selectedTable);
+        setSession(currentSession);
+      }
+
+      // Synchronize any local pending cart items to database session
+      for (const item of cartItems) {
+        if (item.status === 'PENDING') {
+          const p = products.find(prod => prod.name === item.productName);
+          if (p) {
+            const v = p.variants.find(varnt => varnt.name === item.variantName);
+            await api.postForm('/api/pos/order/add', {
+              sessionId: currentSession.id,
+              menuItemId: p.id,
+              variantId: v?.id ?? '',
+              sizeId: '',
+              quantity: item.quantity,
+              note: item.notes,
+            }).catch(() => null);
+          }
+        }
+      }
+
       if (paymentMethod === 'VNPAY') {
         const res = await api.postForm<{ qrData: string }>('/api/pos/checkout/vnpay', {
-          sessionId: session.id,
+          sessionId: currentSession.id,
         });
         toast.info(res.qrData);
         return;
@@ -806,7 +843,7 @@ export default function POSPage() {
       if (paymentMethod === 'BANK_TRANSFER') {
         try {
           const res = await api.postForm<{ checkoutUrl: string; orderCode: number }>('/api/pos/checkout/payos', {
-            sessionId: session.id,
+            sessionId: currentSession.id,
           });
           if (res.checkoutUrl) {
             setPayosCheckoutUrl(res.checkoutUrl);
@@ -820,7 +857,7 @@ export default function POSPage() {
         }
       }
       await api.postForm('/api/pos/checkout/confirm', {
-        sessionId: session.id,
+        sessionId: currentSession.id,
         amount: finalTotal,
         paymentMethod,
       });
@@ -1960,9 +1997,13 @@ export default function POSPage() {
                     onClick={async () => {
                       if (!session || !selectedTable) return;
                       try {
-                        setProcessing(true);
+                        let currentSession = session;
+                        if (currentSession.id > 1000000000000) {
+                          currentSession = await ensureSession(selectedTable);
+                          setSession(currentSession);
+                        }
                         await api.postForm('/api/pos/checkout/confirm', {
-                          sessionId: session.id,
+                          sessionId: currentSession.id,
                           amount: finalTotal,
                           paymentMethod: 'BANK_TRANSFER',
                         });
