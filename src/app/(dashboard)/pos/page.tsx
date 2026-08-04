@@ -111,6 +111,130 @@ function getSessionDuration(openedAt: string | null | undefined): string {
   return `${hrs}h ${mins % 60}p`;
 }
 
+interface NormalizedPreOrderItem {
+  name: string;
+  qty: number;
+  price: number;
+}
+
+function parseSinglePreOrderItem(itemObj: any): NormalizedPreOrderItem | null {
+  if (!itemObj) return null;
+  if (typeof itemObj === 'string') {
+    const trimmed = itemObj.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parseSinglePreOrderItem(parsed);
+      } catch {
+        return { name: trimmed, qty: 1, price: 0 };
+      }
+    }
+    return { name: trimmed, qty: 1, price: 0 };
+  }
+
+  let prodName = String(
+    itemObj.productName ||
+    itemObj.product_name ||
+    itemObj.dishName ||
+    itemObj.title ||
+    (itemObj.product && typeof itemObj.product === 'object' ? itemObj.product.name || itemObj.product.title : '') ||
+    ''
+  ).trim();
+
+  let varName = String(
+    itemObj.variantName ||
+    itemObj.variant_name ||
+    itemObj.name ||
+    itemObj.itemName ||
+    (itemObj.variant && typeof itemObj.variant === 'object' ? itemObj.variant.name || itemObj.variant.title : '') ||
+    ''
+  ).trim();
+
+  let name = '';
+  const genericNames = ['mặc định', 'tiêu chuẩn', 'standard', 'default', 'bình thường', 'n/a', 'none', 'tất cả', 'all'];
+  const isGenericVar = !varName || genericNames.includes(varName.toLowerCase());
+
+  if (prodName && varName && prodName !== varName && !isGenericVar) {
+    name = `${prodName} (${varName})`;
+  } else if (prodName) {
+    name = prodName;
+  } else if (varName) {
+    name = varName;
+  } else {
+    const foundStr = Object.values(itemObj).find(
+      v => typeof v === 'string' && v.trim().length > 0 && !v.startsWith('http') && isNaN(Number(v))
+    );
+    name = typeof foundStr === 'string' ? foundStr : 'Món đặt trước';
+  }
+
+  const priceVal = itemObj.price ?? itemObj.priceVnd ?? itemObj.unitPrice ?? itemObj.amount ?? itemObj.cost ?? 0;
+  const price = Math.max(0, Number(priceVal) || 0);
+
+  const qtyVal = itemObj.quantity ?? itemObj.qty ?? itemObj.count ?? itemObj.num ?? 1;
+  const qty = Math.max(1, Number(qtyVal) || 1);
+
+  return { name, qty, price };
+}
+
+function getNormalizedPreOrderItems(rawOrderedItems: any): NormalizedPreOrderItem[] {
+  if (!rawOrderedItems) return [];
+  
+  let list: any[] = [];
+  let data = rawOrderedItems;
+
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        data = JSON.parse(trimmed);
+        if (typeof data === 'string') {
+          data = JSON.parse(data);
+        }
+      } catch {
+        return [];
+      }
+    } else {
+      return [{ name: trimmed, qty: 1, price: 0 }];
+    }
+  }
+
+  if (Array.isArray(data)) {
+    list = data;
+  } else if (data && typeof data === 'object') {
+    list = [data];
+  } else {
+    return [];
+  }
+
+  const result: NormalizedPreOrderItem[] = [];
+
+  list.forEach((raw) => {
+    if (!raw) return;
+    let obj: any = raw;
+    if (typeof obj === 'string') {
+      const trimmed = obj.trim();
+      if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try { obj = JSON.parse(trimmed); } catch { obj = { name: trimmed }; }
+      } else {
+        obj = { name: trimmed };
+      }
+    }
+
+    if (Array.isArray(obj)) {
+      obj.forEach((nested) => {
+        const parsed = parseSinglePreOrderItem(nested);
+        if (parsed) result.push(parsed);
+      });
+    } else if (obj && typeof obj === 'object') {
+      const parsed = parseSinglePreOrderItem(obj);
+      if (parsed) result.push(parsed);
+    }
+  });
+
+  return result;
+}
+
 export default function POSPage() {
   const { activeBranchId, branches } = useAuth();
 
@@ -549,7 +673,7 @@ export default function POSPage() {
       ws = new WebSocket(wsUrl);
 
       ws.onmessage = (event) => {
-        if (event.data === 'TABLE_STATUS_CHANGED' || event.data === 'NEW_ORDER_SUBMITTED') {
+        if (event.data === 'TABLE_STATUS_CHANGED' || event.data === 'NEW_ORDER_SUBMITTED' || event.data === 'ORDER_STATE_CHANGED') {
           loadData();
           if (selectedTable) {
             loadSession(selectedTable);
@@ -1387,80 +1511,57 @@ export default function POSPage() {
                   )}
                 </div>
                 {/* Pre-ordered dishes */}
-                {selectedTable.bookingDetails.orderedItems && selectedTable.bookingDetails.orderedItems.length > 0 && (
-                  <div className="border-t border-amber-200">
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100/50">
-                      <svg className="w-3.5 h-3.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C6.48 2 2 6 2 11h20c0-5-4.48-9-10-9z"/><path d="M2 13h20v1a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-1z"/></svg>
-                      <span className="text-[10px] font-bold text-amber-700">🍽️ Món đặt trước ({selectedTable.bookingDetails.orderedItems.length})</span>
-                    </div>
-                    <div className="px-3 pb-2">
-                      <table className="w-full text-[10px]">
-                        <thead>
-                          <tr className="text-slate-400 border-b border-amber-100">
-                            <th className="text-left py-1">Món</th>
-                            <th className="text-center py-1">SL</th>
-                            <th className="text-right py-1">Thành tiền</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedTable.bookingDetails.orderedItems.map((rawItem: unknown, idx: number) => {
-                            let item: Record<string, unknown> = {};
-                            if (typeof rawItem === 'string') {
-                              try { item = JSON.parse(rawItem); } catch { item = { name: rawItem }; }
-                            } else if (typeof rawItem === 'object' && rawItem !== null) {
-                              item = rawItem as Record<string, unknown>;
-                            }
+                {(() => {
+                  const preOrderItems = getNormalizedPreOrderItems(selectedTable.bookingDetails.orderedItems);
+                  if (preOrderItems.length === 0) return null;
 
-                            let name = String(item.name || item.productName || item.variantName || item.title || item.itemName || item.dishName || '');
-                            if (!name && item.product && typeof item.product === 'object') {
-                              name = String((item.product as Record<string, unknown>).name || (item.product as Record<string, unknown>).title || '');
-                            }
-                            if (!name && item.variant && typeof item.variant === 'object') {
-                              name = String((item.variant as Record<string, unknown>).name || (item.variant as Record<string, unknown>).title || '');
-                            }
-                            if (!name) {
-                              const foundStr = Object.values(item).find(v => typeof v === 'string' && v.length > 0 && !v.startsWith('http') && isNaN(Number(v)));
-                              name = typeof foundStr === 'string' ? foundStr : 'Món ăn đặt trước';
-                            }
+                  const totalPreOrderAmount = preOrderItems.reduce((s, i) => s + i.price * i.qty, 0);
 
-                            const priceVal = item.price ?? item.priceVnd ?? item.unitPrice ?? item.amount ?? 0;
-                            const price = Number(priceVal) || 0;
-                            const qtyVal = item.quantity ?? item.qty ?? item.count ?? 1;
-                            const qty = Number(qtyVal) || 1;
-
-                            return (
-                              <tr key={idx} className="border-b border-amber-50 last:border-0">
-                                <td className="py-1 text-slate-700 font-medium truncate max-w-[120px]" title={name}>{name}</td>
-                                <td className="py-1 text-center text-slate-500">×{qty}</td>
-                                <td className="py-1 text-right text-emerald-600 font-semibold">
-                                  {price > 0 ? (price * qty).toLocaleString('vi-VN') + 'đ' : '—'}
+                  return (
+                    <div className="border-t border-amber-200">
+                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100/60">
+                        <svg className="w-3.5 h-3.5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C6.48 2 2 6 2 11h20c0-5-4.48-9-10-9z"/><path d="M2 13h20v1a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3v-1z"/></svg>
+                        <span className="text-[10px] font-bold text-amber-800">🍽️ Món đặt trước ({preOrderItems.length})</span>
+                      </div>
+                      <div className="px-3 pb-2 pt-1">
+                        <table className="w-full text-[10px]">
+                          <thead>
+                            <tr className="text-slate-400 border-b border-amber-200/60">
+                              <th className="text-left py-1 font-semibold">MÓN</th>
+                              <th className="text-center py-1 font-semibold w-10">SL</th>
+                              <th className="text-right py-1 font-semibold">THÀNH TIỀN</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-amber-100/50">
+                            {preOrderItems.map((item, idx) => (
+                              <tr key={idx}>
+                                <td className="py-1 text-slate-800 font-medium break-words pr-1" title={item.name}>
+                                  {item.name}
+                                </td>
+                                <td className="py-1 text-center text-slate-600 font-bold">
+                                  ×{item.qty}
+                                </td>
+                                <td className="py-1 text-right text-emerald-600 font-bold whitespace-nowrap">
+                                  {item.price > 0 ? (item.price * item.qty).toLocaleString('vi-VN') + 'đ' : '—'}
                                 </td>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="border-t border-amber-200">
-                            <td colSpan={2} className="pt-1 text-slate-500 font-semibold">Tổng món đặt</td>
-                            <td className="pt-1 text-right font-bold text-amber-700">
-                              {selectedTable.bookingDetails.orderedItems.reduce((s: number, rawItem: unknown) => {
-                                let item: Record<string, unknown> = {};
-                                if (typeof rawItem === 'string') {
-                                  try { item = JSON.parse(rawItem); } catch { item = {}; }
-                                } else if (typeof rawItem === 'object' && rawItem !== null) {
-                                  item = rawItem as Record<string, unknown>;
-                                }
-                                const price = Number(item.price ?? item.priceVnd ?? item.unitPrice ?? item.amount ?? 0) || 0;
-                                const qty = Number(item.quantity ?? item.qty ?? item.count ?? 1) || 1;
-                                return s + price * qty;
-                              }, 0).toLocaleString('vi-VN')}đ
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
+                            ))}
+                          </tbody>
+                          {totalPreOrderAmount > 0 && (
+                            <tfoot>
+                              <tr className="border-t border-amber-200">
+                                <td colSpan={2} className="pt-1.5 text-slate-600 font-bold text-[11px]">Tổng món đặt:</td>
+                                <td className="pt-1.5 text-right font-extrabold text-amber-800 text-[11px] whitespace-nowrap">
+                                  {totalPreOrderAmount.toLocaleString('vi-VN')}đ
+                                </td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
@@ -2411,24 +2512,35 @@ export default function POSPage() {
                       </div>
 
                       {/* Pre-ordered Items Section */}
-                      {item.orderedItems && item.orderedItems.length > 0 && (
-                        <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-1.5">
-                          <div className="text-[11px] font-extrabold text-indigo-900 flex items-center gap-1.5">
-                            <svg className="w-3.5 h-3.5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                            Món ăn đặt trước ({item.orderedItems.length}):
+                      {(() => {
+                        const modalPreOrderItems = getNormalizedPreOrderItems(item.orderedItems || item.orderedItemsJson);
+                        if (modalPreOrderItems.length === 0) return null;
+                        return (
+                          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-1.5">
+                            <div className="text-[11px] font-extrabold text-indigo-900 flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-indigo-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                              Món ăn đặt trước ({modalPreOrderItems.length}):
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {modalPreOrderItems.map((prod, pIdx) => (
+                                <div key={pIdx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-indigo-100 text-xs shadow-2xs">
+                                  <span className="font-medium text-slate-800 truncate pr-2" title={prod.name}>
+                                    {prod.name}
+                                  </span>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="font-black text-indigo-700">x{prod.qty}</span>
+                                    {prod.price > 0 && (
+                                      <span className="text-[10px] text-emerald-600 font-bold">
+                                        {(prod.price * prod.qty).toLocaleString('vi-VN')}đ
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                            {item.orderedItems.map((prod: any, pIdx: number) => (
-                              <div key={pIdx} className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border border-indigo-100 text-xs shadow-2xs">
-                                <span className="font-medium text-slate-800 truncate">
-                                  {prod.name || prod.productName} {prod.variantName ? `(${prod.variantName})` : ''}
-                                </span>
-                                <span className="font-black text-indigo-700 ml-2">x{prod.quantity}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Customer Notes */}
                       {item.notes && item.notes.trim() !== '' && (
