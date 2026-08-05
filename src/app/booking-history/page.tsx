@@ -304,6 +304,8 @@ export default function BookingHistoryPage() {
       title: 'Lịch sử đặt chỗ & Vé sự kiện',
       subtitle: 'Xem, tìm kiếm, lọc và cập nhật các đơn đặt bàn hoặc sự kiện đã đặt',
       backHome: 'Quay lại Trang chủ',
+      thCreatedTime: 'Ngày đặt / Sửa',
+      thMealTime: 'Lịch dùng bữa',
       thDate: 'Thời gian',
       thBranch: 'Sự kiện / Chi nhánh',
       thGuests: 'Số khách',
@@ -331,6 +333,8 @@ export default function BookingHistoryPage() {
       title: 'Booking & Event Tickets History',
       subtitle: 'View, search, filter, and update your reservations or event bookings',
       backHome: 'Back to Home',
+      thCreatedTime: 'Booked / Edited On',
+      thMealTime: 'Meal Time',
       thDate: 'Time',
       thBranch: 'Event / Branch',
       thGuests: 'Party Size',
@@ -453,11 +457,12 @@ export default function BookingHistoryPage() {
 
           {/* TABLE DISPLAY */}
           <div className="overflow-x-auto -mx-6 px-6 sm:mx-0 sm:px-0">
-            <table className="w-full text-sm text-left border-collapse min-w-[720px]">
+            <table className="w-full text-sm text-left border-collapse min-w-[880px]">
               <thead>
                 <tr className="border-b border-slate-150 text-slate-400 font-bold text-[10px] uppercase tracking-wider">
                   <th className="py-3 px-1">{t.thType}</th>
-                  <th className="py-3 px-2">{t.thDate}</th>
+                  <th className="py-3 px-2">{t.thCreatedTime}</th>
+                  <th className="py-3 px-2">{t.thMealTime}</th>
                   <th className="py-3 px-3">{t.thBranch}</th>
                   <th className="py-3 px-3">{t.thLocation}</th>
                   <th className="py-3 px-3 text-center">{t.thGuests}</th>
@@ -468,14 +473,14 @@ export default function BookingHistoryPage() {
               <tbody className="divide-y divide-slate-105 text-slate-700">
                 {loadingBookings ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
                       <div className="w-6 h-6 border-2 border-slate-250 border-t-blue-650 rounded-full animate-spin mx-auto mb-2" />
                       <span className="text-xs">Loading history...</span>
                     </td>
                   </tr>
                 ) : filteredBookings.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 text-xs font-semibold">
+                    <td colSpan={8} className="py-12 text-center text-slate-400 text-xs font-semibold">
                       {t.noBookingsFound}
                     </td>
                   </tr>
@@ -521,14 +526,52 @@ export default function BookingHistoryPage() {
                           </span>
                         </td>
 
-                        {/* Booking Time */}
-                        <td className="py-4 px-2 font-medium text-xs whitespace-nowrap">
-                          {new Date(booking.bookingTime).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                        {/* Booking Created & Modified Time */}
+                        <td className="py-4 px-2 text-xs whitespace-nowrap">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+                              <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                              <span>
+                                {booking.createdAt ? new Date(booking.createdAt).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                }) : '---'}
+                              </span>
+                            </div>
+                            {booking.updatedAt && (new Date(booking.updatedAt).getTime() - new Date(booking.createdAt || 0).getTime() > 1000) && (
+                              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 border border-amber-200/80 text-[9.5px] font-bold text-amber-800" title={locale === 'vi' ? 'Thời gian chỉnh sửa lượt đặt' : 'Last modified time'}>
+                                <span>✏️ {locale === 'vi' ? 'Sửa' : 'Edited'}:</span>
+                                <span>
+                                  {new Date(booking.updatedAt).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Scheduled Meal Time */}
+                        <td className="py-4 px-2 text-xs font-bold whitespace-nowrap text-blue-950">
+                          <div className="flex items-center gap-1.5 bg-blue-50/80 px-2.5 py-1.5 rounded-xl border border-blue-100/70 w-fit">
+                            <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                            <span>
+                              {new Date(booking.bookingTime).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
                         </td>
 
                         {/* Event Name / Branch Name */}
@@ -718,7 +761,16 @@ export default function BookingHistoryPage() {
                 <div className="space-y-4">
                   <div>
                     <h3 className="font-extrabold text-slate-900 text-base">{t.editModalTitle}</h3>
-                    <p className="text-xs text-slate-500">{t.bookingIdLabel}: RMS-BK{editingBooking.id}</p>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-0.5">
+                      <span>{t.bookingIdLabel}: RMS-BK{editingBooking.id}</span>
+                      <span>•</span>
+                      <span>{locale === 'vi' ? 'Ngày đặt:' : 'Created:'} {editingBooking.createdAt ? new Date(editingBooking.createdAt).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---'}</span>
+                      {editingBooking.updatedAt && (new Date(editingBooking.updatedAt).getTime() - new Date(editingBooking.createdAt || 0).getTime() > 1000) && (
+                        <span className="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                          ✏️ {locale === 'vi' ? 'Sửa lúc:' : 'Edited:'} {new Date(editingBooking.updatedAt).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <form onSubmit={handleSaveEdit} className="space-y-4">
