@@ -58,22 +58,21 @@ export default function BookingHistoryPage() {
       .catch(err => console.error("Failed to load branches", err));
   }, []);
 
-  // --- Authentication Redirect Guard ---
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
-  }, [user, loading, router]);
-
   // --- Fetch Booking History ---
   const fetchBookings = useCallback(async () => {
-    if (!user) return;
+    const savedPhone = typeof window !== 'undefined' ? localStorage.getItem('last_booking_phone') : null;
+    const savedEmail = typeof window !== 'undefined' ? localStorage.getItem('last_booking_email') : null;
+    const targetPhone = user?.phone || savedPhone || '';
+    const targetEmail = user?.email || savedEmail || '';
+
+    if (!targetPhone && !targetEmail && !user) return;
+
     try {
       setLoadingBookings(true);
       const data = await api.get<any[]>('/api/public/bookings/customer', {
-        params: { phone: user.phone || '', email: user.email || '' }
+        params: { phone: targetPhone, email: targetEmail }
       });
-      setBookings(data);
+      setBookings(data || []);
     } catch {
       setBookings([]);
     } finally {
@@ -82,10 +81,8 @@ export default function BookingHistoryPage() {
   }, [user]);
 
   useEffect(() => {
-    if (user) {
-      fetchBookings();
-    }
-  }, [user, fetchBookings]);
+    fetchBookings();
+  }, [fetchBookings]);
 
   // --- Filter Logic ---
   const filteredBookings = useMemo(() => {

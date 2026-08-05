@@ -27,7 +27,8 @@ import {
   Filter,
   MapPin,
   Ticket,
-  ArrowRight
+  ArrowRight,
+  Clock
 } from 'lucide-react';
 
 export default function PublicProfilePage() {
@@ -36,6 +37,7 @@ export default function PublicProfilePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Auto scroll to cooperation or booking history section if requested in searchParams or hash
   useEffect(() => {
     if (searchParams.get('registerPartner') === 'true') {
       setTimeout(() => {
@@ -44,8 +46,45 @@ export default function PublicProfilePage() {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 500);
+    } else if (searchParams.get('section') === 'history' || (typeof window !== 'undefined' && window.location.hash.includes('booking-history'))) {
+      setTimeout(() => {
+        const el = document.getElementById('booking-history-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
     }
   }, [searchParams]);
+
+  // --- Profile Booking History States & Fetch ---
+  const [profileBookings, setProfileBookings] = useState<any[]>([]);
+  const [loadingProfileBookings, setLoadingProfileBookings] = useState<boolean>(false);
+
+  const fetchProfileBookings = useCallback(async () => {
+    const savedPhone = typeof window !== 'undefined' ? localStorage.getItem('last_booking_phone') : null;
+    const savedEmail = typeof window !== 'undefined' ? localStorage.getItem('last_booking_email') : null;
+    const targetPhone = user?.phone || savedPhone || '';
+    const targetEmail = user?.email || savedEmail || '';
+
+    if (!targetPhone && !targetEmail) return;
+
+    try {
+      setLoadingProfileBookings(true);
+      const data = await api.get<any[]>('/api/public/bookings/customer', {
+        params: { phone: targetPhone, email: targetEmail }
+      });
+      setProfileBookings(data || []);
+    } catch (err) {
+      console.error("Error loading profile bookings:", err);
+      setProfileBookings([]);
+    } finally {
+      setLoadingProfileBookings(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    fetchProfileBookings();
+  }, [fetchProfileBookings]);
 
   // --- States ---
   const [uploading, setUploading] = useState(false);
@@ -804,6 +843,100 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
+        {/* Card: Live Booking History & Recent Activity Section */}
+        <div id="booking-history-section" className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-5 shadow-sm text-left animate-fade-in">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-blue-650" />
+              <div>
+                <h2 className="text-base font-extrabold text-slate-800">Lịch sử đặt bàn & Vé sự kiện</h2>
+                <p className="text-xs text-slate-400">Xem và quản lý các lượt đặt chỗ gần nhất của bạn</p>
+              </div>
+            </div>
+            <Link
+              href="/booking-history"
+              className="inline-flex items-center gap-1.5 text-xs font-extrabold text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              <span>Xem tất cả chi tiết</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+
+          {loadingProfileBookings ? (
+            <div className="py-10 text-center text-slate-400 space-y-2">
+              <div className="w-6 h-6 border-2 border-slate-250 border-t-blue-650 rounded-full animate-spin mx-auto" />
+              <span className="text-xs">Đang tải lịch sử đặt bàn...</span>
+            </div>
+          ) : profileBookings.length === 0 ? (
+            <div className="py-10 text-center bg-slate-50 rounded-xl border border-slate-200/60 text-slate-400 space-y-2">
+              <Utensils className="h-8 w-8 text-slate-300 mx-auto" />
+              <p className="text-xs font-bold text-slate-600">Bạn chưa có lịch sử đặt bàn nào.</p>
+              <p className="text-[11px] text-slate-400">Các lượt đặt bàn thành công sẽ tự động cập nhật và hiển thị tại đây.</p>
+              <div className="pt-2">
+                <Link
+                  href="/booking"
+                  className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow transition"
+                >
+                  Đặt bàn ngay
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {profileBookings.slice(0, 5).map((booking) => (
+                <div key={booking.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-extrabold text-slate-900 text-sm">
+                        RMS-BK{booking.id}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        booking.status === 'CONFIRMED' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                        booking.status === 'CHECKED_IN' || booking.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        booking.status === 'CANCELLED' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                        'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {booking.status === 'CONFIRMED' ? 'Sắp diễn ra' :
+                         booking.status === 'CHECKED_IN' ? 'Đã check-in' :
+                         booking.status === 'COMPLETED' ? 'Hoàn thành' :
+                         booking.status === 'CANCELLED' ? 'Đã hủy' : 'Chờ xử lý'}
+                      </span>
+                      {booking.eventId != null && (
+                        <span className="bg-purple-50 border border-purple-200 text-purple-700 font-bold px-2 py-0.5 rounded-md text-[10px]">
+                          Vé sự kiện
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-slate-600 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        Lịch hẹn: <strong className="text-slate-800">{new Date(booking.bookingTime).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US')}</strong>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        {booking.branchName || booking.branchId}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Utensils className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                        Bàn: <strong className="text-slate-800">{booking.tableLabel || 'Tùy chọn'}</strong> ({booking.guests} khách)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href="/booking-history"
+                      className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition"
+                    >
+                      Chi tiết & Chỉnh sửa
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Card 4: Edit Account Information & Avatar Upload */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-sm">

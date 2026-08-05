@@ -517,6 +517,10 @@ export default function BookingWizardPage() {
 
       const result = await api.post<any>('/api/public/bookings', bookingData);
       setCreatedBooking(result);
+      if (typeof window !== 'undefined') {
+        if (custPhone) localStorage.setItem('last_booking_phone', custPhone);
+        if (custEmail) localStorage.setItem('last_booking_email', custEmail);
+      }
       
       if (requireDeposit) {
         setIsPaying(true);
@@ -1866,14 +1870,15 @@ export default function BookingWizardPage() {
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs font-semibold text-slate-600 text-left flex items-start gap-2.5">
               <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
               <p className="leading-relaxed">
-                Bạn có thể tự quản lý, chỉnh sửa giờ hẹn, thay đổi số lượng người hoặc hủy bàn trực tiếp trong mục <Link href="/profile" className="text-blue-600 hover:underline font-extrabold">Trang cá nhân</Link> trước thời gian đón khách ít nhất 2 giờ mà không cần gọi điện tới hotline hỗ trợ.
+                Bạn có thể tự quản lý, chỉnh sửa giờ hẹn, thay đổi số lượng người hoặc hủy bàn trực tiếp trong mục <Link href="/profile?section=history#booking-history-section" className="text-blue-600 hover:underline font-extrabold">Trang cá nhân</Link> trước thời gian đón khách ít nhất 2 giờ mà không cần gọi điện tới hotline hỗ trợ.
               </p>
             </div>
 
             <button
-              onClick={() => router.push('/profile')}
-              className="w-full py-3 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl font-bold text-xs transition shadow cursor-pointer"
+              onClick={() => router.push('/profile?section=history#booking-history-section')}
+              className="w-full py-3 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl font-bold text-xs transition shadow cursor-pointer flex items-center justify-center gap-2"
             >
+              <Calendar className="h-4 w-4 text-white" />
               Xem lịch sử đặt bàn của tôi
             </button>
           </div>
