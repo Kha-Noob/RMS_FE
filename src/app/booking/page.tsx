@@ -95,12 +95,15 @@ export default function BookingWizardPage() {
   const [bookedTableIds, setBookedTableIds] = useState<number[]>([]);
   const [bookedTableTimes, setBookedTableTimes] = useState<Record<number, string>>({});
   const [occupiedTables, setOccupiedTables] = useState<Record<number, string>>({});
-  const [selectedTableObj, setSelectedTableObj] = useState<FloorPlanObject | null>(null);
+  const [selectedTableObjs, setSelectedTableObjs] = useState<FloorPlanObject[]>([]);
   const [selectedTableConfirmed, setSelectedTableConfirmed] = useState<boolean>(false);
   const [loadingFloorPlan, setLoadingFloorPlan] = useState<boolean>(false);
   
   // Space Filters (US#2)
   const [spaceFilter, setSpaceFilter] = useState<'ALL' | 'VIP' | 'NON_SMOKING' | 'AC' | 'OUTDOOR'>('ALL');
+
+  // Branch Change Confirmation Modal State
+  const [pendingBranchChange, setPendingBranchChange] = useState<{ id: string; name: string } | null>(null);
 
   // --- Step 3 States (Info, Allergies & Menu Pre-order) ---
   const [custName, setCustName] = useState<string>(user?.name || '');
@@ -184,12 +187,33 @@ export default function BookingWizardPage() {
     return `${year}-${month}-${day}`;
   };
 
-  // Helper to get default time (current time + 30 minutes)
+  // Helper to get default time (current time + 30 minutes rounded to nearest 15 mins)
   const getDefaultBookingTime = () => {
-    const d = new Date(Date.now() + 30 * 60 * 1000);
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${hours}:${minutes}`;
+    const now = new Date();
+    const target = new Date(now.getTime() + 30 * 60 * 1000);
+    let minutes = target.getMinutes();
+    let hours = target.getHours();
+
+    const remainder = minutes % 15;
+    if (remainder !== 0) {
+      minutes += (15 - remainder);
+      if (minutes >= 60) {
+        minutes = 0;
+        hours += 1;
+      }
+    }
+
+    if (hours < 7) {
+      hours = 7;
+      minutes = 0;
+    } else if (hours >= 21) {
+      hours = 21;
+      minutes = 0;
+    }
+
+    const hStr = String(hours).padStart(2, '0');
+    const mStr = String(minutes).padStart(2, '0');
+    return `${hStr}:${mStr}`;
   };
 
   // --- Load Branches & Pre-fill from URL parameters ---
@@ -203,13 +227,23 @@ export default function BookingWizardPage() {
 
     const loadBranches = async () => {
       try {
-        const data = await api.get<Branch[]>('/api/public/branches', {
-          params: queryTenantId ? { tenantId: queryTenantId } : undefined
-        });
+        const data = await api.get<Branch[]>('/api/public/branches');
         setBranches(data);
         if (data.length > 0) {
-          const preSelected = data.find(b => b.branchId === queryBranchId);
-          setSelectedBranchId(preSelected ? preSelected.branchId : data[0].branchId);
+          const targetKey = (queryBranchId || queryTenantId).toLowerCase().trim();
+          let preSelected = data.find(b => 
+            b.branchId.toLowerCase() === targetKey || 
+            (b as any).tenantId?.toLowerCase() === targetKey
+          );
+
+          if (!preSelected && targetKey) {
+            preSelected = data.find(b => 
+              b.name.toLowerCase().includes(targetKey) || 
+              targetKey.includes(b.branchId.toLowerCase())
+            );
+          }
+
+          setSelectedBranchId(preSelected ? preSelected.branchId : (queryBranchId || data[0].branchId));
         }
       } catch (err) {
         toast.error('Không thể tải danh sách chi nhánh!');
@@ -218,7 +252,22 @@ export default function BookingWizardPage() {
     loadBranches();
     
     setBookingDate(queryDate || getTodayLocalDate());
-    setBookingTime(queryTime || getDefaultBookingTime());
+    const initialTime = queryTime || getDefaultBookingTime();
+    setBookingTime(initialTime);
+    
+    // Sync 12h typed inputs with initial time
+    if (initialTime && initialTime.includes(':')) {
+      const [initH, initM] = initialTime.split(':').map(Number);
+      if (!isNaN(initH) && !isNaN(initM)) {
+        const period: 'AM' | 'PM' = initH >= 12 ? 'PM' : 'AM';
+        let h12 = initH % 12;
+        if (h12 === 0) h12 = 12;
+        setTypedHour(String(h12).padStart(2, '0'));
+        setTypedMinute(String(initM).padStart(2, '0'));
+        setTimePeriod(period);
+      }
+    }
+
     if (queryGuests) setGuests(parseInt(queryGuests) || 2);
   }, []);
 
@@ -280,7 +329,7 @@ export default function BookingWizardPage() {
     const m = parseInt(typedMinute, 10);
 
     if (isNaN(h) || h < 1 || h > 12) {
-      toast.error('Giờ không hợp lệ. vui lòng nhập giờ từ 1 đến 12(ví dụ 01:15 PM)');
+      toast.error('Giờ không hợp lệ. Vui lòng nhập giờ từ 1 đến 12 (ví dụ 11:00 AM)');
       return;
     }
 
@@ -289,14 +338,20 @@ export default function BookingWizardPage() {
       return;
     }
 
-    if (!bookingTime) {
-      toast.error('Vui lòng chọn giờ đặt bàn hợp lệ!');
-      return;
+    // Convert typed 12-hour input directly to 24-hour time string
+    let hours = h;
+    if (timePeriod === 'PM') {
+      if (hours < 12) hours += 12;
+    } else {
+      if (hours === 12) hours = 0;
     }
+    const minutes = m;
+
+    const computedBookingTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    setBookingTime(computedBookingTime);
 
     // Validate booking date & time: block past times and require at least 30 minutes in advance
     const [year, month, day] = bookingDate.split('-').map(Number);
-    const [hours, minutes] = bookingTime.split(':').map(Number);
 
     if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) {
       toast.error('Thời gian đặt bàn không hợp lệ!');
@@ -318,7 +373,8 @@ export default function BookingWizardPage() {
       return;
     }
 
-    const minAllowedTime = new Date(now.getTime() + 30 * 60 * 1000);
+    // Allow 10-second buffer tolerance to avoid microsecond rounding issues
+    const minAllowedTime = new Date(now.getTime() + (30 * 60 * 1000) - 10000);
     if (selectedDateTime.getTime() < minAllowedTime.getTime()) {
       toast.error('Vui lòng chọn thời gian đặt bàn cách thời điểm hiện tại ít nhất 30 phút!');
       return;
@@ -326,7 +382,7 @@ export default function BookingWizardPage() {
 
     try {
       setLoadingFloorPlan(true);
-      setSelectedTableObj(null);
+      setSelectedTableObjs([]);
       setSelectedTableConfirmed(false);
       
       // 1. Fetch branch floor plans
@@ -352,6 +408,24 @@ export default function BookingWizardPage() {
       setBookedTableTimes(avail.bookedTableTimes || {});
       setOccupiedTables(avail.occupiedTables || {});
 
+      // 3. API validation: Calculate total capacity of ALL available (unbooked) tables at this branch
+      let totalAvailableSeats = 0;
+      plans.forEach(plan => {
+        (plan.floorPlanObjects || []).forEach(obj => {
+          if (obj.objectType === 'table') {
+            const isBooked = (obj.tableId && (avail.bookedTableIds || []).includes(obj.tableId)) || (avail.bookedTableIds || []).includes(obj.id);
+            if (!isBooked) {
+              totalAvailableSeats += getTableCapacity(obj);
+            }
+          }
+        });
+      });
+
+      if (totalAvailableSeats < guests) {
+        toast.error(`Nhà hàng hiện chỉ còn nhận tối đa ${totalAvailableSeats} chỗ vào khung giờ này (bạn đang chọn ${guests} chỗ). Vui lòng giảm số lượng khách hoặc chọn thời gian khác!`);
+        return;
+      }
+
       setStep(2);
     } catch (err) {
       toast.error('Lỗi khi tải thông tin sơ đồ bàn!');
@@ -362,8 +436,14 @@ export default function BookingWizardPage() {
 
   // --- Load Menu Items (Step 2 -> Step 3) ---
   const handleProceedToStep3 = async () => {
-    if (!selectedTableConfirmed || !selectedTableObj) {
+    if (!selectedTableConfirmed || selectedTableObjs.length === 0) {
       toast.error('Vui lòng chọn bàn và nhấp xác nhận vị trí!');
+      return;
+    }
+
+    const totalSelectedCap = selectedTableObjs.reduce((sum, o) => sum + getTableCapacity(o), 0);
+    if (totalSelectedCap < guests) {
+      toast.error(`Tổng sức chứa các bàn đã chọn (${totalSelectedCap} chỗ) chưa đủ cho ${guests} khách. Vui lòng chọn thêm bàn!`);
       return;
     }
 
@@ -408,6 +488,11 @@ export default function BookingWizardPage() {
     try {
       setIsSubmitting(true);
       
+      const primaryTable = selectedTableObjs[0];
+      const selectedTableLabels = selectedTableObjs.map(o => o.label).join(', ');
+      const totalCap = selectedTableObjs.reduce((acc, o) => acc + getTableCapacity(o), 0);
+      const fullNotes = (dietaryNotes ? (dietaryNotes + ' ') : '') + `[Bàn đặt (${selectedTableObjs.length} bàn, ${totalCap} chỗ): ${selectedTableLabels}]`;
+
       const bookingData = {
         customerName: custName,
         customerPhone: custPhone,
@@ -415,9 +500,9 @@ export default function BookingWizardPage() {
         bookingTime: `${bookingDate}T${bookingTime}:00`,
         guests: guests,
         branchId: selectedBranchId,
-        notes: dietaryNotes || null,
-        tableId: selectedTableObj?.tableId || selectedTableObj?.id || null,
-        tableLabel: selectedTableObj?.label || null,
+        notes: fullNotes,
+        tableId: primaryTable ? (primaryTable.tableId || primaryTable.id) : null,
+        tableLabel: selectedTableLabels,
         dietaryNotes: dietaryNotes || null,
         allergyPeanut: allergyPeanut,
         allergyGluten: allergyGluten,
@@ -432,6 +517,10 @@ export default function BookingWizardPage() {
 
       const result = await api.post<any>('/api/public/bookings', bookingData);
       setCreatedBooking(result);
+      if (typeof window !== 'undefined') {
+        if (custPhone) localStorage.setItem('last_booking_phone', custPhone);
+        if (custEmail) localStorage.setItem('last_booking_email', custEmail);
+      }
       
       if (requireDeposit) {
         setIsPaying(true);
@@ -444,6 +533,20 @@ export default function BookingWizardPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Helper to calculate table capacity from metadataJson/styleJson
+  const getTableCapacity = (obj: FloorPlanObject): number => {
+    if (!obj) return 4;
+    try {
+      let meta: any = obj.metadataJson;
+      if (typeof meta === 'string' && meta.trim()) meta = JSON.parse(meta);
+      if (meta && meta.capacity && !isNaN(parseInt(meta.capacity))) return parseInt(meta.capacity, 10);
+      let style: any = obj.styleJson;
+      if (typeof style === 'string' && style.trim()) style = JSON.parse(style);
+      if (style && style.capacity && !isNaN(parseInt(style.capacity))) return parseInt(style.capacity, 10);
+    } catch (err) {}
+    return 4;
   };
 
   // --- Dynamic Room & Space Filtering (US#2) ---
@@ -496,25 +599,27 @@ export default function BookingWizardPage() {
   };
 
   const parsedMeta = useMemo(() => {
-    if (!selectedTableObj || !selectedTableObj.metadataJson) return {};
-    if (typeof selectedTableObj.metadataJson !== 'string') return selectedTableObj.metadataJson;
+    const primary = selectedTableObjs[0];
+    if (!primary || !primary.metadataJson) return {};
+    if (typeof primary.metadataJson !== 'string') return primary.metadataJson;
     try {
-      return JSON.parse(selectedTableObj.metadataJson);
+      return JSON.parse(primary.metadataJson);
     } catch {
       return {};
     }
-  }, [selectedTableObj]);
+  }, [selectedTableObjs]);
 
-  // Estmated distances helper based on table ID
+  // Estimated distances helper based on table ID
   const estimatedDistances = useMemo(() => {
-    if (!selectedTableObj) return null;
-    const tid = selectedTableObj.id;
+    const primary = selectedTableObjs[0];
+    if (!primary) return null;
+    const tid = primary.id;
     return {
       wc: 5 + (tid % 4) * 2,
       aisle: 1.5 + (tid % 3) * 0.5,
       stage: 8 + (tid % 5) * 3
     };
-  }, [selectedTableObj]);
+  }, [selectedTableObjs]);
 
   // --- Menu Processing ---
   const categories = useMemo(() => {
@@ -578,8 +683,11 @@ export default function BookingWizardPage() {
 
   const requireDeposit = useMemo(() => {
     // Requires deposit if pre-ordered total is > 0 or if they choose a VIP/Room 6 table
-    return grandTotal > 0 || (selectedTableObj && (selectedTableObj.floorPlan?.name?.toLowerCase()?.includes('vip') || selectedTableObj.floorPlan?.id === 6));
-  }, [grandTotal, selectedTableObj]);
+    const hasVipTable = selectedTableObjs.some(obj => 
+      obj.floorPlan?.name?.toLowerCase()?.includes('vip') || obj.floorPlan?.id === 6
+    );
+    return grandTotal > 0 || hasVipTable;
+  }, [grandTotal, selectedTableObjs]);
 
   const depositAmount = useMemo(() => {
     if (!requireDeposit) return 0;
@@ -651,8 +759,14 @@ export default function BookingWizardPage() {
                 </label>
                 <select
                   value={selectedBranchId}
-                  onChange={e => setSelectedBranchId(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 bg-white"
+                  onChange={e => {
+                    const newId = e.target.value;
+                    if (newId === selectedBranchId) return;
+                    const targetBranch = branches.find(b => b.branchId === newId);
+                    const targetName = targetBranch ? targetBranch.name : newId;
+                    setPendingBranchChange({ id: newId, name: targetName });
+                  }}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-600 bg-white font-semibold text-slate-800 cursor-pointer shadow-sm"
                 >
                   {branches.map(b => (
                     <option key={b.branchId} value={b.branchId}>{b.name} - {b.address}</option>
@@ -740,17 +854,50 @@ export default function BookingWizardPage() {
                   <input
                     type="number"
                     min={1}
-                    max={30}
-                    value={guests}
-                    onChange={e => setGuests(parseInt(e.target.value) || 2)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white font-medium text-slate-800"
+                    max={100}
+                    value={guests === 0 ? '' : guests}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setGuests(0);
+                      } else {
+                        const num = parseInt(val, 10);
+                        setGuests(isNaN(num) ? 0 : num);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!guests || guests < 1) {
+                        setGuests(1);
+                      }
+                    }}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-350 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white font-bold text-slate-800"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded-xl p-3">
-                <Info className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                <span>Nhà hàng chỉ phục vụ đặt bàn từ 7h00 AM đến 9h00 PM (21h00) và cách thời điểm hiện tại ít nhất 30 phút.</span>
+              <div className="bg-blue-50/70 border border-blue-200/70 rounded-2xl p-4 space-y-2 text-xs text-blue-900 shadow-2xs">
+                <div className="flex items-center gap-2 font-extrabold text-blue-950 text-xs">
+                  <Info className="h-4 w-4 text-blue-600 shrink-0" />
+                  <span>Quy định thời gian & giờ mở cửa nhà hàng:</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11.5px] font-medium text-slate-700 pt-0.5">
+                  <div className="flex items-center gap-2 bg-white/90 px-3 py-2 rounded-xl border border-blue-100/70 shadow-2xs">
+                    <Clock className="h-4 w-4 text-blue-600 shrink-0" />
+                    <span><strong>Giờ phục vụ:</strong> 07:00 AM đến 09:00 PM (21h00)</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/90 px-3 py-2 rounded-xl border border-blue-100/70 shadow-2xs">
+                    <Calendar className="h-4 w-4 text-blue-600 shrink-0" />
+                    <span><strong>Thời gian đặt trước:</strong> Ít nhất 30 phút từ hiện tại</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/90 px-3 py-2 rounded-xl border border-blue-100/70 shadow-2xs">
+                    <span className="h-4 w-4 rounded-full bg-blue-100 text-blue-700 font-extrabold text-[10px] flex items-center justify-center shrink-0">12</span>
+                    <span><strong>Nhập giờ (12h):</strong> Điền từ 01 – 12 và chọn AM / PM</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white/90 px-3 py-2 rounded-xl border border-blue-100/70 shadow-2xs">
+                    <span className="h-4 w-4 rounded-full bg-blue-100 text-blue-700 font-extrabold text-[10px] flex items-center justify-center shrink-0">59</span>
+                    <span><strong>Nhập phút:</strong> Điền phút từ 00 đến 59</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -834,7 +981,7 @@ export default function BookingWizardPage() {
                               key={plan.id}
                               onClick={() => {
                                 setSelectedPlan(plan);
-                                setSelectedTableObj(null);
+                                setSelectedTableObjs([]);
                                 setSelectedTableConfirmed(false);
                               }}
                               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -890,7 +1037,7 @@ export default function BookingWizardPage() {
                         if (!belongsToActiveRoom && isTable) return null;
 
                         const color = getObjectColor(obj);
-                        const isSelected = selectedTableObj?.id === obj.id;
+                        const isSelected = selectedTableObjs.some(o => o.id === obj.id);
 
                         return (
                           <div
@@ -900,7 +1047,14 @@ export default function BookingWizardPage() {
                                 if (isBooked) {
                                   toast.error('Bàn này đã được đặt, vui lòng chọn bàn khác màu xanh!');
                                 } else {
-                                  setSelectedTableObj(selectedTableObj?.id === obj.id ? null : obj);
+                                  const exists = selectedTableObjs.some(o => o.id === obj.id);
+                                  let updated: FloorPlanObject[];
+                                  if (exists) {
+                                    updated = selectedTableObjs.filter(o => o.id !== obj.id);
+                                  } else {
+                                    updated = [...selectedTableObjs, obj];
+                                  }
+                                  setSelectedTableObjs(updated);
                                   setSelectedTableConfirmed(false);
                                 }
                               }
@@ -944,67 +1098,74 @@ export default function BookingWizardPage() {
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
                   <div>
                     <h3 className="font-extrabold text-slate-800 text-sm">Chi tiết vị trí chọn</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Nhấp trực tiếp vào bàn xanh để lựa chọn</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Yêu cầu đặt: <span className="font-bold text-blue-600">{guests} khách</span>. Nhấp trực tiếp vào bàn xanh để chọn đủ số chỗ.</p>
                   </div>
 
-                  {selectedTableObj ? (
-                    <div className="space-y-4 text-xs">
-                      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-extrabold text-blue-900 text-sm">{selectedTableObj.label}</span>
-                          <span className="bg-blue-200 text-blue-800 font-bold px-2 py-0.5 rounded-full text-[9px] uppercase">
-                            Khả dụng
-                          </span>
+                  {(() => {
+                    const totalSelectedCap = selectedTableObjs.reduce((acc, o) => acc + getTableCapacity(o), 0);
+
+                    return selectedTableObjs.length > 0 ? (
+                      <div className="space-y-4 text-xs">
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-extrabold text-blue-900 text-sm">
+                              Đã chọn {selectedTableObjs.length} bàn
+                            </span>
+                            <span className={`font-bold px-2 py-0.5 rounded-full text-[10px] ${totalSelectedCap >= guests ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-800 border border-amber-200'}`}>
+                              {totalSelectedCap} / {guests} chỗ
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {selectedTableObjs.map(o => (
+                              <span key={o.id} className="bg-white border border-blue-200 text-blue-800 px-2 py-1 rounded-lg font-bold flex items-center gap-1 shadow-2xs">
+                                🪑 {o.label} ({getTableCapacity(o)} chỗ)
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <p className="text-slate-600 font-medium leading-relaxed">
-                          Sức chứa tối đa: <span className="font-bold text-slate-900">{parsedMeta.capacity || 4} chỗ</span><br />
-                          Vị trí khu vực: <span className="font-bold text-slate-900">{parsedMeta.zone || selectedPlan.name}</span>
-                        </p>
+
+                        {/* Capacity Status Banner */}
+                        {totalSelectedCap < guests ? (
+                          <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 text-[11px] font-bold flex items-center gap-2 animate-fade-in">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                            <span>Đang chọn {totalSelectedCap}/{guests} chỗ. Vui lòng chọn thêm bàn cho đến khi đủ {guests} chỗ!</span>
+                          </div>
+                        ) : (
+                          <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl p-3 text-[11px] font-bold flex items-center gap-2 animate-fade-in">
+                            <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <span>Đã đủ sức chứa cho {guests} khách ({totalSelectedCap} chỗ)</span>
+                          </div>
+                        )}
+
+                        {!selectedTableConfirmed ? (
+                          <button
+                            onClick={() => {
+                              if (totalSelectedCap < guests) {
+                                toast.error(`Tổng sức chứa các bàn đã chọn (${totalSelectedCap} chỗ) chưa đủ cho ${guests} khách. Vui lòng chọn thêm bàn!`);
+                                return;
+                              }
+                              setSelectedTableConfirmed(true);
+                              toast.success(`Đã khóa ${selectedTableObjs.length} vị trí bàn (${totalSelectedCap} chỗ)`);
+                            }}
+                            disabled={totalSelectedCap < guests}
+                            className="w-full py-2.5 bg-[#25439b] hover:bg-[#1c3580] disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-xl font-bold transition shadow-sm cursor-pointer"
+                          >
+                            Xác nhận chọn {selectedTableObjs.length} bàn này
+                          </button>
+                        ) : (
+                          <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl p-3 flex items-center gap-2 font-bold">
+                            <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
+                            <span>Đã khóa {selectedTableObjs.length} bàn ({selectedTableObjs.map(o => o.label).join(', ')})</span>
+                          </div>
+                        )}
                       </div>
-
-                      {/* Estimated Distances (US#1) */}
-                      {estimatedDistances && (
-                        <div className="border border-slate-100 rounded-xl p-3.5 space-y-2">
-                          <h4 className="font-bold text-slate-700 text-[11px] uppercase tracking-wide">Ước tính khoảng cách (Khoảng):</h4>
-                          <ul className="space-y-1.5 text-slate-600 font-medium">
-                            <li className="flex items-center justify-between">
-                              <span>🚪 Cách lối đi chính:</span>
-                              <span className="font-bold text-slate-900">{estimatedDistances.aisle}m</span>
-                            </li>
-                            <li className="flex items-center justify-between">
-                              <span>🚽 Cách nhà vệ sinh:</span>
-                              <span className="font-bold text-slate-900">~{estimatedDistances.wc}m</span>
-                            </li>
-                            <li className="flex items-center justify-between">
-                              <span>🎸 Cách sân khấu chính:</span>
-                              <span className="font-bold text-slate-900">~{estimatedDistances.stage}m</span>
-                            </li>
-                          </ul>
-                        </div>
-                      )}
-
-                      {!selectedTableConfirmed ? (
-                        <button
-                          onClick={() => {
-                            setSelectedTableConfirmed(true);
-                            toast.success(`Đã chọn vị trí bàn: ${selectedTableObj.label}`);
-                          }}
-                          className="w-full py-2.5 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl font-bold transition shadow-sm"
-                        >
-                          Xác nhận chọn bàn này
-                        </button>
-                      ) : (
-                        <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl p-3 flex items-center gap-2 font-bold">
-                          <CheckCircle className="h-4 w-4 shrink-0 text-emerald-600" />
-                          <span>Đã khóa bàn: {selectedTableObj.label}</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-slate-50 border border-slate-200/50 rounded-xl p-6 text-center text-slate-450 text-xs py-10 font-medium">
-                      Chưa có bàn nào được chọn. Vui lòng nhấp trực tiếp vào bàn trống trên sơ đồ.
-                    </div>
-                  )}
+                    ) : (
+                      <div className="bg-slate-50 border border-slate-200/50 rounded-xl p-6 text-center text-slate-450 text-xs py-10 font-medium">
+                        Chưa có bàn nào được chọn. Vui lòng nhấp trực tiếp vào các bàn xanh trên sơ đồ.
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex gap-3 border-t border-slate-100 pt-4">
                     <button
@@ -1265,8 +1426,8 @@ export default function BookingWizardPage() {
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3.5">
                 <h4 className="font-extrabold text-slate-800 text-sm">Tóm tắt vị trí chọn</h4>
                 <div className="text-xs bg-slate-50 border border-slate-200/60 rounded-xl p-3.5 space-y-1.5 font-medium leading-relaxed">
-                  <p>Bàn: <span className="font-extrabold text-slate-900">{selectedTableObj?.label}</span></p>
-                  <p>Sức chứa: <span className="font-bold text-slate-900">{parsedMeta.capacity || 4} chỗ</span></p>
+                  <p>Bàn chọn ({selectedTableObjs.length} bàn): <span className="font-extrabold text-slate-900">{selectedTableObjs.map(o => o.label).join(', ')}</span></p>
+                  <p>Tổng sức chứa: <span className="font-bold text-slate-900">{selectedTableObjs.reduce((acc, o) => acc + getTableCapacity(o), 0)} chỗ</span></p>
                   <p>Thời gian: <span className="font-bold text-slate-900">{bookingDate} lúc {bookingTime}</span></p>
                 </div>
               </div>
@@ -1709,20 +1870,71 @@ export default function BookingWizardPage() {
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-xs font-semibold text-slate-600 text-left flex items-start gap-2.5">
               <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
               <p className="leading-relaxed">
-                Bạn có thể tự quản lý, chỉnh sửa giờ hẹn, thay đổi số lượng người hoặc hủy bàn trực tiếp trong mục <Link href="/profile" className="text-blue-600 hover:underline font-extrabold">Trang cá nhân</Link> trước thời gian đón khách ít nhất 2 giờ mà không cần gọi điện tới hotline hỗ trợ.
+                Bạn có thể tự quản lý, chỉnh sửa giờ hẹn, thay đổi số lượng người hoặc hủy bàn trực tiếp trong mục <Link href="/profile?section=history#booking-history-section" className="text-blue-600 hover:underline font-extrabold">Trang cá nhân</Link> trước thời gian đón khách ít nhất 2 giờ mà không cần gọi điện tới hotline hỗ trợ.
               </p>
             </div>
 
             <button
-              onClick={() => router.push('/profile')}
-              className="w-full py-3 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl font-bold text-xs transition shadow cursor-pointer"
+              onClick={() => router.push('/profile?section=history#booking-history-section')}
+              className="w-full py-3 bg-[#25439b] hover:bg-[#1c3580] text-white rounded-xl font-bold text-xs transition shadow cursor-pointer flex items-center justify-center gap-2"
             >
+              <Calendar className="h-4 w-4 text-white" />
               Xem lịch sử đặt bàn của tôi
             </button>
           </div>
         )}
 
       </main>
+
+      {/* Confirmation Modal for Branch Change */}
+      {pendingBranchChange && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-blue-50 border border-blue-200 flex items-center justify-center shrink-0 text-blue-600">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">Xác nhận đổi chi nhánh</h3>
+                <p className="text-xs text-slate-500">Thay đổi nhà hàng cho lượt đặt bàn này</p>
+              </div>
+            </div>
+
+            <p className="text-sm font-semibold text-slate-700 bg-slate-50 p-3.5 rounded-xl border border-slate-200/70 leading-relaxed">
+              {locale === 'vi' 
+                ? `Xác nhận đổi sang nhà hàng ${pendingBranchChange.name}?` 
+                : `Confirm switching to restaurant ${pendingBranchChange.name}?`}
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPendingBranchChange(null)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                {locale === 'vi' ? 'Không (Giữ nguyên)' : 'No (Keep current)'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetId = pendingBranchChange.id;
+                  const targetName = pendingBranchChange.name;
+                  setSelectedBranchId(targetId);
+                  setSelectedTableObjs([]);
+                  setSelectedTableConfirmed(false);
+                  setSelectedPlan(null);
+                  setPreOrderCart([]);
+                  setPendingBranchChange(null);
+                  toast.success(locale === 'vi' ? `Đã chuyển sang ${targetName}` : `Switched to ${targetName}`);
+                }}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+              >
+                {locale === 'vi' ? 'Có (Xác nhận)' : 'Yes (Confirm)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

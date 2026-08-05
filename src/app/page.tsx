@@ -446,31 +446,44 @@ export default function LandingPage() {
     });
   }, [events, locale]);
 
-  // --- Dynamic Restaurants from Database ---
+  // --- 3 Real Branches for Featured Restaurants List ---
   const restaurants = useMemo<Restaurant[]>(() => {
-    return customPages.map((page, idx) => {
-      let categories = ['Món Việt', 'Sang trọng'];
-      if (page.layoutStyle === 'modern') {
-        categories = ['Nướng BBQ', 'Hiện đại'];
-      } else if (page.layoutStyle === 'minimalist') {
-        categories = ['Sushi & Sashimi', 'Nhật Bản'];
-      } else if (page.layoutStyle === 'luxury') {
-        categories = ['Fine Dining', 'Á Âu', 'Sang trọng'];
+    return [
+      {
+        id: '01-2thang9',
+        name: locale === 'vi' ? 'Chi nhánh 2 Tháng 9 - LiteFlow' : '2 Thang 9 Branch - LiteFlow',
+        rating: 4.9,
+        reviewsCount: 128,
+        location: '01 Đường 2 Tháng 9, Hải Châu, Đà Nẵng',
+        distance: '0.8 km',
+        categories: ['Hải sản', 'Fine Dining', 'Gia đình'],
+        imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80',
+        badge: 'Mới'
+      },
+      {
+        id: '11-NguyenHuuTho',
+        name: locale === 'vi' ? 'Chi nhánh Nguyễn Hữu Thọ - LiteFlow' : 'Nguyen Huu Tho Branch - LiteFlow',
+        rating: 4.8,
+        reviewsCount: 96,
+        location: '11 Đường Nguyễn Hữu Thọ, Hải Châu, Đà Nẵng',
+        distance: '1.4 km',
+        categories: ['Nướng BBQ', 'Buffet', 'Hiện đại'],
+        imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=600&q=80',
+        badge: 'Ưu đãi'
+      },
+      {
+        id: '21-HaiPhong',
+        name: locale === 'vi' ? 'Chi nhánh Hải Phòng - LiteFlow' : 'Hai Phong Branch - LiteFlow',
+        rating: 4.9,
+        reviewsCount: 112,
+        location: '21 Đường Hải Phòng, Hải Châu, Đà Nẵng',
+        distance: '2.1 km',
+        categories: ['Á Âu', 'VIP Room', 'Sang trọng'],
+        imageUrl: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=600&q=80',
+        badge: 'Đặt nhiều'
       }
-      
-      return {
-        id: page.tenantId,
-        name: page.restaurantName,
-        rating: 4.6 + (idx % 4) * 0.1,
-        reviewsCount: 64 + (idx % 6) * 16,
-        location: page.tenantId === 'tenant-1' ? 'Hải Châu, Đà Nẵng' : (page.tenantId === 'tenant-2' ? 'Lê Lợi, Đà Nẵng' : 'Hùng Vương, Đà Nẵng'),
-        distance: `${0.8 + idx * 0.6} km`,
-        categories: categories,
-        imageUrl: page.coverImageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=400&q=80',
-        badge: idx % 3 === 0 ? 'Mới' : (idx % 3 === 1 ? 'Ưu đãi' : 'Đặt nhiều') as any
-      };
-    });
-  }, [customPages]);
+    ];
+  }, [locale]);
 
   // --- Filtering Logic for Restaurants ---
   const filteredRestaurants = useMemo(() => {
@@ -835,7 +848,7 @@ export default function LandingPage() {
                     {/* Book Now Button Container */}
                     <div className="px-4 pb-4 pt-0">
                       <button
-                        onClick={() => router.push('/booking')}
+                        onClick={() => router.push(`/booking?tenantId=${encodeURIComponent(rest.id)}&branchId=${encodeURIComponent(rest.id)}`)}
                         className="w-full bg-gradient-to-r from-blue-600 via-blue-500 to-blue-100 hover:from-blue-700 hover:via-blue-600 hover:to-blue-200 text-white text-xs font-black py-2.5 px-5 rounded-full shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/35 transition-all duration-300 flex items-center justify-center gap-2 group-hover:scale-[1.01] cursor-pointer active:scale-[0.98]"
                       >
                         <Calendar className="h-4 w-4 text-white group-hover:rotate-12 transition-transform" />
