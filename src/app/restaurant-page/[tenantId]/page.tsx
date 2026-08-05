@@ -8,7 +8,7 @@ import {
   FileText, Calendar, MessageSquare, ChevronLeft, 
   MapPin, Clock, Award, Star, ShieldAlert, AlertCircle, RefreshCw,
   Utensils, Phone, User, CheckCircle2, ChevronRight, Share2, Sparkles, Send,
-  X, QrCode, Ticket, Info
+  X, QrCode, Ticket, Info, AlertTriangle
 } from 'lucide-react';
 
 interface CustomPageConfig {
@@ -343,6 +343,12 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
       )
     ).then(() => {
       setDateCapacities({...capMap});
+      const maxCap = parseMaxCapacity(evt.capacity);
+      const firstAvailableDate = dates.find(d => (maxCap - (capMap[d] || 0)) > 0);
+      if (firstAvailableDate) {
+        setSelectedDates([firstAvailableDate]);
+        setEventBookingForm(prev => ({ ...prev, date: firstAvailableDate }));
+      }
     });
 
     setEventBookingForm({
@@ -397,6 +403,27 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
       if (selectedDateTime.getTime() < minFutureTime.getTime()) {
         const displayD = d.split('-').reverse().join('/');
         toast.error(`Thời gian của ngày ${displayD} phải ở tương lai (tối thiểu trước 15 phút)!`);
+        return;
+      }
+
+      // Validate ticket capacity & sold out status for all selected dates
+      const maxCap = bookingEvent ? parseMaxCapacity(bookingEvent.capacity) : 99999;
+      const booked = dateCapacities[d] || 0;
+      const remaining = Math.max(0, maxCap - booked);
+      const displayD = d.split('-').reverse().join('/');
+
+      if (remaining <= 0) {
+        toast.error(`Ngày ${displayD} đã hết vé (Sold out). Vui lòng chọn ngày khác!`);
+        return;
+      }
+
+      if (eventBookingForm.guests <= 0) {
+        toast.error('Số lượng vé không hợp lệ!');
+        return;
+      }
+
+      if (eventBookingForm.guests > remaining) {
+        toast.error(`Ngày ${displayD} chỉ còn lại ${remaining} vé. Quý khách vui lòng chọn tối đa ${remaining} vé!`);
         return;
       }
     }
@@ -1250,11 +1277,60 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
                     min="1"
                     max="50"
                     required
-                    value={eventBookingForm.guests}
-                    onChange={(e) => setEventBookingForm({...eventBookingForm, guests: parseInt(e.target.value) || 2})}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={eventBookingForm.guests === 0 ? '' : eventBookingForm.guests}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setEventBookingForm({...eventBookingForm, guests: 0});
+                      } else {
+                        const num = parseInt(val, 10);
+                        setEventBookingForm({...eventBookingForm, guests: isNaN(num) ? 0 : num});
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!eventBookingForm.guests || eventBookingForm.guests < 1) {
+                        setEventBookingForm({...eventBookingForm, guests: 1});
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-slate-800"
                   />
                 </div>
+
+                {/* Capacity Alert Banner */}
+                {(() => {
+                  if (!bookingEvent || selectedDates.length === 0) return null;
+                  const maxCap = parseMaxCapacity(bookingEvent.capacity);
+                  if (maxCap >= 99999) return null;
+
+                  for (const d of selectedDates) {
+                    const booked = dateCapacities[d] || 0;
+                    const remaining = Math.max(0, maxCap - booked);
+                    const displayD = d.split('-').reverse().join('/');
+
+                    if (remaining <= 0) {
+                      return (
+                        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center gap-2 animate-fade-in">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>
+                            Ngày {displayD} đã HẾT VÉ (Sold out). Vui lòng chọn ngày khác!
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (eventBookingForm.guests > remaining) {
+                      return (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 flex items-center gap-2 animate-fade-in">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>
+                            Ngày {displayD} chỉ còn lại {remaining} vé! Bạn đang nhập {eventBookingForm.guests} vé.
+                          </span>
+                        </div>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
 
                 {/* Notes */}
                 <div>
@@ -1361,15 +1437,31 @@ export default function PublicRestaurantPage({ params }: { params: Promise<{ ten
                   >
                     Hủy
                   </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl text-white text-xs font-bold shadow-md hover:brightness-105"
-                    style={{ backgroundColor: config.primaryColor }}
-                  >
-                    {bookingEvent && bookingEvent.price && !bookingEvent.price.includes('Miễn phí') && !bookingEvent.price.toLowerCase().includes('free')
-                      ? 'Thanh toán & Xác nhận'
-                      : 'Xác nhận đăng ký'}
-                  </button>
+                  {(() => {
+                    const isInvalid = selectedDates.some(d => {
+                      const maxCap = bookingEvent ? parseMaxCapacity(bookingEvent.capacity) : 99999;
+                      const booked = dateCapacities[d] || 0;
+                      const remaining = Math.max(0, maxCap - booked);
+                      return remaining <= 0 || eventBookingForm.guests > remaining || eventBookingForm.guests <= 0;
+                    });
+
+                    return (
+                      <button
+                        type="submit"
+                        disabled={isInvalid}
+                        className={`px-5 py-2 rounded-xl text-white text-xs font-bold shadow-md transition-all ${
+                          isInvalid
+                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                            : 'hover:brightness-105'
+                        }`}
+                        style={isInvalid ? {} : { backgroundColor: config.primaryColor }}
+                      >
+                        {bookingEvent && bookingEvent.price && !bookingEvent.price.includes('Miễn phí') && !bookingEvent.price.toLowerCase().includes('free')
+                          ? 'Thanh toán & Xác nhận'
+                          : 'Xác nhận đăng ký'}
+                      </button>
+                    );
+                  })()}
                 </div>
               </form>
             )}

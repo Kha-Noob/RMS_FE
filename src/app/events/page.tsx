@@ -26,7 +26,9 @@ import {
   ChevronDown,
   User as UserIcon,
   QrCode,
-  Globe
+  Globe,
+  AlertCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 // --- Types & Interfaces ---
@@ -644,6 +646,12 @@ export default function EventsPage() {
       )
     ).then(() => {
       setDateCapacities({...capMap});
+      const maxCap = parseMaxCapacity(evt.capacity);
+      const firstAvailableDate = dates.find(d => (maxCap - (capMap[d] || 0)) > 0);
+      if (firstAvailableDate) {
+        setSelectedDates([firstAvailableDate]);
+        setBookingForm(prev => ({ ...prev, date: firstAvailableDate }));
+      }
     });
 
     setBookingForm({
@@ -706,6 +714,31 @@ export default function EventsPage() {
         toast.error(locale === 'vi' 
           ? `Thời gian của ngày ${displayD} phải ở tương lai (tối thiểu trước 15 phút)!` 
           : `Booking time for ${displayD} must be in the future (at least 15 minutes ahead)!`);
+        return;
+      }
+
+      // Validate ticket capacity & sold out status for all selected dates
+      const maxCap = bookingEvent ? parseMaxCapacity(bookingEvent.capacity) : 99999;
+      const booked = dateCapacities[d] || 0;
+      const remaining = Math.max(0, maxCap - booked);
+      const displayD = d.split('-').reverse().join('/');
+
+      if (remaining <= 0) {
+        toast.error(locale === 'vi' 
+          ? `Ngày ${displayD} đã hết vé (Sold out). Vui lòng chọn ngày khác!` 
+          : `Date ${displayD} is sold out. Please select another date!`);
+        return;
+      }
+
+      if (bookingForm.guests <= 0) {
+        toast.error(locale === 'vi' ? 'Số lượng vé không hợp lệ!' : 'Invalid guest count!');
+        return;
+      }
+
+      if (bookingForm.guests > remaining) {
+        toast.error(locale === 'vi' 
+          ? `Ngày ${displayD} chỉ còn lại ${remaining} vé. Quý khách vui lòng chọn tối đa ${remaining} vé!` 
+          : `Date ${displayD} only has ${remaining} tickets left. Please select at most ${remaining} tickets!`);
         return;
       }
     }
@@ -1243,11 +1276,64 @@ export default function EventsPage() {
                     min="1"
                     max="50"
                     required
-                    value={bookingForm.guests}
-                    onChange={(e) => setBookingForm({...bookingForm, guests: parseInt(e.target.value) || 2})}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    value={bookingForm.guests === 0 ? '' : bookingForm.guests}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setBookingForm({...bookingForm, guests: 0});
+                      } else {
+                        const num = parseInt(val, 10);
+                        setBookingForm({...bookingForm, guests: isNaN(num) ? 0 : num});
+                      }
+                    }}
+                    onBlur={() => {
+                      if (!bookingForm.guests || bookingForm.guests < 1) {
+                        setBookingForm({...bookingForm, guests: 1});
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-slate-800"
                   />
                 </div>
+
+                {/* Capacity Alert Banner */}
+                {(() => {
+                  if (!bookingEvent || selectedDates.length === 0) return null;
+                  const maxCap = parseMaxCapacity(bookingEvent.capacity);
+                  if (maxCap >= 99999) return null;
+
+                  for (const d of selectedDates) {
+                    const booked = dateCapacities[d] || 0;
+                    const remaining = Math.max(0, maxCap - booked);
+                    const displayD = d.split('-').reverse().join('/');
+
+                    if (remaining <= 0) {
+                      return (
+                        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-700 flex items-center gap-2 animate-fade-in">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>
+                            {locale === 'vi'
+                              ? `Ngày ${displayD} đã HẾT VÉ (Sold out). Vui lòng chọn ngày khác!`
+                              : `Date ${displayD} is SOLD OUT. Please select another date!`}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (bookingForm.guests > remaining) {
+                      return (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs font-bold text-amber-800 flex items-center gap-2 animate-fade-in">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>
+                            {locale === 'vi'
+                              ? `Ngày ${displayD} chỉ còn lại ${remaining} vé! Bạn đang nhập ${bookingForm.guests} vé.`
+                              : `Date ${displayD} only has ${remaining} tickets left! You selected ${bookingForm.guests} tickets.`}
+                          </span>
+                        </div>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
 
                 {/* Notes */}
                 <div>
@@ -1360,14 +1446,30 @@ export default function EventsPage() {
                   >
                     {t.bookingBtnCancel}
                   </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:brightness-105 text-white text-xs font-bold shadow-md"
-                  >
-                    {bookingEvent && bookingEvent.price && !bookingEvent.price.includes('Miễn phí') && !bookingEvent.price.toLowerCase().includes('free')
-                      ? (locale === 'vi' ? 'Thanh toán & Xác nhận' : 'Pay & Confirm')
-                      : t.bookingBtnConfirm}
-                  </button>
+                  {(() => {
+                    const isInvalid = selectedDates.some(d => {
+                      const maxCap = bookingEvent ? parseMaxCapacity(bookingEvent.capacity) : 99999;
+                      const booked = dateCapacities[d] || 0;
+                      const remaining = Math.max(0, maxCap - booked);
+                      return remaining <= 0 || bookingForm.guests > remaining || bookingForm.guests <= 0;
+                    });
+
+                    return (
+                      <button
+                        type="submit"
+                        disabled={isInvalid}
+                        className={`px-5 py-2 rounded-xl text-white text-xs font-bold shadow-md transition-all ${
+                          isInvalid
+                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                            : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:brightness-105'
+                        }`}
+                      >
+                        {bookingEvent && bookingEvent.price && !bookingEvent.price.includes('Miễn phí') && !bookingEvent.price.toLowerCase().includes('free')
+                          ? (locale === 'vi' ? 'Thanh toán & Xác nhận' : 'Pay & Confirm')
+                          : t.bookingBtnConfirm}
+                      </button>
+                    );
+                  })()}
                 </div>
               </form>
             )}
