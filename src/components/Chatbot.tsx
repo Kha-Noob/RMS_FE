@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Send, X, MapPin, Sparkles, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { useParams } from 'next/navigation';
 
@@ -10,9 +12,17 @@ interface Message {
   text: string;
 }
 
+const DEFAULT_GREETING: Message[] = [{
+  sender: 'assistant',
+  text: 'Xin chào! Tôi là Trợ lý AI của hệ thống nhà hàng LiteFlow. Tôi có thể giúp gì cho bạn hôm nay?'
+}];
+
 export function Chatbot() {
+  const { user, loading: authLoading } = useAuth();
   const params = useParams();
   const tenantId = params?.tenantId as string | undefined;
+
+  const storageKey = (suffix: string) => `chatbot_${suffix}_${user?.id ?? 'guest'}`;
 
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -23,39 +33,61 @@ export function Chatbot() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load state from sessionStorage on mount (avoids hydration mismatch)
+  const prevUserIdRef = useRef<string | undefined>(undefined);
+
+  // Load or Reset state when mounted or when user changes (enforces session isolation & clean state)
   useEffect(() => {
-    const savedMessages = sessionStorage.getItem('chatbot_messages');
+    // Wait until AuthContext finishes initial profile loading so we don't mistake temporary loading state for 'guest'
+    if (authLoading) return;
+
+    const currentUserId = user?.id ? String(user.id) : 'guest';
+    const isUserChanged = prevUserIdRef.current !== undefined && prevUserIdRef.current !== currentUserId;
+    prevUserIdRef.current = currentUserId;
+
+    // If user changed (e.g. Account A -> Account B or Explicit Logout/Login), purge state completely
+    if (isUserChanged) {
+      setMessages(DEFAULT_GREETING);
+      setIsOpen(false);
+      setCoords(null);
+      setLocationStatus('idle');
+      return;
+    }
+
+    const savedMessages = sessionStorage.getItem(storageKey('messages'));
     if (savedMessages) {
       try {
         setMessages(JSON.parse(savedMessages));
       } catch (e) {
-        setMessages([{ sender: 'assistant', text: 'Xin chào! Tôi là Trợ lý AI của hệ thống nhà hàng LiteFlow. Tôi có thể giúp gì cho bạn hôm nay?' }]);
+        setMessages(DEFAULT_GREETING);
       }
     } else {
-      setMessages([{ sender: 'assistant', text: 'Xin chào! Tôi là Trợ lý AI của hệ thống nhà hàng LiteFlow. Tôi có thể giúp gì cho bạn hôm nay?' }]);
+      setMessages(DEFAULT_GREETING);
     }
 
-    const savedOpen = sessionStorage.getItem('chatbot_open');
-    if (savedOpen === 'true') {
-      setIsOpen(true);
-    }
+    const savedOpen = sessionStorage.getItem(storageKey('open'));
+    setIsOpen(savedOpen === 'true');
 
-    const savedCoords = sessionStorage.getItem('chatbot_coords');
+    const savedCoords = sessionStorage.getItem(storageKey('coords'));
     if (savedCoords) {
       try {
         setCoords(JSON.parse(savedCoords));
         setLocationStatus('success');
-      } catch (e) {}
+      } catch (e) {
+        setCoords(null);
+        setLocationStatus('idle');
+      }
+    } else {
+      setCoords(null);
+      setLocationStatus('idle');
     }
-  }, []);
+  }, [user?.id, authLoading]);
 
   // Save messages to sessionStorage whenever they change
   useEffect(() => {
     if (messages.length > 0) {
-      sessionStorage.setItem('chatbot_messages', JSON.stringify(messages));
+      sessionStorage.setItem(storageKey('messages'), JSON.stringify(messages));
     }
-  }, [messages]);
+  }, [messages, user?.id]);
 
   // Auto-scroll to the bottom of the message container
   useEffect(() => {
@@ -64,7 +96,7 @@ export function Chatbot() {
 
   const handleSetOpen = (open: boolean) => {
     setIsOpen(open);
-    sessionStorage.setItem('chatbot_open', String(open));
+    sessionStorage.setItem(storageKey('open'), String(open));
   };
 
   // Request user location
@@ -84,7 +116,7 @@ export function Chatbot() {
         const { latitude, longitude } = position.coords;
         setCoords({ latitude, longitude });
         setLocationStatus('success');
-        sessionStorage.setItem('chatbot_coords', JSON.stringify({ latitude, longitude }));
+        sessionStorage.setItem(storageKey('coords'), JSON.stringify({ latitude, longitude }));
         
         setMessages(prev => [
           ...prev,
@@ -109,18 +141,38 @@ export function Chatbot() {
 
     const userMessage = inputValue.trim();
     setInputValue('');
+
+    // Capture history BEFORE appending current message to state
+    // Filter out: default greeting, GPS notifications, geolocation errors, and empty messages
+    const SYSTEM_MSG_PATTERNS = [
+      '📍',                           // GPS success notification
+      'Xin chào! Tôi là Trợ lý AI',   // Default greeting
+      'không hỗ trợ định vị',          // Browser not supported
+      'Không thể truy cập định vị',    // Geolocation permission denied
+      'Trình duyệt của bạn không hỗ trợ', // Browser fallback
+    ];
+    const historySnapshot = messages
+      .filter(m => m.text.trim().length > 0 && !SYSTEM_MSG_PATTERNS.some(p => m.text.includes(p)))
+      .slice(-6)
+      .map(m => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        text: m.text
+      }));
+
     setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
     setIsLoading(true);
 
     try {
       const response: { response: string } = await api.post('/api/public/ai/chat', {
         message: userMessage,
+        history: historySnapshot,
         latitude: coords?.latitude || null,
         longitude: coords?.longitude || null,
         tenantId: tenantId || null
       });
 
       setMessages(prev => [...prev, { sender: 'assistant', text: response.response }]);
+
     } catch (err) {
       console.error("Chatbot API error:", err);
       // Smart local fallback in case backend is offline or API key is not configured
@@ -145,13 +197,13 @@ export function Chatbot() {
       const linkText = match[1];
       const linkUrl = match[2];
       parts.push(
-        <a 
+        <Link 
           key={`link-${match.index}`} 
           href={linkUrl} 
           className="text-blue-600 hover:text-blue-800 font-bold underline transition-colors bg-blue-50 px-1.5 py-0.5 rounded"
         >
           {linkText}
-        </a>
+        </Link>
       );
       lastIndex = linkRegex.lastIndex;
     }

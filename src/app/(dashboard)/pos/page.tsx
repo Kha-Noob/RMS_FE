@@ -60,25 +60,29 @@ interface ActiveSessionResponse {
   total: number;
 }
 
-type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED';
+type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED' | 'WAITING_FOR_FOOD';
 
 const statusColor: Record<TableStatus, string> = {
   EMPTY: 'bg-green-600 hover:bg-green-500',
   OCCUPIED: 'bg-red-600 hover:bg-red-500',
   RESERVED: 'bg-yellow-600 hover:bg-yellow-500',
+  WAITING_FOR_FOOD: 'bg-amber-500 hover:bg-amber-400',
 };
 
 const statusLabel: Record<TableStatus, string> = {
   EMPTY: 'Trống',
   OCCUPIED: 'Đang dùng',
   RESERVED: 'Đặt trước',
+  WAITING_FOR_FOOD: 'Đang chờ món',
 };
 
 const statusDotColor: Record<TableStatus, string> = {
   EMPTY: 'bg-green-500',
   OCCUPIED: 'bg-red-500',
   RESERVED: 'bg-yellow-500',
+  WAITING_FOR_FOOD: 'bg-amber-400 animate-pulse',
 };
+
 
 const getVietQrBankId = (bankName: string) => {
   const name = bankName.toLowerCase().trim();
@@ -130,7 +134,9 @@ export default function POSPage() {
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER' | 'VNPAY'>('CASH');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [processing, setProcessing] = useState(false);
+
 
   // PayOS checkout states
   const [showPayOSScreen, setShowPayOSScreen] = useState(false);
@@ -161,6 +167,74 @@ export default function POSPage() {
       setBookingListLoading(false);
     }
   }, [activeBranchId]);
+
+  // KDS Orders state for table status synchronization
+  const [kdsOrders, setKdsOrders] = useState<any[]>([]);
+
+  const fetchKdsOrders = useCallback(async () => {
+    if (!activeBranchId) return;
+    try {
+      const res = await api.get<any[]>('/api/kds/orders', {
+        params: { branchId: activeBranchId }
+      });
+      setKdsOrders(res || []);
+    } catch (err) {
+      console.error("Error loading KDS orders for POS:", err);
+    }
+  }, [activeBranchId]);
+
+  const getEffectiveTableStatus = useCallback((table: TableEntity): TableStatus => {
+    if (!table) return 'EMPTY';
+    if (table.status === 'RESERVED') return 'RESERVED';
+
+    const tableKdsOrders = kdsOrders.filter(o => o.tableId === table.id);
+    if (tableKdsOrders.length > 0) {
+      let hasPendingOrCooking = false;
+      let hasReadyOrServed = false;
+
+      for (const order of tableKdsOrders) {
+        if (order.items && Array.isArray(order.items)) {
+          for (const item of order.items) {
+            const st = (item.status || '').toUpperCase();
+            if (st === 'SENT' || st === 'COOKING' || st === 'PENDING') {
+              hasPendingOrCooking = true;
+            }
+            if (st === 'READY' || st === 'SERVED') {
+              hasReadyOrServed = true;
+            }
+          }
+        }
+      }
+
+      if (hasPendingOrCooking) {
+        return 'WAITING_FOR_FOOD';
+      }
+      if (hasReadyOrServed) {
+        return 'OCCUPIED';
+      }
+    }
+
+    if (table.status === 'OCCUPIED') {
+      return 'OCCUPIED';
+    }
+
+    return 'EMPTY';
+  }, [kdsOrders]);
+
+  const handleOpenCheckout = () => {
+    if (!selectedTable) return;
+    const effStatus = getEffectiveTableStatus(selectedTable);
+    if (effStatus !== 'OCCUPIED') {
+      if (effStatus === 'WAITING_FOR_FOOD') {
+        toast.warning(`Bàn ${selectedTable.name} chưa dùng bữa (món ăn vẫn đang chờ bếp chế biến)!`);
+      } else {
+        toast.warning(`Bàn ${selectedTable.name} chưa dùng bữa (món ăn chưa chế biến xong)!`);
+      }
+      return;
+    }
+    setCheckoutOpen(true);
+  };
+
 
 
 
@@ -321,7 +395,11 @@ export default function POSPage() {
     }
   }, [activeBranchId]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { 
+    loadData(); 
+    fetchKdsOrders();
+  }, [loadData, fetchKdsOrders]);
+
 
   // Polling for POS payment status
   useEffect(() => {
@@ -517,19 +595,21 @@ export default function POSPage() {
         const text = event.data;
         if (text === 'ORDER_STATE_CHANGED' || text === 'NEW_ORDER_SUBMITTED' || text.includes('KDS_READY_ALERT')) {
           loadData();
+          fetchKdsOrders();
+
           if (selectedTable) {
             api.get('/api/pos/session/active', { params: { tableId: selectedTable.id } })
               .then(() => {
                 loadSession(selectedTable);
               })
               .catch(() => {
-                toast.success('Thanh toán thành công qua chuyển khoản!');
                 closeCheckoutModal();
                 setSession(null);
                 setCartItems([]);
                 setSelectedTable(null);
               });
           }
+
         }
       };
       
@@ -700,7 +780,9 @@ export default function POSPage() {
       await api.postForm('/api/pos/order/send', { sessionId: currentSession.id });
       await loadSession(selectedTable);
       await loadData();
+      await fetchKdsOrders();
       toast.success('Đã gửi lên bếp');
+
     } catch {
       toast.error('Gửi bếp thất bại');
     } finally {
@@ -737,9 +819,14 @@ export default function POSPage() {
         sessionId: session.id,
         amount: total,
         paymentMethod,
+        customerPhone: customerPhone.trim() || undefined,
       });
-      toast.success('Thanh toán thành công');
+      const methodLabel = paymentMethod === 'CASH' ? 'bằng tiền mặt' : 'chuyển khoản';
+      toast.success(`Thanh toán ${methodLabel} thành công!`);
       closeCheckoutModal();
+      setCustomerPhone('');
+
+
       setSession(null);
       setCartItems([]);
       setSelectedTable(null);
@@ -1057,6 +1144,7 @@ export default function POSPage() {
               {filteredTables.map(table => {
                 const isSelected = selectedTable?.id === table.id;
                 const isMergeSelected = mergeTableIds.includes(table.id);
+                const effStatus = getEffectiveTableStatus(table);
                 
                 // Determine table design status styles
                 let statusBg = '';
@@ -1064,12 +1152,18 @@ export default function POSPage() {
                 let statusBorder = '';
                 let dotColor = '';
                 
-                switch (table.status) {
+                switch (effStatus) {
                   case 'EMPTY':
                     statusBg = 'bg-emerald-50/60 hover:bg-emerald-50/80';
                     statusText = 'text-emerald-700';
                     statusBorder = 'border-emerald-200/80';
                     dotColor = 'bg-emerald-500';
+                    break;
+                  case 'WAITING_FOR_FOOD':
+                    statusBg = 'bg-amber-50/80 hover:bg-amber-100/90';
+                    statusText = 'text-amber-700 font-extrabold';
+                    statusBorder = 'border-amber-300';
+                    dotColor = 'bg-amber-500';
                     break;
                   case 'OCCUPIED':
                     statusBg = 'bg-rose-50/60 hover:bg-rose-50/80';
@@ -1078,10 +1172,10 @@ export default function POSPage() {
                     dotColor = 'bg-rose-500';
                     break;
                   case 'RESERVED':
-                    statusBg = 'bg-amber-50/60 hover:bg-amber-50/80';
-                    statusText = 'text-amber-700';
-                    statusBorder = 'border-amber-200/80';
-                    dotColor = 'bg-amber-500';
+                    statusBg = 'bg-yellow-50/60 hover:bg-yellow-50/80';
+                    statusText = 'text-yellow-700';
+                    statusBorder = 'border-yellow-200/80';
+                    dotColor = 'bg-yellow-500';
                     break;
                   default:
                     statusBg = 'bg-slate-50/60 hover:bg-slate-50/80';
@@ -1114,7 +1208,10 @@ export default function POSPage() {
                         {table.name}
                       </span>
                       <span className="flex h-2 w-2 relative">
-                        {table.status === 'OCCUPIED' && (
+                        {effStatus === 'WAITING_FOR_FOOD' && (
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        )}
+                        {effStatus === 'OCCUPIED' && (
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                         )}
                         <span className={`relative inline-flex rounded-full h-2 w-2 ${dotColor}`}></span>
@@ -1133,13 +1230,13 @@ export default function POSPage() {
                           <span className="text-xs font-semibold text-slate-700 truncate">{table.room.name}</span>
                         </div>
                       )}
-                      {table.status === 'OCCUPIED' && table.sessionOpenedAt && (
+                      {(table.status === 'OCCUPIED' || effStatus === 'WAITING_FOR_FOOD') && table.sessionOpenedAt && (
                         <div className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold mt-1">
                           <span className="opacity-60 text-[9px] uppercase font-bold tracking-wider">Mở:</span>
                           <span>{getSessionDuration(table.sessionOpenedAt)}</span>
                         </div>
                       )}
-                      {table.status === 'OCCUPIED' && table.sessionTotalAmount !== undefined && table.sessionTotalAmount !== null && table.sessionTotalAmount > 0 && (
+                      {(table.status === 'OCCUPIED' || effStatus === 'WAITING_FOR_FOOD') && table.sessionTotalAmount !== undefined && table.sessionTotalAmount !== null && table.sessionTotalAmount > 0 && (
                         <div className="flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-0.5">
                           <span className="opacity-60 text-[9px] uppercase font-bold tracking-wider">Tạm tính:</span>
                           <span>{table.sessionTotalAmount.toLocaleString('vi-VN')}đ</span>
@@ -1155,13 +1252,14 @@ export default function POSPage() {
                       <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-200/50">
                         <span className="text-[9px] uppercase font-extrabold tracking-wider opacity-70 text-slate-400">Trạng thái</span>
                         <span className={`text-[10px] font-black ${statusText}`}>
-                          {statusLabel[table.status as TableStatus] || table.status}
+                          {statusLabel[effStatus] || effStatus}
                         </span>
                       </div>
                     </div>
                   </button>
                 );
               })}
+
             </div>
           )}
         </div>
@@ -1472,12 +1570,13 @@ export default function POSPage() {
                   {cartLoading ? '...' : 'Gửi bếp'}
                 </button>
                 <button
-                  onClick={() => setCheckoutOpen(true)}
+                  onClick={handleOpenCheckout}
                   disabled={!session || cartItems.length === 0}
                   className="py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Thanh toán
                 </button>
+
               </div>
             </div>
           </>
@@ -1880,7 +1979,8 @@ export default function POSPage() {
                         await api.post(`/api/pos/session/${session.id}/complete`, null, {
                           params: { paymentMethod: 'BANK_TRANSFER' }
                         });
-                        toast.success('✅ Đã xác nhận thanh toán thành công!');
+                        toast.success('Thanh toán chuyển khoản thành công!');
+
                         closeCheckoutModal();
                         setSession(null);
                         setCartItems([]);
@@ -1923,7 +2023,21 @@ export default function POSPage() {
                   <div className="text-2xl font-bold text-emerald-600">{total.toLocaleString('vi-VN')}đ</div>
                 </div>
                 <div>
+                  <label className="text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                    <span>Số điện thoại khách hàng</span>
+                    <span className="text-[10px] text-slate-400 font-normal">(Ưu đãi, thẻ thành viên, quyền đăng bài)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="VD: 0912345678 (Tùy chọn)"
+                    className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#25439b]"
+                  />
+                </div>
+                <div>
                   <div className="text-sm text-slate-500 mb-2">Phương thức thanh toán</div>
+
                   <div className="grid grid-cols-1 gap-2">
                     {[
                       { key: 'CASH' as const, label: 'Tiền mặt', desc: 'Thanh toán bằng tiền mặt' },

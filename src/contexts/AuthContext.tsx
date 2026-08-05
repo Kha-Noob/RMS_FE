@@ -20,6 +20,27 @@ function setStoredBranchId(branchId: string | null) {
   }
 }
 
+export const clearAllChatbotStorage = () => {
+  if (typeof window === 'undefined') return;
+  try {
+    const sessionKeys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i);
+      if (k && k.startsWith('chatbot_')) sessionKeys.push(k);
+    }
+    sessionKeys.forEach(k => sessionStorage.removeItem(k));
+
+    const localKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('chatbot_')) localKeys.push(k);
+    }
+    localKeys.forEach(k => localStorage.removeItem(k));
+  } catch (e) {
+    console.error("Error clearing chatbot storage:", e);
+  }
+};
+
 interface AuthContextType {
   user: User | null;
   branches: Branch[];
@@ -153,6 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!me) {
           throw new Error('Failed to retrieve user profile');
         }
+        clearAllChatbotStorage();
         return me;
       } catch (err) {
         throw new Error(err instanceof Error ? err.message : 'Invalid credentials or Server down');
@@ -167,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: 'include',
       });
     } catch { /* ignore */ }
+    clearAllChatbotStorage();
     clearCredentials();
     setStoredBranchId(null);
     setUser(null);

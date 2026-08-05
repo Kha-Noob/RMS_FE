@@ -90,7 +90,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     endpoint === '/api/auth/login' ||
     endpoint.startsWith('/api/events/public') ||
     endpoint.startsWith('/api/floor-plans/files/');
-  if (creds && !isPublic) {
+  if (creds) {
     headers['Authorization'] = `Basic ${creds}`;
   }
 
@@ -102,11 +102,24 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   console.log("[API FETCH] URL:", url, "Body constructor:", fetchOptions.body ? fetchOptions.body.constructor.name : 'none');
   console.log("[API FETCH] Headers:", headers);
 
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     ...fetchOptions,
     credentials: 'include',
     headers,
   });
+
+  if (!res.ok) {
+    if (res.status === 401 && isPublic && headers['Authorization']) {
+      console.warn("[API] Got 401 on public endpoint with credentials, retrying without Authorization header...");
+      const publicHeaders = { ...headers };
+      delete publicHeaders['Authorization'];
+      res = await fetch(url, {
+        ...fetchOptions,
+        credentials: 'include',
+        headers: publicHeaders,
+      });
+    }
+  }
 
   if (!res.ok) {
     if (res.status === 401 && typeof window !== 'undefined') {
@@ -144,6 +157,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
     throw new ApiError(res.status, message, body);
   }
+
 
   const contentType = res.headers.get('content-type');
   if (contentType?.includes('application/json')) {

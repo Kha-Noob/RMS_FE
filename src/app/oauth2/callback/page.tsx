@@ -19,6 +19,7 @@ export default function OAuth2CallbackPage() {
     const email = searchParams.get('email');
     const credentials = searchParams.get('credentials');
     const error = searchParams.get('error');
+    const isNew = searchParams.get('isNew') === 'true';
 
     if (error) {
       processedRef.current = true;
@@ -34,7 +35,11 @@ export default function OAuth2CallbackPage() {
       refreshUser()
         .then((user) => {
           if (user) {
-            toast.success(`Chào mừng ${user.name} trở lại!`);
+            if (isNew) {
+              toast.success(`Chào mừng ${user.name} đến với LiteFlow nhé!`);
+            } else {
+              toast.success(`Chào mừng ${user.name} trở lại!`);
+            }
             // Determine where to redirect back
             const redirectUrl = localStorage.getItem('oauth_redirect') || '/booking';
             localStorage.removeItem('oauth_redirect');

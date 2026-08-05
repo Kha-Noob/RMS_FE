@@ -44,7 +44,8 @@ export interface Employee {
   branch: Branch | null;
 }
 
-export type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED' | 'SERVED';
+export type TableStatus = 'EMPTY' | 'OCCUPIED' | 'RESERVED' | 'SERVED' | 'WAITING_FOR_FOOD';
+
 
 export type TableStyle = 'ROUND' | 'SQUARE' | 'RECTANGLE' | 'VIP';
 

@@ -146,15 +146,17 @@ export default function CmsPostsPage() {
     setGeneratingAi(true);
     try {
       const res = await api.post<{ title?: string; content?: string; hashtags?: string }>('/api/admin/ai/articles/generate', { prompt: aiPrompt });
+      resetForm();
       if (res.title) setTitle(res.title);
       if (res.content) {
         const fullContent = res.content + (res.hashtags ? '\n\n' + res.hashtags : '');
         setContent(fullContent);
       }
-      toast.success('Đã tạo bài viết bằng AI thành công.');
+      toast.success('Đã tạo bài viết bằng AI thành công!');
       setAiDrawerOpen(false);
+      setModalOpen(true);
     } catch (err: any) {
-      toast.error('AI viết bài thất bại: ' + err.message);
+      toast.error('AI viết bài thất bại: ' + (err.message || 'Lỗi hệ thống'));
     } finally {
       setGeneratingAi(false);
     }

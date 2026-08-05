@@ -31,8 +31,10 @@ import {
   Send,
   Flag,
   Upload,
-  Trash2
+  Trash2,
+  Building2
 } from 'lucide-react';
+
 
 interface District {
   name: string;
@@ -81,13 +83,41 @@ export default function ForumFeedPage() {
   const [content, setContent] = useState('');
   const [rating, setRating] = useState(5);
   const [tableCheckIn, setTableCheckIn] = useState('');
-  const [selectedCreateBranchId, setSelectedCreateBranchId] = useState('b1');
+  const [selectedCreateBranchId, setSelectedCreateBranchId] = useState('');
   const [branchesList, setBranchesList] = useState<any[]>([]);
+  const [userPaidHistory, setUserPaidHistory] = useState<{
+    hasPaid: boolean;
+    branches: Array<{
+      branchId: string;
+      branchName: string;
+      tables: Array<{ tableId: number; tableName: string }>;
+    }>;
+  }>({ hasPaid: false, branches: [] });
+  const [userPaidLoading, setUserPaidLoading] = useState(false);
+  const [userPaidDishes, setUserPaidDishes] = useState<any[]>([]);
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
+
+
   const [productsList, setProductsList] = useState<any[]>([]);
   const [taggedProducts, setTaggedProducts] = useState<any[]>([]);
   const [searchProductQuery, setSearchProductQuery] = useState('');
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+
+
+  const isAdminOrCooperator = useMemo(() => {
+    if (!user) return false;
+    const role = ((user as any).role || '').toUpperCase();
+    if (role === 'ADMIN' || role === 'COOPERATOR' || role === 'MANAGER') return true;
+    if (Array.isArray((user as any).roles)) {
+      return (user as any).roles.some((r: any) => {
+        const rName = typeof r === 'string' ? r.toUpperCase() : (r?.name ? r.name.toUpperCase() : '');
+        return rName.includes('ADMIN') || rName.includes('COOPERATOR') || rName.includes('MANAGER');
+      });
+    }
+    return false;
+  }, [user]);
+
 
   // --- Comment list by Post ID ---
   const [commentsByPost, setCommentsByPost] = useState<Record<number, any[]>>({});
@@ -432,13 +462,11 @@ export default function ForumFeedPage() {
     api.get<any[]>('/api/public/branches')
       .then(list => {
         setBranchesList(list);
-        if (list && list.length > 0) {
-          setSelectedCreateBranchId(list[0].branchId);
-        }
       })
       .catch(err => console.error("Error loading branches:", err));
 
     // Fetch leaderboard list
+
     api.get<any[]>('/api/public/feed/leaderboard')
       .then(setLeaderboardList)
       .catch(err => console.error("Error loading leaderboard:", err));
@@ -501,6 +529,89 @@ export default function ForumFeedPage() {
   }, [activeCommentPostId, locale]);
 
   useEffect(() => {
+    if (user) {
+      setUserPaidLoading(true);
+      api.get<any>('/api/public/feed/user-paid-history', {
+        params: { phone: user.phone || undefined }
+      })
+        .then(res => {
+          if (res) {
+            setUserPaidHistory(res);
+            if (res.branches && res.branches.length > 0) {
+              const firstB = res.branches[0];
+              setSelectedCreateBranchId(firstB.branchId);
+              if (firstB.tables && firstB.tables.length > 0) {
+                setTableCheckIn(firstB.tables[0].tableName);
+              } else {
+                setTableCheckIn('');
+              }
+            } else {
+              setSelectedCreateBranchId('');
+              setTableCheckIn('');
+            }
+          }
+        })
+        .catch(err => console.error("Error loading user paid history:", err))
+        .finally(() => setUserPaidLoading(false));
+
+      api.get<any[]>('/api/public/feed/user-paid-dishes', {
+        params: { phone: user.phone || undefined }
+      })
+        .then(dishes => {
+          if (dishes) {
+            setUserPaidDishes(dishes);
+          }
+        })
+        .catch(err => console.error("Error loading user paid dishes:", err));
+    } else {
+      setUserPaidHistory({ hasPaid: false, branches: [] });
+      setUserPaidDishes([]);
+      setSelectedCreateBranchId('');
+      setTableCheckIn('');
+    }
+  }, [user]);
+
+  const availableDishesList = useMemo(() => {
+    if (!searchProductQuery.trim()) return userPaidDishes;
+    const q = searchProductQuery.toLowerCase();
+    return userPaidDishes.filter(p => p.name && p.name.toLowerCase().includes(q));
+  }, [userPaidDishes, searchProductQuery]);
+
+
+
+  const availableTablesForSelectedBranch = useMemo(() => {
+    const currentBranch = userPaidHistory.branches.find(b => b.branchId === selectedCreateBranchId);
+    return currentBranch ? currentBranch.tables : [];
+  }, [userPaidHistory, selectedCreateBranchId]);
+
+  const handleBranchChange = (branchId: string) => {
+    setSelectedCreateBranchId(branchId);
+    const foundBranch = userPaidHistory.branches.find(b => b.branchId === branchId);
+    if (foundBranch && foundBranch.tables && foundBranch.tables.length > 0) {
+      setTableCheckIn(foundBranch.tables[0].tableName);
+    } else {
+      setTableCheckIn('');
+    }
+  };
+
+  const handleBranchDropdownClick = () => {
+    if (!userPaidHistory.hasPaid || userPaidHistory.branches.length === 0) {
+      toast.error(locale === 'vi' 
+        ? 'Chưa có quyền đăng bài, hãy đến nhà hàng và trải nghiệm nhé' 
+        : 'You are not authorized to post yet. Please visit the restaurant and enjoy our service!');
+    }
+  };
+
+  const handleTableDropdownClick = () => {
+    if (!userPaidHistory.hasPaid || userPaidHistory.branches.length === 0 || availableTablesForSelectedBranch.length === 0) {
+      toast.error(locale === 'vi' 
+        ? 'Chưa có quyền đăng bài, hãy đến nhà hàng và trải nghiệm nhé' 
+        : 'You are not authorized to post yet. Please visit the restaurant and enjoy our service!');
+    }
+  };
+
+  useEffect(() => {
+
     if (selectedCreateBranchId) {
       api.get<any[]>(`/api/public/branches/${selectedCreateBranchId}/menu`)
         .then(setProductsList)
@@ -592,35 +703,60 @@ export default function ForumFeedPage() {
       }
       setMediaUrls(prev => [...prev, ...uploadedUrls]);
       toast.success(locale === 'vi' ? 'Tải tệp tin thành công!' : 'Files uploaded successfully!');
-    } catch (err) {
-      toast.error(locale === 'vi' ? 'Upload file thất bại.' : 'File upload failed.');
+    } catch (err: any) {
+      const errMsg = err instanceof Error ? err.message : (typeof err === 'string' ? err : (err?.message || (locale === 'vi' ? 'Upload file thất bại.' : 'File upload failed.')));
+      toast.error(errMsg);
     } finally {
       setUploadingFiles(false);
     }
+
   };
 
   const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!content.trim()) {
       toast.error(locale === 'vi' ? 'Vui lòng điền nội dung review.' : 'Please write post content.');
       return;
     }
+
     if (content.length > 2000) {
       toast.error(locale === 'vi' ? 'Nội dung tối đa 2000 ký tự.' : 'Content exceeds 2000 characters.');
       return;
     }
 
     try {
+      // Auto fallback to first branch & table from user paid history if state is empty
+      let targetBranchId = selectedCreateBranchId;
+      let targetTableCheckIn = tableCheckIn;
+
+      if (userPaidHistory.branches && userPaidHistory.branches.length > 0) {
+        if (!targetBranchId) {
+          targetBranchId = userPaidHistory.branches[0].branchId;
+        }
+        const foundBranch = userPaidHistory.branches.find(b => b.branchId === targetBranchId) || userPaidHistory.branches[0];
+        if (!targetTableCheckIn && foundBranch.tables && foundBranch.tables.length > 0) {
+          targetTableCheckIn = foundBranch.tables[0].tableName;
+        }
+      }
+
+      const curBranch = userPaidHistory.branches.find(b => b.branchId === targetBranchId) || userPaidHistory.branches[0];
+      const curTable = curBranch?.tables.find(t => t.tableName === targetTableCheckIn) || curBranch?.tables?.[0];
+      const tableSessionId = (curTable as any)?.sessionId || null;
+
       const payload = {
         content,
         rating,
-        tableCheckIn: tableCheckIn || null,
-        branchId: selectedCreateBranchId,
+        tableCheckIn: targetTableCheckIn || (curTable ? curTable.tableName : null),
+        branchId: targetBranchId || (curBranch ? curBranch.branchId : null),
+        tableSessionId,
         mediaUrls: mediaUrls.join(';'),
         taggedProductIds: taggedProducts.map(p => p.id)
       };
 
       const res = await api.post<any>('/api/public/feed/posts', payload);
+
+
       
       if (res.status === 'PENDING_MODERATION') {
         toast.warning(locale === 'vi' 
@@ -748,11 +884,42 @@ export default function ForumFeedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-blue-105 selection:text-blue-900 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-x-hidden">
+
       
       <Header />
 
-      <section id="review-feed-section" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 mt-4">
+      {/* Brand Hero Banner */}
+      <section className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white relative overflow-hidden border-b border-blue-500/30 shadow-sm">
+        <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8 relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="space-y-2 text-center md:text-left">
+            <div className="inline-flex items-center gap-2 bg-white/15 text-white border border-white/25 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm">
+              <span>🌟 {locale === 'vi' ? 'Cộng đồng Review Ẩm thực RMS' : 'RMS Culinary Review Community'}</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+              {locale === 'vi' ? 'Khám phá & Chia sẻ Trải nghiệm Ẩm thực' : 'Explore & Share Dining Experiences'}
+            </h1>
+            <p className="text-xs text-blue-100 max-w-xl leading-relaxed">
+              {locale === 'vi' 
+                ? 'Đọc đánh giá thực tế từ khách hàng tại hệ thống RMS. Đăng bài viết chất lượng để tích lũy điểm thưởng đổi voucher ưu đãi.' 
+                : 'Read authentic reviews from customers at RMS. Share your quality dining experiences to earn reward points.'}
+            </p>
+          </div>
+          
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="bg-white/15 backdrop-blur-md border border-white/20 p-3 rounded-2xl text-center min-w-[95px]">
+              <div className="text-lg font-black text-amber-300">{posts.length > 0 ? `${posts.length}+` : '50+'}</div>
+              <div className="text-[10px] text-blue-100 font-medium">{locale === 'vi' ? 'Đánh giá' : 'Reviews'}</div>
+            </div>
+            <div className="bg-white/15 backdrop-blur-md border border-white/20 p-3 rounded-2xl text-center min-w-[95px]">
+              <div className="text-lg font-black text-white">100%</div>
+              <div className="text-[10px] text-blue-100 font-medium">{locale === 'vi' ? 'Xác thực hoá đơn' : 'Verified Bills'}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="review-feed-section" className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         
         {/* Search bar inside the feed */}
         <div className="mb-6 max-w-3xl mx-auto relative">
@@ -762,7 +929,7 @@ export default function ForumFeedPage() {
             placeholder={t.feedSearchPlaceholder}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white text-slate-700 placeholder-slate-400 shadow-sm transition-all"
+            className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white text-slate-800 placeholder-slate-400 shadow-sm transition-all"
           />
         </div>
 
@@ -771,209 +938,286 @@ export default function ForumFeedPage() {
           {/* A. LEFT SIDEBAR (Span 3) */}
           <aside className="lg:col-span-3 space-y-6">
             
-            <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
-                <MapPin className="h-4 w-4 text-blue-500" />
-                <h3 className="font-bold text-slate-800 text-sm">{t.sidebarDistTitle}</h3>
+            {/* Trending Districts Widget */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+              <div className="bg-white border-b border-slate-100 p-3.5 px-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-blue-600" />
+                  <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">{t.sidebarDistTitle}</h3>
+                </div>
+                <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-0.5 rounded-full font-bold">
+                  {districts.length} {locale === 'vi' ? 'khu vực' : 'districts'}
+                </span>
               </div>
-              <ul className="space-y-3">
-                {districts.map((d, index) => (
-                  <li key={index}>
-                    <button
-                      onClick={() => {
-                        if (selectedDistricts.includes(d.name)) {
-                          setSelectedDistricts(selectedDistricts.filter(x => x !== d.name));
-                          toast.info(locale === 'vi' ? `Hủy lọc: ${translateDistrict(d.name)}` : `Removed filter: ${translateDistrict(d.name)}`);
-                        } else {
-                          setSelectedDistricts([...selectedDistricts, d.name]);
-                          toast.info(`${t.toastDistrictFilter} ${translateDistrict(d.name)}`);
-                        }
-                      }}
-                      className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl transition ${selectedDistricts.includes(d.name) ? 'bg-blue-50 text-blue-700 font-bold border border-blue-100' : 'text-slate-600 hover:bg-slate-50'}`}
-                    >
-                      <span className="flex items-center gap-2 text-left">
-                        <span className="text-[10px] bg-slate-100 text-slate-500 rounded-md h-5 w-5 flex items-center justify-center font-bold">
-                          {index + 1}
-                        </span>
-                        {translateDistrict(d.name)}
-                      </span>
-                      <span className="text-slate-400 text-[10px] font-medium bg-slate-100/50 px-2 py-0.5 rounded-full shrink-0">
-                        {d.postCount} {t.postCountText}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="p-4">
+                <ul className="space-y-2">
+                  {districts.map((d, index) => {
+                    const isSelected = selectedDistricts.includes(d.name);
+                    return (
+                      <li key={index}>
+                        <button
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedDistricts(selectedDistricts.filter(x => x !== d.name));
+                              toast.info(locale === 'vi' ? `Hủy lọc: ${translateDistrict(d.name)}` : `Removed filter: ${translateDistrict(d.name)}`);
+                            } else {
+                              setSelectedDistricts([...selectedDistricts, d.name]);
+                              toast.info(`${t.toastDistrictFilter} ${translateDistrict(d.name)}`);
+                            }
+                          }}
+                          className={`w-full flex items-center justify-between text-xs px-3 py-2 rounded-xl transition-all ${
+                            isSelected 
+                              ? 'bg-blue-600 text-white font-bold shadow-sm' 
+                              : 'text-slate-700 bg-slate-50/80 hover:bg-blue-50/70 hover:text-blue-700 border border-slate-100'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2 text-left">
+                            <span className={`text-[10px] rounded-md h-5 w-5 flex items-center justify-center font-bold ${
+                              isSelected ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'
+                            }`}>
+                              {index + 1}
+                            </span>
+                            {translateDistrict(d.name)}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-slate-200/60 text-slate-600'
+                          }`}>
+                            {d.postCount} {t.postCountText}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             </div>
 
-            <div id="events-widget" className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm scroll-mt-20">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50 justify-between">
+            {/* Culinary Events Widget */}
+            <div id="events-widget" className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden scroll-mt-20">
+              <div className="bg-white border-b border-slate-100 p-3.5 px-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Calendar className="h-4.5 w-4.5 text-blue-500" />
-                  <h3 className="font-bold text-slate-800 text-sm">{t.sidebarEventTitle}</h3>
+                  <Calendar className="h-4 w-4 text-blue-600" />
+                  <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">{t.sidebarEventTitle}</h3>
                 </div>
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
               </div>
-              <div className="space-y-4">
+              
+              <div className="p-4 space-y-3.5">
                 {translatedEvents.map((evt) => (
                   <Link href={`/events?id=${evt.id}`} key={evt.id} className="group block relative rounded-xl border border-slate-100 overflow-hidden bg-slate-50/50 hover:bg-white hover:border-blue-100 transition-all duration-300">
-                    <div className="h-24 w-full relative">
+                    <div className="h-28 w-full relative overflow-hidden">
                       <img src={evt.imageUrl} alt={evt.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                      <span className="absolute top-2 left-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                      <span className="absolute top-2.5 left-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
                         {evt.tag}
                       </span>
                     </div>
-                    <div className="p-3 space-y-1.5">
+                    <div className="p-3 space-y-1 bg-white">
                       <h4 className="text-xs font-bold text-slate-800 line-clamp-1 group-hover:text-blue-600 transition-colors">
                         {evt.title}
                       </h4>
-                      <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                      <p className="text-[10px] font-medium text-slate-500 flex items-center gap-1.5">
                         <Clock className="h-3 w-3 text-blue-400" />
                         {evt.date} {evt.time && `| ${evt.time}`}
                       </p>
-                      <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                      <p className="text-[10px] font-medium text-slate-500 flex items-center gap-1.5">
                         <MapPin className="h-3 w-3 text-blue-400" />
                         {evt.location}
                       </p>
                     </div>
                   </Link>
                 ))}
+
+                <Link 
+                  href="/events"
+                  className="w-full mt-2 py-2 text-center text-xs font-bold text-blue-600 hover:text-blue-700 transition flex items-center justify-center gap-1"
+                >
+                  {t.sidebarEventBtnViewAll} <ChevronRight className="h-3.5 w-3.5" />
+                </Link>
               </div>
-              <Link 
-                href="/events"
-                className="w-full mt-4 text-center text-xs font-semibold text-blue-600 hover:text-blue-700 transition flex items-center justify-center gap-1"
-              >
-                {t.sidebarEventBtnViewAll} <ChevronRight className="h-3 w-3" />
-              </Link>
             </div>
           </aside>
+
+
+          {/* B. MIDDLE COLUMN */}
+
+
+
 
           {/* B. MIDDLE COLUMN */}
           <main className="lg:col-span-6 space-y-6">
             
-            {/* Create Post Card */}
-            {user ? (
-              <form onSubmit={handleCreatePost} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
+            {/* Create Post Card (Hidden for ADMIN / COOPERATOR) */}
+            {user && !isAdminOrCooperator ? (
+              <form onSubmit={handleCreatePost} className="bg-white rounded-2xl border-2 border-blue-600/40 p-5 sm:p-6 shadow-md shadow-blue-900/5 space-y-4">
+                {/* User Header Info */}
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-blue-650 text-white flex items-center justify-center text-sm font-black shadow-inner">
+
+                  <div className="h-11 w-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-base flex items-center justify-center shadow-md shadow-blue-600/20 border-2 border-white ring-2 ring-blue-100 shrink-0">
                     {user.name.charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-slate-800">{user.name}</h4>
-                    <p className="text-[9px] text-slate-400 font-medium">{locale === 'vi' ? 'Đăng bài chất lượng để tích lũy 50 điểm thưởng!' : 'Share a quality review to earn 50 points!'}</p>
+                  <div className="space-y-0.5">
+                    <h4 className="font-extrabold text-sm text-slate-900">{user.name}</h4>
+                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200/90 text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-2xs">
+                      🎁 {locale === 'vi' ? 'Đăng bài chất lượng để tích lũy 50 điểm thưởng!' : 'Share quality review for 50 reward points!'}
+                    </span>
                   </div>
                 </div>
 
-                <textarea
-                  rows={3}
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder={locale === 'vi' ? 'Hãy chia sẻ trải nghiệm ẩm thực của bạn tại đây... (Tối thiểu 50 ký tự kèm hình ảnh để nhận điểm thưởng)' : 'Share your dining experience here... (Min 50 chars with media to earn points)'}
-                  className="w-full p-3.5 text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none"
-                />
+                {/* Content Textarea Block */}
+                <div className="relative rounded-2xl bg-slate-50/80 border-2 border-slate-200/90 focus-within:border-blue-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-500/10 transition-all shadow-inner">
+                  <textarea
+                    rows={3}
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder={locale === 'vi' ? 'Hãy chia sẻ trải nghiệm ẩm thực của bạn tại đây... (Tối thiểu 50 ký tự kèm hình ảnh để nhận điểm thưởng)' : 'Share your dining experience here... (Min 50 chars with media to earn points)'}
+                    className="w-full p-3.5 text-xs text-slate-800 bg-transparent outline-none transition-all resize-none placeholder-slate-400 font-medium"
+                  />
+                </div>
 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  {/* Branch Selector */}
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Chọn chi nhánh:' : 'Select branch:'}</label>
-                    <select
-                      value={selectedCreateBranchId}
-                      onChange={(e) => setSelectedCreateBranchId(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
-                    >
-                      {branchesList.map(b => (
-                        <option key={b.branchId} value={b.branchId}>{b.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                {/* Structured Options Block (Branch, Table, Star Rating) */}
+                <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Branch Selector */}
+                    <div className="flex-1">
+                      <label className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-700 mb-1.5">
+                        <Building2 className="h-3.5 w-3.5 text-blue-600" />
+                        <span>{locale === 'vi' ? 'Chọn chi nhánh:' : 'Select branch:'}</span>
+                      </label>
+                      <select
+                        value={selectedCreateBranchId}
+                        onClick={handleBranchDropdownClick}
+                        onChange={(e) => handleBranchChange(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-white border-2 border-slate-200/80 rounded-xl text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-xs cursor-pointer transition-all"
+                      >
+                        {userPaidHistory.branches.length > 0 ? (
+                          userPaidHistory.branches.map(b => (
+                            <option key={b.branchId} value={b.branchId}>{b.branchName}</option>
+                          ))
+                        ) : (
+                          <option value="">{locale === 'vi' ? '-- Chưa có chi nhánh đã ăn --' : '-- No visited branches --'}</option>
+                        )}
+                      </select>
+                    </div>
 
-                  {/* Table Check-In */}
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Vị trí bàn ăn:' : 'Table check-in:'}</label>
-                    <input
-                      type="text"
-                      placeholder="E.g. Bàn 12 - Tầng 2"
-                      value={tableCheckIn}
-                      onChange={(e) => setTableCheckIn(e.target.value)}
-                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
-                    />
-                  </div>
+                    {/* Table Check-In */}
+                    <div className="flex-1">
+                      <label className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-700 mb-1.5">
+                        <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                        <span>{locale === 'vi' ? 'Vị trí bàn ăn:' : 'Table check-in:'}</span>
+                      </label>
+                      <select
+                        value={tableCheckIn}
+                        onClick={handleTableDropdownClick}
+                        onChange={(e) => setTableCheckIn(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-white border-2 border-slate-200/80 rounded-xl text-slate-800 font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-xs cursor-pointer transition-all"
+                      >
+                        {availableTablesForSelectedBranch.length > 0 ? (
+                          availableTablesForSelectedBranch.map(t => (
+                            <option key={t.tableId} value={t.tableName}>{t.tableName}</option>
+                          ))
+                        ) : (
+                          <option value="">{locale === 'vi' ? '-- Chưa có bàn --' : '-- No tables --'}</option>
+                        )}
+                      </select>
+                    </div>
 
-                  {/* Stars Rating Selector */}
-                  <div className="w-full sm:w-auto">
-                    <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Đánh giá:' : 'Rating:'}</label>
-                    <div className="flex items-center gap-1.5 h-[34px]">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          key={star}
-                          type="button"
-                          onClick={() => setRating(star)}
-                          className="focus:outline-none"
-                        >
-                          <Star className={`h-5 w-5 ${star <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
-                        </button>
-                      ))}
+                    {/* Stars Rating Selector */}
+                    <div className="w-full sm:w-auto">
+                      <label className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-700 mb-1.5">
+                        <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                        <span>{locale === 'vi' ? 'Đánh giá:' : 'Rating:'}</span>
+                      </label>
+                      <div className="flex items-center gap-1 bg-white border-2 border-amber-200/90 px-3.5 py-1.5 rounded-xl shadow-xs">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setRating(star)}
+                            className="focus:outline-none transform hover:scale-110 transition-transform"
+                          >
+                            <Star className={`h-5 w-5 ${star <= rating ? 'text-amber-400 fill-amber-400 drop-shadow-xs' : 'text-slate-200'}`} />
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Tag Menu Product search */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 mb-1">{locale === 'vi' ? 'Gắn thẻ món ăn từ menu:' : 'Tag menu items:'}</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder={locale === 'vi' ? 'Nhập để tìm món ăn...' : 'Type to search dishes...'}
-                      value={searchProductQuery}
-                      onChange={(e) => setSearchProductQuery(e.target.value)}
-                      className="w-full px-2.5 py-1.5 pl-8 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none"
-                    />
-                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-                    
-                    {searchProductQuery && (
-                      <div className="absolute left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white border border-slate-100 rounded-lg shadow-lg z-20 text-xs">
-                        {productsList
-                          .filter(p => p.name.toLowerCase().includes(searchProductQuery.toLowerCase()))
-                          .map(p => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => {
-                                if (!taggedProducts.find(x => x.id === p.id)) {
-                                  setTaggedProducts([...taggedProducts, p]);
-                                }
-                                setSearchProductQuery('');
-                              }}
-                              className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700 flex justify-between items-center animate-fade-in"
-                            >
-                              <span>{p.name}</span>
-                              <span className="text-[10px] text-slate-400 font-bold">{p.price?.toLocaleString()}đ</span>
+                  {/* Tag Menu Product search */}
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[11px] font-extrabold text-slate-700 mb-1.5">
+                      <Utensils className="h-3.5 w-3.5 text-blue-600" />
+                      <span>{locale === 'vi' ? 'Gắn thẻ món ăn từ menu:' : 'Tag menu items:'}</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder={locale === 'vi' ? 'Nhấp để xem món đã ăn / Nhập để tìm...' : 'Click to see eaten dishes / Type to search...'}
+                        value={searchProductQuery}
+                        onFocus={() => setIsProductDropdownOpen(true)}
+                        onClick={() => setIsProductDropdownOpen(true)}
+                        onChange={(e) => {
+                          setSearchProductQuery(e.target.value);
+                          setIsProductDropdownOpen(true);
+                        }}
+                        className="w-full px-3 py-2 pl-9 text-xs bg-white border-2 border-slate-200/80 rounded-xl text-slate-800 font-medium focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-xs"
+                      />
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      
+                      {isProductDropdownOpen && (
+                        <div className="absolute left-0 right-0 mt-1.5 max-h-48 overflow-y-auto bg-white border-2 border-slate-200 rounded-2xl shadow-xl z-30 text-xs p-1.5">
+                          <div className="px-2 py-1.5 flex items-center justify-between text-[10px] font-extrabold text-slate-500 border-b border-slate-100 mb-1">
+                            <span>{locale === 'vi' ? 'Món ăn trong hóa đơn đã thanh toán của bạn' : 'Dishes from your paid bills'}</span>
+                            <button type="button" onClick={() => setIsProductDropdownOpen(false)} className="hover:text-slate-700 font-bold">✕</button>
+                          </div>
+                          {availableDishesList.length > 0 ? (
+                            availableDishesList.map(p => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  if (!taggedProducts.find(x => x.id === p.id)) {
+                                    setTaggedProducts([...taggedProducts, p]);
+                                  }
+                                  setSearchProductQuery('');
+                                  setIsProductDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 rounded-xl text-slate-800 flex justify-between items-center transition-colors"
+                              >
+                                <span className="font-bold">{p.name}</span>
+                                <span className="text-[10px] text-blue-600 font-extrabold">{p.price ? `${p.price.toLocaleString()}đ` : ''}</span>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="px-3 py-3 text-center text-slate-400 text-xs">
+                              {locale === 'vi' ? 'Chưa có món ăn trong hóa đơn đã thanh toán của bạn' : 'No dishes found in your paid invoices'}
+                            </div>
+                          )}
+
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Display Tagged Badges */}
+                    {taggedProducts.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {taggedProducts.map(p => (
+                          <span key={p.id} className="inline-flex items-center gap-1.5 text-[10px] font-bold bg-blue-100/80 text-blue-800 border border-blue-200 px-3 py-1 rounded-full shadow-2xs">
+                            🍽️ {p.name}
+                            <button type="button" onClick={() => setTaggedProducts(taggedProducts.filter(x => x.id !== p.id))}>
+                              <X className="h-3 w-3 text-blue-500 hover:text-rose-600 transition" />
                             </button>
-                          ))}
+                          </span>
+                        ))}
                       </div>
                     )}
                   </div>
-
-                  {/* Display Tagged Badges */}
-                  {taggedProducts.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {taggedProducts.map(p => (
-                        <span key={p.id} className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
-                          🏷️ {p.name}
-                          <button type="button" onClick={() => setTaggedProducts(taggedProducts.filter(x => x.id !== p.id))}>
-                            <X className="h-3 w-3 text-blue-400 hover:text-blue-600" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
-                {/* Media Uploader & Preview */}
-                <div className="flex items-center justify-between border-t border-slate-50 pt-3">
+                {/* Media Uploader & Submit Actions */}
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3.5">
                   <div className="flex items-center gap-4">
-                    <label className="cursor-pointer inline-flex items-center gap-1.5 text-slate-500 hover:text-blue-600 text-xs font-bold transition">
-                      <ImageIcon className="h-4 w-4 text-slate-400" />
+                    <label className="cursor-pointer inline-flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700 border-2 border-blue-200/90 px-4 py-2 rounded-xl text-xs font-bold transition shadow-xs">
+                      <ImageIcon className="h-4 w-4 text-blue-600" />
                       <span>{locale === 'vi' ? 'Thêm ảnh/video' : 'Attach photo/video'}</span>
                       <input
                         type="file"
@@ -984,18 +1228,18 @@ export default function ForumFeedPage() {
                       />
                     </label>
                     {uploadingFiles && (
-                      <span className="text-[10px] text-slate-400 animate-pulse">{locale === 'vi' ? 'Đang tải file...' : 'Uploading files...'}</span>
+                      <span className="text-[10px] text-blue-600 font-bold animate-pulse">{locale === 'vi' ? 'Đang tải file...' : 'Uploading files...'}</span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className="text-[10px] text-slate-400">{content.length}/2000</span>
+                    <span className="text-[10px] text-slate-400 font-bold">{content.length}/2000</span>
                     <button
                       type="submit"
                       disabled={uploadingFiles}
-                      className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-xl text-xs font-extrabold shadow-sm transition inline-flex items-center gap-1"
+                      className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-black shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 active:scale-95 transition-all inline-flex items-center gap-2"
                     >
-                      <Send className="h-3 w-3" />
+                      <Send className="h-3.5 w-3.5" />
                       <span>{locale === 'vi' ? 'Đăng' : 'Post'}</span>
                     </button>
                   </div>
@@ -1003,9 +1247,9 @@ export default function ForumFeedPage() {
 
                 {/* Media Preview Thumbnails */}
                 {mediaUrls.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50">
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
                     {mediaUrls.map((url, idx) => (
-                      <div key={idx} className="relative h-14 w-20 rounded-lg overflow-hidden border border-slate-100 bg-slate-50 shadow-sm shrink-0">
+                      <div key={idx} className="relative h-16 w-24 rounded-xl overflow-hidden border-2 border-blue-200 bg-slate-50 shadow-sm shrink-0">
                         {url.toLowerCase().endsWith('.mp4') ? (
                           <video src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`} className="w-full h-full object-cover" muted />
                         ) : (
@@ -1014,7 +1258,7 @@ export default function ForumFeedPage() {
                         <button
                           type="button"
                           onClick={() => setMediaUrls(mediaUrls.filter(x => x !== url))}
-                          className="absolute top-1 right-1 bg-black/60 hover:bg-black text-white p-0.5 rounded-full transition"
+                          className="absolute top-1 right-1 bg-black/70 hover:bg-rose-600 text-white p-1 rounded-full transition shadow-sm"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -1023,7 +1267,8 @@ export default function ForumFeedPage() {
                   </div>
                 )}
               </form>
-            ) : (
+
+            ) : !user ? (
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 text-center space-y-3">
                 <div className="text-2xl">✨</div>
                 <h3 className="font-extrabold text-slate-800 text-sm">
@@ -1043,13 +1288,14 @@ export default function ForumFeedPage() {
                   </Link>
                 </div>
               </div>
-            )}
+            ) : null}
+
 
             {/* Feed Header */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="bg-slate-900 text-white rounded-2xl border border-slate-800 p-4 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <span className="text-lg">💬</span>
-                <h2 className="font-extrabold text-slate-800 text-base">{t.feedHeading}</h2>
+                <span className="text-xl">💬</span>
+                <h2 className="font-extrabold text-white text-base tracking-tight">{t.feedHeading}</h2>
                  {(activeHashtagFilters.length > 0 || selectedDistricts.length > 0) && (
                   <button 
                     onClick={() => {
@@ -1057,19 +1303,19 @@ export default function ForumFeedPage() {
                       setSelectedDistricts([]);
                       toast.info(locale === 'vi' ? 'Đã thiết lập lại bộ lọc' : 'Filters reset successfully');
                     }}
-                    className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-100 hover:bg-blue-100 transition"
+                    className="text-[10px] bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full border border-slate-700 hover:bg-slate-700 transition font-medium"
                   >
                     {t.toastFilterResetMsg}
                   </button>
                 )}
               </div>
-              <div className="flex bg-slate-100 p-1 rounded-xl w-full sm:w-auto">
+              <div className="flex bg-slate-800 p-1 rounded-xl w-full sm:w-auto border border-slate-700">
                 <button
                   onClick={() => {
                     setActiveReviewTab('latest');
                     toast.info(t.toastFeedLatest);
                   }}
-                  className={`flex-1 sm:flex-none text-xs font-semibold px-4 py-1.5 rounded-lg transition ${activeReviewTab === 'latest' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  className={`flex-1 sm:flex-none text-xs font-bold px-4 py-1.5 rounded-lg transition-all ${activeReviewTab === 'latest' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                   {t.feedTabLatest}
                 </button>
@@ -1078,7 +1324,7 @@ export default function ForumFeedPage() {
                     setActiveReviewTab('popular');
                     toast.info(t.toastFeedPopular);
                   }}
-                  className={`flex-1 sm:flex-none text-xs font-semibold px-4 py-1.5 rounded-lg transition ${activeReviewTab === 'popular' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  className={`flex-1 sm:flex-none text-xs font-bold px-4 py-1.5 rounded-lg transition-all ${activeReviewTab === 'popular' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                   {t.feedTabPopular}
                 </button>
@@ -1086,48 +1332,51 @@ export default function ForumFeedPage() {
             </div>
 
             {/* STAR FILTER MATRIX */}
-            <div className="flex flex-wrap gap-1.5 p-1.5 bg-slate-100/50 rounded-2xl border border-slate-200/50">
-              {['Tất cả', '5 sao', '4 sao', '3 sao', '2 sao', '1 sao', 'Có ảnh/video'].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => {
-                    setActiveStarFilter(filter);
-                    toast.info(locale === 'vi' ? `Lọc theo: ${filter}` : `Filtered by: ${filter}`);
-                  }}
-                  className={`text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-all ${
-                    activeStarFilter === filter
-                      ? 'bg-slate-800 text-white shadow-sm'
-                      : 'bg-white text-slate-500 hover:text-slate-800 border border-slate-100 hover:border-slate-200'
-                  }`}
-                >
-                  {filter === 'Tất cả' && (locale === 'vi' ? '🌟 Tất cả' : '🌟 All')}
-                  {filter === 'Có ảnh/video' && (locale === 'vi' ? '🖼️ Có ảnh/video' : '🖼️ Media Only')}
-                  {filter !== 'Tất cả' && filter !== 'Có ảnh/video' && `⭐ ${filter}`}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2 p-2 bg-white rounded-2xl border border-slate-200/90 shadow-sm">
+              {['Tất cả', '5 sao', '4 sao', '3 sao', '2 sao', '1 sao', 'Có ảnh/video'].map((filter) => {
+                const isSelected = activeStarFilter === filter;
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => {
+                      setActiveStarFilter(filter);
+                      toast.info(locale === 'vi' ? `Lọc theo: ${filter}` : `Filtered by: ${filter}`);
+                    }}
+                    className={`text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all ${
+                      isSelected
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/70'
+                    }`}
+                  >
+                    {filter === 'Tất cả' && (locale === 'vi' ? '🌟 Tất cả' : '🌟 All')}
+                    {filter === 'Có ảnh/video' && (locale === 'vi' ? '🖼️ Có ảnh/video' : '🖼️ Media Only')}
+                    {filter !== 'Tất cả' && filter !== 'Có ảnh/video' && `⭐ ${filter}`}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Posts Feed */}
             {loading && posts.length === 0 ? (
               <div className="space-y-4">
                 {[1, 2].map(n => (
-                  <div key={n} className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 animate-pulse">
+                  <div key={n} className="bg-white rounded-2xl border border-slate-200/90 p-5 space-y-4 animate-pulse">
                     <div className="flex gap-3">
-                      <div className="h-10 w-10 bg-slate-100 rounded-full" />
+                      <div className="h-10 w-10 bg-slate-200 rounded-full" />
                       <div className="space-y-2 flex-1 pt-1">
-                        <div className="h-3 w-1/3 bg-slate-100 rounded" />
+                        <div className="h-3 w-1/3 bg-slate-200 rounded" />
                         <div className="h-2 w-1/4 bg-slate-100 rounded" />
                       </div>
                     </div>
-                    <div className="h-20 bg-slate-50 rounded-xl" />
+                    <div className="h-20 bg-slate-100 rounded-xl" />
                   </div>
                 ))}
               </div>
             ) : filteredPosts.length === 0 ? (
-              <div className="bg-white/80 rounded-2xl border border-slate-100 py-12 px-6 text-center space-y-3">
-                <div className="text-3xl">🍲</div>
-                <h3 className="font-bold text-slate-700">{t.noFeedResults}</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              <div className="bg-white rounded-2xl border border-slate-200/90 py-12 px-6 text-center space-y-3 shadow-sm">
+                <div className="text-4xl">🍲</div>
+                <h3 className="font-bold text-slate-800 text-base">{t.noFeedResults}</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
                   {t.noFeedResultsDesc}
                 </p>
                 <button 
@@ -1136,7 +1385,7 @@ export default function ForumFeedPage() {
                     setSelectedDistricts([]);
                     setActiveHashtagFilters([]);
                   }}
-                  className="text-xs text-blue-600 font-bold hover:underline"
+                  className="text-xs text-slate-900 font-bold hover:underline"
                 >
                   {t.toastResetFilters}
                 </button>
@@ -1149,24 +1398,24 @@ export default function ForumFeedPage() {
                   const bName = branchesList.find(b => b.branchId === post.branchId)?.name || 'Hệ thống nhà hàng';
 
                   return (
-                    <article key={post.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col">
+                    <article key={post.id} className="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden flex flex-col">
                       
                       {/* Post Header */}
-                      <div className="p-5 flex items-center justify-between border-b border-slate-50">
+                      <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-100 bg-white">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center font-bold">
+                          <div className="h-10 w-10 rounded-full bg-slate-800 text-white border border-slate-700 shadow-sm flex items-center justify-center font-bold text-sm">
                             {post.authorName.charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <div className="flex items-center gap-1.5">
-                              <h4 className="font-bold text-sm text-slate-800">{post.authorName}</h4>
-                              <span className="text-[9px] bg-blue-50 text-blue-600 font-extrabold px-2 py-0.5 rounded-full border border-blue-100">
+                              <h4 className="font-bold text-sm text-slate-900">{post.authorName}</h4>
+                              <span className="text-[9px] bg-slate-100 text-slate-700 font-bold px-2.5 py-0.5 rounded border border-slate-200">
                                 {locale === 'vi' ? 'Thành viên' : 'Member'}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                              <span className="flex items-center gap-0.5">
-                                <MapPin className="h-3 w-3" /> {bName}
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium mt-0.5">
+                              <span className="flex items-center gap-0.5 text-slate-700 font-semibold">
+                                <MapPin className="h-3 w-3 text-slate-400" /> {bName}
                               </span>
                               <span>•</span>
                               <span>{new Date(post.createdAt).toLocaleDateString()}</span>
@@ -1174,29 +1423,47 @@ export default function ForumFeedPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {user && user.phone === post.authorPhone && (
+                          {user && (
+                            (user.phone && user.phone === post.authorPhone) ||
+                            (user as any).role === 'ADMIN' ||
+                            (user as any).role === 'MANAGER' ||
+                            (user as any).role === 'COOPERATOR' ||
+                            (Array.isArray((user as any).roles) && (user as any).roles.some((r: any) => 
+                              typeof r === 'string' ? r.toUpperCase().includes('ADMIN') : r?.name?.toUpperCase().includes('ADMIN')
+                            ))
+                          ) && (
                             <button
-                              onClick={() => setDeletingPostId(post.id)}
+                              onClick={() => {
+                                if (post.restaurantReply && !isAdminOrCooperator) {
+                                  toast.warning(locale === 'vi' ? 'Bài viết đã được nhà hàng phản hồi chính thức, không thể xóa.' : 'Post has official restaurant reply and cannot be deleted.');
+                                  return;
+                                }
+                                setDeletingPostId(post.id);
+                              }}
                               className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
-                              title={locale === 'vi' ? 'Xóa bài viết' : 'Delete post'}
+                              title={post.restaurantReply && !isAdminOrCooperator ? (locale === 'vi' ? 'Đã có phản hồi từ nhà hàng' : 'Restaurant replied') : (locale === 'vi' ? 'Xóa bài viết' : 'Delete post')}
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
+
                           )}
-                          <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100/50">
+
+                          <div className="flex items-center gap-1 bg-amber-50/90 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-lg font-bold text-xs">
                             <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
-                            <span className="text-xs font-bold text-amber-700">{post.rating}</span>
+                            <span>{post.rating}</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Post Content */}
-                      <div className="p-5 space-y-3 flex-1">
+                      <div className="p-4 sm:p-5 space-y-3 flex-1">
                         {post.tableCheckIn && (
-                          <div className="text-[10px] font-bold text-blue-600 bg-blue-50/50 px-2.5 py-1 rounded-md inline-block">
+                          <div className="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-md inline-flex items-center gap-1">
                             📍 {locale === 'vi' ? 'Đang ngồi tại:' : 'Sitting at:'} {post.tableCheckIn}
                           </div>
                         )}
+
+
                         <p className="text-xs text-slate-650 leading-relaxed break-words whitespace-pre-line">
                           {post.content}
                         </p>
@@ -1345,7 +1612,7 @@ export default function ForumFeedPage() {
                                 />
                                 <button
                                   onClick={() => handleSendComment(post.id)}
-                                  className="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs hover:bg-blue-750 transition flex items-center justify-center shrink-0"
+                                  className="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs hover:bg-blue-700 transition flex items-center justify-center shrink-0"
                                 >
                                   <Send className="h-3.5 w-3.5" />
                                 </button>
@@ -1380,43 +1647,67 @@ export default function ForumFeedPage() {
 
           {/* C. RIGHT SIDEBAR */}
           <aside className="lg:col-span-3 space-y-6">
-            
-            <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
-                <TrendingUp className="h-4 w-4 text-blue-500" />
-                <h3 className="font-bold text-slate-800 text-sm">{t.sidebarTrending}</h3>
+
+            {/* Trending Hashtags Widget */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+              <div className="bg-slate-900 text-white p-3.5 px-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-slate-300" />
+                  <h3 className="font-bold text-white text-xs uppercase tracking-wider">{t.sidebarTrending}</h3>
+                </div>
+                <span className="text-[10px] bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded font-medium">
+                  HOT
+                </span>
               </div>
-              <ul className="space-y-3">
-                {trendingHashtags.map((hash, idx) => (
-                  <li key={idx}>
-                    <button
-                      onClick={() => {
-                        if (activeHashtagFilters.includes(hash.tag)) {
-                          setActiveHashtagFilters(activeHashtagFilters.filter(x => x !== hash.tag));
-                          toast.info(locale === 'vi' ? `Hủy lọc: ${hash.tag}` : `Removed filter: ${hash.tag}`);
-                        } else {
-                          setActiveHashtagFilters([...activeHashtagFilters, hash.tag]);
-                          toast.info(`${t.toastHashtagFilter} ${hash.tag}`);
-                        }
-                      }}
-                      className={`w-full text-left text-xs px-2.5 py-1.5 rounded-xl transition-all flex items-center justify-between ${activeHashtagFilters.includes(hash.tag) ? 'bg-blue-500 text-white font-bold' : 'text-slate-600 hover:bg-slate-50 hover:text-blue-600'}`}
-                    >
-                      <span>{hash.tag}</span>
-                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${activeHashtagFilters.includes(hash.tag) ? 'bg-blue-650 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                        {translateHashtagCount(hash.count)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="p-4">
+                <ul className="space-y-2">
+                  {trendingHashtags.map((hash, idx) => {
+                    const isSelected = activeHashtagFilters.includes(hash.tag);
+                    return (
+                      <li key={idx}>
+                        <button
+                          onClick={() => {
+                            if (isSelected) {
+                              setActiveHashtagFilters(activeHashtagFilters.filter(x => x !== hash.tag));
+                              toast.info(locale === 'vi' ? `Hủy lọc: ${hash.tag}` : `Removed filter: ${hash.tag}`);
+                            } else {
+                              setActiveHashtagFilters([...activeHashtagFilters, hash.tag]);
+                              toast.info(`${t.toastHashtagFilter} ${hash.tag}`);
+                            }
+                          }}
+                          className={`w-full text-left text-xs px-3 py-2 rounded-xl transition-all flex items-center justify-between ${
+                            isSelected 
+                              ? 'bg-slate-900 text-white font-bold shadow-sm' 
+                              : 'text-slate-700 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+                          }`}
+                        >
+                          <span className="font-bold">{hash.tag}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isSelected ? 'bg-slate-800 text-white' : 'bg-slate-200/60 text-slate-600'
+                          }`}>
+                            {translateHashtagCount(hash.count)}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             </div>
 
-            <div className="bg-white/90 rounded-2xl border border-slate-100 p-5 shadow-sm">
-              <div className="flex items-center gap-2 pb-3 mb-4 border-b border-blue-50">
-                <Award className="h-4 w-4 text-blue-500" />
-                <h3 className="font-bold text-slate-800 text-sm">{t.sidebarActiveMembers}</h3>
+            {/* Active Members Leaderboard Widget */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+              <div className="bg-slate-900 text-white p-3.5 px-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Award className="h-4 w-4 text-slate-300" />
+                  <h3 className="font-bold text-white text-xs uppercase tracking-wider">{t.sidebarActiveMembers}</h3>
+                </div>
+                <span className="text-[10px] bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded font-medium">
+                  TOP 5
+                </span>
               </div>
-              <div className="space-y-3.5">
+
+              <div className="p-4 space-y-2.5">
                 {(leaderboardList.length > 0 
                   ? leaderboardList.map((item: any, idx: number) => ({
                       rank: idx + 1,
@@ -1433,22 +1724,26 @@ export default function ForumFeedPage() {
                     }))
                   : leaderboardUsers
                 ).map((user) => (
-                  <div key={user.rank} className="flex items-center justify-between">
+                  <div key={user.rank} className={`flex items-center justify-between p-2.5 rounded-xl transition-all ${
+                    user.rank === 1 ? 'bg-amber-50/70 border border-amber-200/80 text-amber-900' : 'bg-slate-50 border border-slate-200/60'
+                  }`}>
                     <div className="flex items-center gap-2.5">
-                      <div className="relative">
-                        <img src={user.avatar} alt={user.name} className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-100" />
-                        {user.isTop && (
-                          <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-[8px] h-4 w-4 rounded-full flex items-center justify-center font-bold border border-white">
+                      <div className="relative shrink-0">
+                        <img src={user.avatar} alt={user.name} className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200" />
+                        {user.rank === 1 && (
+                          <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-[9px] h-4 w-4 rounded-full flex items-center justify-center font-bold shadow-sm">
                             👑
                           </span>
                         )}
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold text-slate-800 leading-none">{user.name}</h4>
-                        <span className="text-[9px] text-slate-400 mt-1 block">{t.rankText} #{user.rank}</span>
+                        <h4 className="text-xs font-bold text-slate-800 leading-none flex items-center gap-1">
+                          {user.name}
+                        </h4>
+                        <span className="text-[9px] font-medium text-slate-500 mt-1 block">{t.rankText} #{user.rank}</span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-0.5 rounded-lg">
                       {user.points} pts
                     </span>
                   </div>
@@ -1457,8 +1752,10 @@ export default function ForumFeedPage() {
             </div>
           </aside>
 
+
         </div>
       </section>
+
 
       {/* UGC REPORT MODAL */}
       {reportingPostId && (
