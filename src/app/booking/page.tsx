@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -1211,7 +1211,6 @@ export default function BookingWizardPage() {
                     <button
                       onClick={() => {
                         localStorage.setItem('oauth_redirect', window.location.pathname + window.location.search);
-                        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
                         window.location.href = `${API_BASE}/oauth2/authorization/google`;
                       }}
                       className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-lg shadow-sm flex items-center gap-2 transition shrink-0 cursor-pointer"

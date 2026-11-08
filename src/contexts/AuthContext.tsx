@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api, storeCredentials, clearCredentials } from '@/lib/api';
+import { api, storeCredentials, clearCredentials, API_BASE } from '@/lib/api';
 import type { User, Branch } from '@/types';
 
 const BRANCH_STORAGE_KEY = 'rms_active_branch';
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/logout`, {
+      await fetch(`${API_BASE}/logout`, {
         method: 'POST',
         credentials: 'include',
       });

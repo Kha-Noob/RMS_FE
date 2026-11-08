@@ -7,7 +7,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { api, connectWebSocket } from '@/lib/api';
+import { api, connectWebSocket, API_BASE } from '@/lib/api';
 import {
   Search,
   MapPin,
@@ -1251,9 +1251,9 @@ export default function ForumFeedPage() {
                     {mediaUrls.map((url, idx) => (
                       <div key={idx} className="relative h-16 w-24 rounded-xl overflow-hidden border-2 border-blue-200 bg-slate-50 shadow-sm shrink-0">
                         {url.toLowerCase().endsWith('.mp4') ? (
-                          <video src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`} className="w-full h-full object-cover" muted />
+                          <video src={`${API_BASE}${url}`} className="w-full h-full object-cover" muted />
                         ) : (
-                          <img src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`} alt="thumbnail" className="w-full h-full object-cover" />
+                          <img src={`${API_BASE}${url}`} alt="thumbnail" className="w-full h-full object-cover" />
                         )}
                         <button
                           type="button"
@@ -1479,9 +1479,9 @@ export default function ForumFeedPage() {
                               displayCount === 2 ? 'grid-cols-2' : 'grid-cols-3'
                             }`}>
                               {urls.slice(0, 3).map((url: string, idx: number) => {
-                                const cleanUrl = url.startsWith('http') 
-                                  ? url 
-                                  : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
+                                const cleanUrl = url.startsWith('http')
+                                  ? url
+                                  : `${API_BASE}${url}`;
                                 const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
                                 const isLast = idx === 2 && urls.length > 3;
                                 
@@ -1845,9 +1845,9 @@ export default function ForumFeedPage() {
             {/* Current displaying image/video */}
             {(() => {
               const url = lightboxMedia.urls[lightboxMedia.index];
-              const cleanUrl = url.startsWith('http') 
-                ? url 
-                : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
+              const cleanUrl = url.startsWith('http')
+                ? url
+                : `${API_BASE}${url}`;
               const isVid = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
               
               return isVid ? (

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import { toast } from '@/components/Toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
@@ -381,9 +381,9 @@ export default function AdminFeedModerationPage() {
                       {post.mediaUrls && (
                         <div className="flex gap-2 overflow-x-auto py-1">
                           {post.mediaUrls.split(';').filter(Boolean).map((url: string, index: number) => {
-                            const cleanUrl = url.startsWith('http') 
-                              ? url 
-                              : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}${url}`;
+                            const cleanUrl = url.startsWith('http')
+                              ? url
+                              : `${API_BASE}${url}`;
                             const isVideo = url.toLowerCase().endsWith('.mp4') || url.toLowerCase().includes('video');
                             return (
                               <div key={index} className="h-16 w-24 rounded border border-slate-100 overflow-hidden bg-slate-50 relative shrink-0">

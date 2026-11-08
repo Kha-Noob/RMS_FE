@@ -7,9 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/Toast';
 import { Eye, EyeOff, Utensils, Mail, Lock, Phone, User } from 'lucide-react';
-import { api } from '@/lib/api';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+import { api, API_BASE } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
